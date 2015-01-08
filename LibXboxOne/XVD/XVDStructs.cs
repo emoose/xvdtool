@@ -10,7 +10,7 @@ namespace LibXboxOne
     public struct XvdHeader
     {
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x200)]
-        /* 0x0 */ public byte[] Signature; // msft-xvd
+        /* 0x0 */ public byte[] Signature; // RSA signature of the hash of 0x200-0xe00
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
         /* 0x0 (from signature) */ public char[] Magic; // msft-xvd
