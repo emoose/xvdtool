@@ -57,11 +57,11 @@ Devkit/test-signed XVC packages use a static CIK which is also "widely known", w
 ### Required Files
 To make full use of this tool you will need the following files, which **are not included**. However the tool will work fine without them, but some functions might not work.
 
-- cik_keys.bin (CIK keys for XVC crypto, first entry should be the key used by SDK tools/devkits), format: <16 byte encryption key GUID><32 byte CIK>
+- cik_keys.bin (CIK keys for XVC crypto, first entry should be the key used by SDK tools/devkits), format: [16 byte encryption key GUID][32 byte CIK]
 ~~~
 md5sum: C9E58F4E1DC611E110A849648DADCC9B
 ~~~
-- odk_key.bin (ODK key used by SDK tools/devkits), format: <32 byte ODK>
+- odk_key.bin (ODK key used by SDK tools/devkits), format: [32 byte ODK]
 ~~~
 md5sum: A2BCFA87F6F83A560BD5739586A5D516
 ~~~
