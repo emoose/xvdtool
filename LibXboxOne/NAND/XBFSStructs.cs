@@ -44,18 +44,17 @@ namespace LibXboxOne
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
     public struct SpKeyVault
     {
-        /* 0x0 */ public ushort Magic; // ?? these next 4 fields look like they follow same format as 360 bootloaders? probably not
-        /* 0x2 */ public ushort Build; // ??
-        /* 0x4 */ public ushort Qfe; // ??
-        /* 0x6 */ public ushort Flags; // ??
+        /* 0x0 */ public uint Magic; // 0x43430004
+        /* 0x4 */ public uint Version; // 0x00010002
 
-        /* 0x8 */ public uint UniqueData1;
-        /* 0xC */ public uint Unknown1; // 01 0A 22 10
+        /* 0x8 */ public uint CertCreationTimestamp; // UNIX timestamp
+        /* 0xC */ public uint PspRevisionId; // 01 0A 22 10
         /* 0x10 */ public byte Unknown2; // 0x1
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xF)]
         /* 0x11 */ public byte[] UniqueData2;
-        /* 0x20 */ public uint Unknown3; // 0x1
+        /* 0x20 */ public ushort IsPrivate; // 0x1
+        /* 0x22 */ public ushort Unknown3;
         /* 0x24 */ public uint Unknown4;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x200)]
@@ -66,7 +65,7 @@ namespace LibXboxOne
         /* 0x230 */ public char[] ConsoleSerialNumber;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
-        /* 0x244 */ public byte[] UniqueData4;
+        /* 0x244 */ public byte[] UnknownHash; // hash of something in the cert
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x1C)]
         /* 0x264 */ public char[] ConsolePartNumber;
