@@ -185,11 +185,11 @@ namespace LibXboxOne
             "settings.xvd", // 18
             "1smcbl_b.bin", // 19
             "bootanim.bin", // 20, this entry and ones below it are only in retail 97xx and above?
-            "unknown.xvd", // 21
-            "unknownBlank.bin", // 22
-            "unknown2.xvd", // 23
-            "unknownNiwh.bin", // 24
-            "unknown.bin", // 25
+            "sostmpl.xvd", // 21
+            "update.cfg", // 22
+            "sosinit.xvd", // 23
+            "hwinit.cfg", // 24
+            "qaslt.xvd", // 25
             "keyvault.bin", // 26, keyvault backup? has serial/partnum/osig
             "unknown2.bin", // 27
             "unknown3.bin", // 28
