@@ -40,15 +40,14 @@ namespace LibXboxOne
         }
     }
 
-    // might be the new ConsoleSecurityCertificate?
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
-    public struct SpKeyVault
+    public struct ConsoleEndorsementCert
     {
         /* 0x0 */ public uint Magic; // 0x43430004
         /* 0x4 */ public uint Version; // 0x00010002
 
         /* 0x8 */ public uint CertCreationTimestamp; // UNIX timestamp
-        /* 0xC */ public uint PspRevisionId; // 01 0A 22 10
+        /* 0xC */ public uint PspRevisionId; // 01 0A 22 10 = rev B0, 00 0A 22 10 = rev A0
         /* 0x10 */ public byte Unknown2; // 0x1
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xF)]
@@ -199,7 +198,7 @@ namespace LibXboxOne
         private readonly string _filePath;
 
         public List<SfbxHeader> SfbxHeaders;
-        public SpKeyVault KeyVault;
+        public ConsoleEndorsementCert ConsoleCert;
 
         public string FilePath
         {
@@ -233,8 +232,8 @@ namespace LibXboxOne
             // 0x5200 - 0x5400 - blank
             // 0x5400 - 0x5800 - console data, not encrypted, format unknown
 
-            _io.Stream.Position += 0x5400; // seek to start of unencrypted data in sp_s (keyvault?)
-            KeyVault = _io.Reader.ReadStruct<SpKeyVault>();
+            _io.Stream.Position += 0x5400; // seek to start of unencrypted data in sp_s (console certificate)
+            ConsoleCert = _io.Reader.ReadStruct<ConsoleEndorsementCert>();
 
             return true;
         }
