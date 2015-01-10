@@ -13,8 +13,8 @@ namespace XBFSTool
         {
             var xbfs = new XbfsFile(@"F:\XBone\stuff\nands\DUMP1.bin");
             xbfs.Load();
-            var info = xbfs.GetSfbxInfo();
-            xbfs.ExtractSfbxData(@"F:\XBone\nanddump\");
+            var info = xbfs.GetXbfsInfo();
+            xbfs.ExtractXbfsData(@"F:\XBone\nanddump\");
             var test = xbfs.ToString(true);
         }
     }

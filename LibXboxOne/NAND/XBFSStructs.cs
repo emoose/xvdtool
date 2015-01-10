@@ -8,7 +8,7 @@ using System.Text;
 namespace LibXboxOne
 {
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct SfbxEntry
+    public struct XbfsEntry
     {
         /* 0x0 */ public uint LBA;
         /* 0x4 */ public uint Length;
@@ -23,7 +23,7 @@ namespace LibXboxOne
         public string ToString(bool formatted)
         {
             var b = new StringBuilder();
-            b.AppendLine("SfbxEntry:");
+            b.AppendLine("XbfsEntry:");
 
             string fmt = formatted ? "    " : "";
 
@@ -76,9 +76,9 @@ namespace LibXboxOne
         /* 0x280 */ public byte[] CertificateSignature;
     }
 
-    // SFBX header, can be at 0x10000, 0x810000 or 0x820000
+    // XBFS header, can be at 0x10000, 0x810000 or 0x820000
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
-    public struct SfbxHeader
+    public struct XbfsHeader
     {
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
         /* 0x0 */ public char[] Magic; // SFBX
@@ -94,7 +94,7 @@ namespace LibXboxOne
         /* 0x10 */ public byte[] Unknown5;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x3A)]
-        /* 0x20 */ public SfbxEntry[] Entries;
+        /* 0x20 */ public XbfsEntry[] Entries;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
         /* 0x3C0 */ public byte[] Unknown6;
@@ -103,7 +103,7 @@ namespace LibXboxOne
         /* 0x3D0 */ public byte[] Unknown7;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
-        /* 0x3E0 */ public byte[] SfbxHash; // SHA256 hash of 0x0 - 0x3E0
+        /* 0x3E0 */ public byte[] XbfsHash; // SHA256 hash of 0x0 - 0x3E0
 
         public override string ToString()
         {
@@ -113,7 +113,7 @@ namespace LibXboxOne
         public string ToString(bool formatted)
         {
             var b = new StringBuilder();
-            b.AppendLine("SfbxHeader:");
+            b.AppendLine("XbfsHeader:");
 
             string fmt = formatted ? "    " : "";
 
@@ -145,13 +145,11 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + "Unknown5: 0x" + Unknown5.ToHexString());
             b.AppendLineSpace(fmt + "Unknown6: 0x" + Unknown6.ToHexString());
             b.AppendLineSpace(fmt + "Unknown7: 0x" + Unknown7.ToHexString());
-            b.AppendLineSpace(fmt + "SFBX header hash: " + Environment.NewLine + fmt + SfbxHash.ToHexString());
+            b.AppendLineSpace(fmt + "XBFS header hash: " + Environment.NewLine + fmt + XbfsHash.ToHexString());
 
             for(int i = 0; i < Entries.Length; i++)
             {
-                SfbxEntry entry = Entries[i];
-                //if (entry.Length == 0)
-                //    break;
+                XbfsEntry entry = Entries[i];
                 b.AppendLine("Entry " + i);
                 b.Append(entry.ToString(formatted));
             }
@@ -162,8 +160,8 @@ namespace LibXboxOne
 
     public class XbfsFile
     {
-        static int[] sfbxOffsets = { 0x10000, 0x810000, 0x820000 };
-        public static string[] SfbxFilenames =
+        public static int[] XbfsOffsets = { 0x10000, 0x810000, 0x820000 };
+        public static string[] XbfsFilenames =
         {
             "1smcbl_a.bin", // 0
             "header.bin", // 1
@@ -200,7 +198,7 @@ namespace LibXboxOne
         private readonly IO _io;
         private readonly string _filePath;
 
-        public List<SfbxHeader> SfbxHeaders;
+        public List<XbfsHeader> XbfsHeaders;
         public ConsoleEndorsementCert ConsoleCert;
 
         public string FilePath
@@ -216,24 +214,29 @@ namespace LibXboxOne
 
         public bool Load()
         {
-            // read each SFBX header
-            SfbxHeaders = new List<SfbxHeader>();
-            foreach (int offset in sfbxOffsets)
+            // read each XBFS header
+            XbfsHeaders = new List<XbfsHeader>();
+            foreach (int offset in XbfsOffsets)
             {
                 _io.Stream.Position = offset;
-                var header = _io.Reader.ReadStruct<SfbxHeader>();
-                SfbxHeaders.Add(header);
+                var header = _io.Reader.ReadStruct<XbfsHeader>();
+                XbfsHeaders.Add(header);
             }
 
             long spDataSize = SeekToFile("sp_s.cfg");
             if (spDataSize <= 0)
                 return true;
 
-            //SP_S.cfg: (secure processor secured config? there's also a blank sp_d.cfg which is probably secure processor decrypted config)
-            // 0 - 0x200 - signature?
-            // 0x200 - 0x5200 - loaded and decrypted into PSP memory?
-            // 0x5200 - 0x5400 - blank
-            // 0x5400 - 0x5800 - console data, not encrypted, format unknown
+            // SP_S.cfg: (secure processor secured config? there's also a blank sp_d.cfg which is probably secure processor decrypted config)
+            // 0x0    - 0x200   - signature?
+            // 0x200  - 0x5200  - encrypted data? maybe loaded and decrypted into PSP memory?
+            // 0x5200 - 0x5400  - blank
+            // 0x5400 - 0x5800  - console certificate
+            // 0x5800 - 0x6000  - unknown data, looks like it has some hashes and the OSIG of the BR drive
+            // 0x6000 - 0x6600  - encrypted data?
+            // 0x6600 - 0x7400  - blank
+            // 0x7400 - 0x7410  - unknown data, hash maybe
+            // 0x7410 - 0x40000 - blank
 
             _io.Stream.Position += 0x5400; // seek to start of unencrypted data in sp_s (console certificate)
             ConsoleCert = _io.Reader.ReadStruct<ConsoleEndorsementCert>();
@@ -244,17 +247,17 @@ namespace LibXboxOne
         // returns the size of the file if found
         public long SeekToFile(string fileName)
         {
-            int idx = Array.IndexOf(SfbxFilenames, fileName);
+            int idx = Array.IndexOf(XbfsFilenames, fileName);
             if (idx < 0)
                 return 0;
             long size = 0;
-            for (int i = 0; i < SfbxHeaders.Count; i++)
+            for (int i = 0; i < XbfsHeaders.Count; i++)
             {
-                if (SfbxHeaders[i].Version != 1)
+                if (XbfsHeaders[i].Version != 1)
                     continue;
-                if (idx >= SfbxHeaders[i].Entries.Length)
+                if (idx >= XbfsHeaders[i].Entries.Length)
                     continue;
-                SfbxEntry ent = SfbxHeaders[i].Entries[idx];
+                var ent = XbfsHeaders[i].Entries[idx];
                 if (ent.Length == 0)
                     continue;
                 _io.Stream.Position = ent.LBA*0x1000;
@@ -263,16 +266,16 @@ namespace LibXboxOne
             return size;
         }
 
-        public string GetSfbxInfo()
+        public string GetXbfsInfo()
         {
             var info = new Dictionary<long, string>();
-            for (int i = 0; i < SfbxHeaders.Count; i++)
+            for (int i = 0; i < XbfsHeaders.Count; i++)
             {
-                if (SfbxHeaders[i].Version != 1)
+                if (XbfsHeaders[i].Version != 1)
                     continue;
-                for (int y = 0; y < SfbxHeaders[i].Entries.Length; y++)
+                for (int y = 0; y < XbfsHeaders[i].Entries.Length; y++)
                 {
-                    SfbxEntry ent = SfbxHeaders[i].Entries[y];
+                    var ent = XbfsHeaders[i].Entries[y];
                     if (ent.Length == 0)
                         continue;
                     long start = (long)ent.LBA * 0x1000;
@@ -294,20 +297,20 @@ namespace LibXboxOne
             return infoStr;
         }
 
-        public void ExtractSfbxData(string folderPath)
+        public void ExtractXbfsData(string folderPath)
         {
             var doneAddrs = new List<long>();
-            for (int i = 0; i < SfbxHeaders.Count; i++)
+            for (int i = 0; i < XbfsHeaders.Count; i++)
             {
-                if (SfbxHeaders[i].Version != 1)
+                if (XbfsHeaders[i].Version != 1)
                     continue;
-                for(int y = 0; y < SfbxHeaders[i].Entries.Length; y++)
+                for (int y = 0; y < XbfsHeaders[i].Entries.Length; y++)
                 {
-                    SfbxEntry ent = SfbxHeaders[i].Entries[y];
+                    var ent = XbfsHeaders[i].Entries[y];
                     if (ent.Length == 0)
                         continue;
 
-                    string fileName = (ent.LBA * 0x1000).ToString("X") + "_" + (ent.Length * 0x1000).ToString("X") + "_" + i + "_" + y + "_" + SfbxFilenames[y];
+                    string fileName = (ent.LBA * 0x1000).ToString("X") + "_" + (ent.Length * 0x1000).ToString("X") + "_" + i + "_" + y + "_" + XbfsFilenames[y];
 
                     long read = 0;
                     long total = (long)ent.Length*0x1000;
@@ -353,10 +356,10 @@ namespace LibXboxOne
             var b = new StringBuilder();
             b.AppendLine("XbfsFile");
             b.AppendLine();
-            for (int i = 0; i < SfbxHeaders.Count; i++)
+            for (int i = 0; i < XbfsHeaders.Count; i++)
             {
-                b.AppendLine("SfbxHeader slot " + i + " (0x" + sfbxOffsets[i].ToString("X") + ")");
-                b.Append(SfbxHeaders[i].ToString(formatted));
+                b.AppendLine("XbfsHeader slot " + i + " (0x" + XbfsOffsets[i].ToString("X") + ")");
+                b.Append(XbfsHeaders[i].ToString(formatted));
             }
             return b.ToString();
         }
