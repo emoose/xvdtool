@@ -55,22 +55,25 @@ namespace LibXboxOne
         /* 0x20 */ public ushort IsPrivate; // 0x1
         /* 0x22 */ public ushort Unknown3;
         /* 0x24 */ public uint Unknown4;
+        /* 0x28 */ public ulong Unknown5; // might be console ID
 
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x200)]
-        /* 0x28 */ public byte[] PossibleSignature;
-        /* 0x228 */ public ulong UniqueData3;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x100)]
+        /* 0x30 */ public byte[] UniqueKey1; // some sort of key, might be console private key
+        
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x100)]
+        /* 0x130 */ public byte[] UniqueKey2; // another key
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x14)]
         /* 0x230 */ public char[] ConsoleSerialNumber;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
-        /* 0x244 */ public byte[] UnknownHash; // hash of something in the cert
+        /* 0x244 */ public byte[] UnknownHash; // hash of something in the cert, 0x10 - 0x244 maybe, or 0x10 - 0x20, hash might be keyed in some way
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x1C)]
         /* 0x264 */ public char[] ConsolePartNumber;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x180)]
-        /* 0x280 */ public byte[] UniqueData5;
+        /* 0x280 */ public byte[] CertificateSignature;
     }
 
     // SFBX header, can be at 0x10000, 0x810000 or 0x820000
