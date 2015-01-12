@@ -48,10 +48,9 @@ namespace LibXboxOne
 
         /* 0x8 */ public uint CertCreationTimestamp; // UNIX timestamp
         /* 0xC */ public uint PspRevisionId; // 01 0A 22 10 = rev B0, 00 0A 22 10 = rev A0
-        /* 0x10 */ public byte Unknown2; // 0x1
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
+        /* 0x10 */ public byte[] SocId; // unique console ID, probably burned into the jaguar SoC during mfg
 
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xF)]
-        /* 0x11 */ public byte[] UniqueData2;
         /* 0x20 */ public ushort IsPrivate; // 0x1
         /* 0x22 */ public ushort Unknown3;
         /* 0x24 */ public uint Unknown4;

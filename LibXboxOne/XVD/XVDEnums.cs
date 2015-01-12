@@ -15,7 +15,7 @@
         // 9
         // 0xA
         Updater = 0xB,
-        // 0xC
+        UpdaterAlt = 0xC, // some updater.xvd files use this
         Template = 0xD, // sostmpl.xvd SettingsTemplate.xvd
         // 0xE
         // 0xF
