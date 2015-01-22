@@ -566,7 +566,7 @@ namespace LibXboxOne
             var testSignFound = false;
 
             var sha = SHA256.Create();
-            for (int i = 0; i < exeData.Length - 0x20; i++)
+            for (int i = 0; i < exeData.Length - 0x20; i += 8)
             {
                 if (odkFound && cikFound && cikGuidFound && testSignFound)
                     break;
@@ -577,16 +577,19 @@ namespace LibXboxOne
                 {
                     Array.Copy(exeData, i, testOdk, 0, 0x20);
                     odkFound = true;
+                    i += 0x18;
                 }
                 else if (!cikFound && hash32.IsEqualTo(testCikHash))
                 {
                     Array.Copy(exeData, i, testCik, 0, 0x20);
                     cikFound = true;
+                    i += 0x18;
                 }
                 else if (!cikGuidFound && hash16.IsEqualTo(testCikGuidHash))
                 {
                     Array.Copy(exeData, i, testCikGuid, 0, 0x10);
                     cikGuidFound = true;
+                    i += 0x8;
                 }
                 else if(!testSignFound)
                 {
@@ -595,6 +598,7 @@ namespace LibXboxOne
                     {
                         Array.Copy(exeData, i, testSign, 0, 0x91B);
                         testSignFound = true;
+                        i += 0x913;
                     }
                 }
             }

@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Collections.Generic;
+using System.IO;
 using System.Security.Cryptography;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -231,6 +232,40 @@ namespace LibXboxOne.Tests
             }
 
             Assert.IsTrue(generatedHash.IsEqualTo(expectedHash));
+        }
+
+        [TestMethod]
+        public void XvdSign_Key_Extract()
+        {
+            var sdkVersions = new List<string> { "XDK_11785" };
+            var versionsTextFile = @"F:\Xbone\Research\xdk_versions.txt";
+            if (File.Exists(versionsTextFile))
+            {
+                string[] sdkVersionArr = File.ReadAllLines(versionsTextFile);
+                foreach (string ver in sdkVersionArr)
+                    if (!sdkVersions.Contains(ver.ToUpper()))
+                        sdkVersions.Add(ver.ToUpper());
+            }
+
+            foreach (string ver in sdkVersions)
+            {
+                string path = Path.Combine(@"F:\Xbone\Research\", ver);
+                string binPath = Path.Combine(path, "bin");
+                if (Directory.Exists(binPath))
+                    path = binPath;
+                if (!File.Exists(Path.Combine(path, "xvdsign.exe")))
+                    continue;
+
+                XvdFile.CikFileLoaded = false;
+                XvdFile.OdkKeyLoaded = false;
+                XvdFile.SignKeyLoaded = false;
+                XvdFile.LoadKeysFromSdk(path);
+                Assert.IsTrue(XvdFile.CikFileLoaded && XvdFile.OdkKeyLoaded && XvdFile.SignKeyLoaded);
+            }
+
+            XvdFile.CikFileLoaded = false;
+            XvdFile.OdkKeyLoaded = false;
+            XvdFile.SignKeyLoaded = false;
         }
     }
 }
