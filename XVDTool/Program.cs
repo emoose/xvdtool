@@ -36,33 +36,34 @@ namespace XVDTool
             var disableDataExtract = false;
 
             var p = new OptionSet {
-   	            { "h|?|help", v => printHelp = v != null },
+                { "h|?|help", v => printHelp = v != null },
                 { "i|info", v => printInfo = v != null },
                 { "wi|writeinfo", v => writeInfo = v != null },
-   	            { "o|output=", v => outputFile = v },
+                { "o|output=", v => outputFile = v },
+
                 { "nd|nodatahash", v => XvdFile.DisableDataHashChecking = v != null },
                 { "nn|nonatives", v => XvdFile.DisableNativeFunctions = v != null },
                 { "ne|noextract", v => disableDataExtract = v != null },
 
-   	            { "r|rehash", v => rehashPackage = v != null },
+                { "r|rehash", v => rehashPackage = v != null },
                 { "rs|resign", v => resignPackage = v != null },
 
-   	            { "eu|decrypt", v => decryptPackage = v != null },
-   	            { "ee|encrypt", v =>
-   	            {
+                { "eu|decrypt", v => decryptPackage = v != null },
+                { "ee|encrypt", v =>
+                {
                     encryptPackage = v != null;
-   	                if (!int.TryParse(v, out encryptKeyId))
-   	                {
-   	                    Console.WriteLine("Error: invalid keyid specified for -encrypt");
-   	                    System.Diagnostics.Process.GetCurrentProcess().Kill();
-   	                }
-   	            } },
-                
-   	            { "hd|removehash|removehashtree", v => removeHashTree = v != null },
-   	            { "he|addhash|addhashtree", v => addHashTree = v != null },
+                    if (!int.TryParse(v, out encryptKeyId))
+                    {
+                        Console.WriteLine("Error: invalid keyid specified for -encrypt");
+                        System.Diagnostics.Process.GetCurrentProcess().Kill();
+                    }
+                } },
 
-   	            { "xe|extractembedded=", v => exvdDest = v },
-   	            { "xu|extractuserdata=", v => userDataDest = v },
+                { "hd|removehash|removehashtree", v => removeHashTree = v != null },
+                { "he|addhash|addhashtree", v => addHashTree = v != null },
+
+                { "xe|extractembedded=", v => exvdDest = v },
+                { "xu|extractuserdata=", v => userDataDest = v },
                 { "xv|extractvhd=", v => vhdDest = v },
 
                 { "l|filelist=", v => fileList = v },
