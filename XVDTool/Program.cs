@@ -33,6 +33,8 @@ namespace XVDTool
             var writeInfo = false;
             var printHelp = false;
 
+            var disableDataExtract = false;
+
             var p = new OptionSet {
    	            { "h|?|help", v => printHelp = v != null },
                 { "i|info", v => printInfo = v != null },
@@ -40,6 +42,7 @@ namespace XVDTool
    	            { "o|output=", v => outputFile = v },
                 { "nd|nodatahash", v => XvdFile.DisableDataHashChecking = v != null },
                 { "nn|nonatives", v => XvdFile.DisableNativeFunctions = v != null },
+                { "ne|noextract", v => disableDataExtract = v != null },
 
    	            { "r|rehash", v => rehashPackage = v != null },
                 { "rs|resign", v => resignPackage = v != null },
@@ -72,11 +75,12 @@ namespace XVDTool
             XvdFile.LoadKeysFromDisk();
 
             if(!XvdFile.SignKeyLoaded)
-                Console.WriteLine("Warning: rsa3_key.bin file not found, you will be unable to resign packages.");
+                Console.WriteLine("Warning: rsa3_key.bin file not found and unable to retrieve key from SDK files, you will be unable to resign packages.");
             if (!XvdFile.OdkKeyLoaded)
-                Console.WriteLine("Warning: odk_key.bin file not found, you will be unable to decrypt XVDs.");
+                Console.WriteLine("Warning: odk_key.bin file not found and unable to retrieve key from SDK files, you will be unable to decrypt XVDs.");
             if (!XvdFile.CikFileLoaded)
-                Console.WriteLine("Warning: cik_keys.bin file not found, you will be unable to decrypt XVCs.");
+                Console.WriteLine("Warning: cik_keys.bin file not found and unable to retrieve key from SDK files, you will be unable to decrypt XVCs.");
+
 
             if (printHelp || (String.IsNullOrEmpty(fileList) && String.IsNullOrEmpty(folder) && extraArgs.Count <= 0))
             {
@@ -91,6 +95,7 @@ namespace XVDTool
                 Console.WriteLine(fmt + "-wi (-writeinfo) - write info about package to [filename].txt");
                 Console.WriteLine(fmt + "-o (-output) <output-path> - specify output filename");
                 Console.WriteLine(fmt + "-nd (-nodatahash) - disable data hash checking, speeds up -l and -f");
+                Console.WriteLine(fmt + "-ne (-noextract) - disable data (embedded XVD/user data) extraction, speeds up -l and -f");
                 Console.WriteLine(fmt + "-nn (-nonatives) - disable importing native windows functions (ncrypt etc)");
                 Console.WriteLine(fmt + fmt +
                                   "note that signature verification/resigning won't work with this!");
@@ -138,12 +143,14 @@ namespace XVDTool
                     {
                     }
 
-                    if (xvd.Header.EmbeddedXVDLength > 0)
-                        File.WriteAllBytes(filename + ".exvd.bin", xvd.ExtractEmbeddedXvd());
+                    if (!disableDataExtract)
+                    {
+                        if (xvd.Header.EmbeddedXVDLength > 0)
+                            File.WriteAllBytes(filename + ".exvd.bin", xvd.ExtractEmbeddedXvd());
 
-                    if(xvd.Header.UserDataLength > 0 && !xvd.IsEncrypted)
-                        File.WriteAllBytes(filename + ".userdata.bin", xvd.ExtractUserData());
-
+                        if (xvd.Header.UserDataLength > 0 && !xvd.IsEncrypted)
+                            File.WriteAllBytes(filename + ".userdata.bin", xvd.ExtractUserData());
+                    }
                     xvd.Dispose();
                 }
                 return;
@@ -158,11 +165,14 @@ namespace XVDTool
                     xvd.Load();
                     File.WriteAllText(filename + ".txt", xvd.ToString(true));
 
-                    if (xvd.Header.EmbeddedXVDLength > 0)
-                        File.WriteAllBytes(filename + ".exvd.bin", xvd.ExtractEmbeddedXvd());
+                    if (!disableDataExtract)
+                    {
+                        if (xvd.Header.EmbeddedXVDLength > 0)
+                            File.WriteAllBytes(filename + ".exvd.bin", xvd.ExtractEmbeddedXvd());
 
-                    if (xvd.Header.UserDataLength > 0 && !xvd.IsEncrypted)
-                        File.WriteAllBytes(filename + ".userdata.bin", xvd.ExtractUserData());
+                        if (xvd.Header.UserDataLength > 0 && !xvd.IsEncrypted)
+                            File.WriteAllBytes(filename + ".userdata.bin", xvd.ExtractUserData());
+                    }
 
                     xvd.Dispose();
                 }

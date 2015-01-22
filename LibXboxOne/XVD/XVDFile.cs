@@ -13,7 +13,7 @@ namespace LibXboxOne
         public static bool CikFileLoaded = false;
         public static Dictionary<Guid, byte[]> CikKeys = new Dictionary<Guid, byte[]>();
         public static Guid NullGuid = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        public static byte[] TestCikHash = new byte[] { 0xb7, 0x18, 0x3b, 0x86, 0x83, 0x56, 0x43, 0x02, 0x99, 0xe5, 0xef, 0xcb, 0xa9, 0xe8, 0x34, 0x97, 0x5d, 0x78, 0xcf, 0x6f };
+        public static byte[] TestCikHash = { 0xb7, 0x18, 0x3b, 0x86, 0x83, 0x56, 0x43, 0x02, 0x99, 0xe5, 0xef, 0xcb, 0xa9, 0xe8, 0x34, 0x97, 0x5d, 0x78, 0xcf, 0x6f };
 
         public static Guid GetTestCikKey()
         {
@@ -98,16 +98,16 @@ namespace LibXboxOne
             get { return !Header.VolumeFlags.IsFlagSet((uint)XvdVolumeFlags.DataIntegrityDisabled); }
         }
 
-        private bool CryptHeaderCik(bool encrypt)
+        private void CryptHeaderCik(bool encrypt)
         {
             if ((!encrypt && CikIsDecrypted) || IsXvcFile)
             {
                 CikIsDecrypted = true;
-                return true;
+                return;
             }
 
             if (!OdkKeyLoaded)
-                return false;
+                return;
 
             var cipher = new AesCipher(OdkKey);
             if (encrypt)
@@ -122,8 +122,6 @@ namespace LibXboxOne
             }
 
             CikIsDecrypted = !encrypt;
-
-            return true;
         }
 
         private bool CryptXvcRegion(int regionIdx, bool encrypt)
@@ -491,7 +489,8 @@ namespace LibXboxOne
                             {
                                 var keyGuid = new Guid(cikIo.Reader.ReadBytes(0x10));
                                 byte[] key = cikIo.Reader.ReadBytes(0x20);
-                                CikKeys.Add(keyGuid, key);
+                                if(!CikKeys.ContainsKey(keyGuid))
+                                    CikKeys.Add(keyGuid, key);
                             }
                             CikFileLoaded = true;
                         }
@@ -525,6 +524,105 @@ namespace LibXboxOne
                     }
                 }
             }
+
+            if (!CikFileLoaded || !OdkKeyLoaded || !SignKeyLoaded)
+                LoadKeysFromSdk();
+        }
+
+
+        public static bool LoadKeysFromSdk(string sdkPath = "")
+        {
+            if (String.IsNullOrEmpty(sdkPath))
+                sdkPath = @"C:\Program Files (x86)\Microsoft Durango XDK\bin";
+
+            if (!sdkPath.ToLower().EndsWith("xvdsign.exe"))
+                sdkPath = Path.Combine(sdkPath, "xvdsign.exe");
+
+            if (!File.Exists(sdkPath))
+                return false;
+
+            byte[] exeData = File.ReadAllBytes(sdkPath);
+            byte[] testOdkHash = { 0xCA, 0x37, 0x13, 0x2D, 0xFB, 0x4B, 0x81, 0x15, 0x06, 0xAE, 0x4D, 0xC4, 0x5F, 0x45, 0x97, 0x0F, 0xED, 0x8F, 0xE5, 0xE5, 0x8C, 0x1B, 0xAC, 0xB2, 0x59, 0xF1, 0xB9, 0x61, 0x45, 0xB0, 0xEB, 0xC6 };
+            byte[] testCikGuidHash = { 0x2E, 0xD6, 0x95, 0x85, 0x97, 0x6B, 0xD0, 0x0F, 0x62, 0x06, 0xFF, 0x07, 0xC9, 0xA1, 0xFB, 0x46, 0x20, 0x74, 0xD3, 0x60, 0x64, 0x56, 0x09, 0x3D, 0x87, 0xF7, 0xE8, 0x2A, 0x73, 0x3E, 0x53, 0xD8 };
+            byte[] testCikHash = { 0x67, 0x86, 0xC1, 0x1B, 0x78, 0x8E, 0xD5, 0xCC, 0xE3, 0xC7, 0x69, 0x54, 0x25, 0xCB, 0x82, 0x97, 0x03, 0x47, 0x18, 0x06, 0x50, 0x89, 0x3D, 0x1B, 0x56, 0x13, 0xB2, 0xEF, 0xB3, 0x3F, 0x9F, 0x4E };
+            byte[] testSignHash = { 0x8E, 0x2B, 0x60, 0x37, 0x70, 0x06, 0xD8, 0x7E, 0xE8, 0x50, 0x33, 0x4C, 0x42, 0xFC, 0x20, 0x00, 0x81, 0x38, 0x6A, 0x83, 0x8C, 0x65, 0xD9, 0x6D, 0x1E, 0xA5, 0x20, 0x32, 0xAA, 0x96, 0x28, 0xC5 };
+
+            if (testOdkHash.Length != 0x20)
+                return false;
+            if (testCikHash.Length != 0x20)
+                return false;
+            if (testCikGuidHash.Length != 0x20)
+                return false;
+            if (testSignHash.Length != 0x20)
+                return false;
+
+            var testOdk = new byte[0x20];
+            var odkFound = false;
+            var testCikGuid = new byte[0x10];
+            var cikGuidFound = false;
+            var testCik = new byte[0x20];
+            var cikFound = false;
+            var testSign = new byte[0x91B];
+            var testSignFound = false;
+
+            var sha = SHA256.Create();
+            for (int i = 0; i < exeData.Length - 0x20; i++)
+            {
+                if (odkFound && cikFound && cikGuidFound && testSignFound)
+                    break;
+                byte[] hash16 = sha.ComputeHash(exeData, i, 16);
+                byte[] hash32 = sha.ComputeHash(exeData, i, 32);
+
+                if (!odkFound && hash32.IsEqualTo(testOdkHash))
+                {
+                    Array.Copy(exeData, i, testOdk, 0, 0x20);
+                    odkFound = true;
+                }
+                else if (!cikFound && hash32.IsEqualTo(testCikHash))
+                {
+                    Array.Copy(exeData, i, testCik, 0, 0x20);
+                    cikFound = true;
+                }
+                else if (!cikGuidFound && hash16.IsEqualTo(testCikGuidHash))
+                {
+                    Array.Copy(exeData, i, testCikGuid, 0, 0x10);
+                    cikGuidFound = true;
+                }
+                else if(!testSignFound)
+                {
+                    byte[] signHash = sha.ComputeHash(exeData, i, 0x91B); // 0x91B = RSA3 struct size
+                    if (signHash.IsEqualTo(testSignHash))
+                    {
+                        Array.Copy(exeData, i, testSign, 0, 0x91B);
+                        testSignFound = true;
+                    }
+                }
+            }
+
+            if (!odkFound || !cikFound || !cikGuidFound || !testSignFound)
+                return false; // failed to find one of the keys, exit out in case the rest are incorrect
+
+            if (!OdkKeyLoaded)
+            {
+                OdkKey = testOdk;
+                OdkKeyLoaded = true;
+            }
+
+            if (!SignKeyLoaded)
+            {
+                SignKey = testSign;
+                SignKeyLoaded = true;
+            }
+
+            var keyGuid = new Guid(testCikGuid);
+            if (!CikKeys.ContainsKey(keyGuid))
+            {
+                CikKeys.Add(keyGuid, testCik);
+            }
+            CikFileLoaded = true;
+            GetTestCikKey();
+
+            return true;
         }
 
         public void Dispose()

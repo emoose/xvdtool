@@ -9,7 +9,7 @@ It seems like this PSP may also hold unique keys per-console used to decrypt the
 
 Until the retail ODK has been found this tool is useless for 90% of people, but developers looking into how XVD files work will find a detailed mapping of the XVD structures and complete methods for manipulating them.
 
-However **no encryption keys are provided with this tool**, you'll have to find them yourself. MD5 hashes for the dev keys are provided below.
+However **no encryption keys are provided with this tool**, you'll have to find them yourself. MD5 hashes for the dev keys are provided below, but if you have an Xbox One development kit installed the keys can automatically be extracted from there too.
 
 Also included is a tool for extracting files from the XBFS (Xbox Boot File System) inside the Xbox One NAND, it's not much different from tuxuser's NANDOne tool except that it includes filenames for the XBFS entries, and also has a (very) small part of the NAND mapped out.
 
@@ -23,6 +23,7 @@ Parameters:
     -wi (-writeinfo) - write info about package to [filename].txt
     -o (-output) <output-path> - specify output filename
     -nd (-nodatahash) - disable data hash checking, speeds up -l and -f
+    -ne (-noextract) - disable data (embedded XVD/user data) extraction, speeds up -l and -f
     -nn (-nonatives) - disable importing native windows functions (ncrypt etc)
         note that signature verification/resigning won't work with this!
 
@@ -56,6 +57,8 @@ Devkit/test-signed XVC packages use a static CIK which is also "widely known", w
 
 ### Required Files
 To make full use of this tool you will need the following files, which **are not included**. However the tool will work fine without them, but some functions might not work.
+
+If you have an Xbox One development kit installed xvdtool will also try to extract the keys from there (if one of the keys is missing)
 
 - cik_keys.bin (CIK keys for XVC crypto, first entry should be the key used by SDK tools/devkits), format: [16 byte encryption key GUID][32 byte CIK]
 ~~~

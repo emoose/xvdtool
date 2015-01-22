@@ -91,7 +91,8 @@ namespace LibXboxOne
         /* 0x298 */ public ushort RequiredSystemVersion3;
         /* 0x29A */ public ushort RequiredSystemVersion4;
 
-        /* 0x29C */ public uint Unknown9;
+        /* 0x29C */ public uint Unk_0x2_Means_Test_ODK; // set to 0x2 on all publicly released test ODK-crypted updater.xvd files (OSUDT2 and RestoreSystemDefaults)
+                                                        // strange though because test ODK-crypted xvds made with xvdsign don't have this flag set
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xB60)]
         /* 0x2A0 */ public byte[] Reserved;
@@ -173,8 +174,6 @@ namespace LibXboxOne
                 b.AppendLineSpace(fmt + "Unknown7 != 0");
             if (!Unknown8.IsArrayEmpty())
                 b.AppendLineSpace(fmt + "Unknown8 != null");
-            if (Unknown9 != 0)
-                b.AppendLineSpace(fmt + "Unknown9 != 0");
             if (!Reserved.IsArrayEmpty())
                 b.AppendLineSpace(fmt + "Reserved != null");
 
@@ -191,6 +190,14 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + (VolumeFlags.IsFlagSet((uint)XvdVolumeFlags.EncryptionDisabled)
                 ? "Decrypted"
                 : "Encrypted"));
+
+            if (Unk_0x2_Means_Test_ODK != 0)
+            {
+                if (Unk_0x2_Means_Test_ODK == 0x2)
+                    b.AppendLineSpace(fmt + "(using test ODK) (maybe)");
+                else
+                    b.AppendLineSpace(fmt + "Unk_0x2_Means_Test_ODK != 0 && != 2! (actually 0x" + Unk_0x2_Means_Test_ODK.ToString("X") + ")");
+            }
 
             b.AppendLineSpace(fmt + (VolumeFlags.IsFlagSet((uint)XvdVolumeFlags.DataIntegrityDisabled)
                 ? "Data integrity disabled (doesn't use hash tree)"
@@ -254,7 +261,7 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + "Unknown6: 0x" + Unknown6.ToString("X"));
             b.AppendLineSpace(fmt + "Unknown7: 0x" + Unknown7.ToString("X"));
             b.AppendLineSpace(fmt + "Unknown8: " + Environment.NewLine + fmt + Unknown8.ToHexString());
-            b.AppendLineSpace(fmt + "Unknown9: 0x" + Unknown9.ToString("X"));
+            b.AppendLineSpace(fmt + "Unknown9/TestODK indicator: 0x" + Unk_0x2_Means_Test_ODK.ToString("X"));
 
             if (!Reserved.IsArrayEmpty())
                 b.AppendLineSpace(fmt + "Reserved: " + Environment.NewLine + fmt + Reserved.ToHexString());
