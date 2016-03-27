@@ -27,8 +27,9 @@
         // 0x15
         // 0x16
         // 0x17
-        // 0x18
-        DownloadableContent = 0x19
+        AppDLC = 0x18, // downloadable content for an application
+        GameDLC = 0x19, // downloadable content for a game title
+        UniversalDLC = 0x1A // dowloadable content not associated with an application or game
         // ReSharper restore InconsistentNaming
     }
 

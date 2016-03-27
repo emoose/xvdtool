@@ -91,8 +91,7 @@ namespace LibXboxOne
         /* 0x298 */ public ushort RequiredSystemVersion3;
         /* 0x29A */ public ushort RequiredSystemVersion4;
 
-        /* 0x29C */ public uint Unk_0x2_Means_Test_ODK; // set to 0x2 on all publicly released test ODK-crypted updater.xvd files (OSUDT2 and RestoreSystemDefaults)
-                                                        // strange though because test ODK-crypted xvds made with xvdsign don't have this flag set
+        /* 0x29C */ public uint ODKKeyslotID; // 0x2 for test ODK, 0x0 for retail ODK? (makepkg doesn't set this for test ODK crypted packages?)
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xB60)]
         /* 0x2A0 */ public byte[] Reserved;
@@ -182,6 +181,8 @@ namespace LibXboxOne
 
             b.AppendLineSpace(fmt + (IsSignedWithRedKey ? "Signed" : "Not signed") + " with red key");
 
+            b.AppendLineSpace(fmt + "Using " + (ODKKeyslotID == 2 ? "test" : "unknown") + " ODK(?)");
+
             if (VolumeFlags.IsFlagSet((uint)XvdVolumeFlags.SystemFile))
                 b.AppendLineSpace(fmt + "System file");
 
@@ -190,14 +191,6 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + (VolumeFlags.IsFlagSet((uint)XvdVolumeFlags.EncryptionDisabled)
                 ? "Decrypted"
                 : "Encrypted"));
-
-            if (Unk_0x2_Means_Test_ODK != 0)
-            {
-                if (Unk_0x2_Means_Test_ODK == 0x2)
-                    b.AppendLineSpace(fmt + "(using test ODK) (maybe)");
-                else
-                    b.AppendLineSpace(fmt + "Unk_0x2_Means_Test_ODK != 0 && != 2! (actually 0x" + Unk_0x2_Means_Test_ODK.ToString("X") + ")");
-            }
 
             b.AppendLineSpace(fmt + (VolumeFlags.IsFlagSet((uint)XvdVolumeFlags.DataIntegrityDisabled)
                 ? "Data integrity disabled (doesn't use hash tree)"
@@ -230,6 +223,7 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + "PDUID/Build Id: " + new Guid(PDUID));
             b.AppendLineSpace(fmt + String.Format("Package Version: {3}.{2}.{1}.{0}", PackageVersion1, PackageVersion2, PackageVersion3, PackageVersion4));
             b.AppendLineSpace(fmt + String.Format("Required System Version: {3}.{2}.{1}.{0}", RequiredSystemVersion1, RequiredSystemVersion2, RequiredSystemVersion3, RequiredSystemVersion4));
+            b.AppendLineSpace(fmt + "ODK Keyslot ID: " + ODKKeyslotID.ToString());
             b.AppendLineSpace(fmt + "Encrypted CIK:" + Environment.NewLine + fmt + EncryptedCIK.ToHexString());
             b.AppendLineSpace(fmt + "PECatalogInfo0: 0x" + PECatalogInfo0.ToString("X"));
 
@@ -261,7 +255,6 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + "Unknown6: 0x" + Unknown6.ToString("X"));
             b.AppendLineSpace(fmt + "Unknown7: 0x" + Unknown7.ToString("X"));
             b.AppendLineSpace(fmt + "Unknown8: " + Environment.NewLine + fmt + Unknown8.ToHexString());
-            b.AppendLineSpace(fmt + "Unknown9/TestODK indicator: 0x" + Unk_0x2_Means_Test_ODK.ToString("X"));
 
             if (!Reserved.IsArrayEmpty())
                 b.AppendLineSpace(fmt + "Reserved: " + Environment.NewLine + fmt + Reserved.ToHexString());

@@ -3,9 +3,9 @@ xvdtool is a utility coded in C# to manipulate Xbox One XVD (and XVC) packages.
 
 It can print detailed info about package headers, resign, rehash, en/decrypt and verify data integrity of a package, it can also convert (some, but not all) decrypted XVD files to VHD.
 
-Currently it's only been tested with dev-crypted packages as the retail 256-bit ODK (Origin Decryption Key?) is unknown. It's assumed based on observations of older system files that the retail ODK is stored in the Xbox One's NAND, inside a sort of encrypted keyvault (sp_s.cfg). The keyvaults encryption/decryption is handled by a hardware component inside the Xbox One's CPU called the PSP (Platform Security Processor).
+Currently it's only been tested with dev-crypted packages, as the retail 256-bit ODK (Origin/Obfuscation Decryption Key?) is unknown.
 
-It seems like this PSP may also hold unique keys per-console used to decrypt the sp_s.cfg file, as the encrypted sp_s data is completely different for each console. It'll probably require a HostOS exploit to access the PSP and extract things from it, and since only the HostOS can access the PSP dev kits would also need an exploit in order to access it (as dev kits can only use debug tools on the SystemOS / GameOS partitions, debugging the HostOS seems to be for Microsoft internal developers only)
+It's assumed based on observations of older system files that the retail ODK keyslot is only accessible via the PSP (Platform Security Processor). However right now it's unknown whether the key can actually be dumped from it or not, as it seems that the PSP itself handles decrypting the CIK (the XVD driver passes the XVD header over to the PSP, then the PSP decrypts the CIK and returns the new header)
 
 Until the retail ODK has been found this tool is useless for 90% of people, but developers looking into how XVD files work will find a detailed mapping of the XVD structures and complete methods for manipulating them.
 
