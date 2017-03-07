@@ -1,17 +1,12 @@
-# xvdtool
-xvdtool is a utility coded in C# to manipulate Xbox One XVD (and XVC) packages.
+### xvdtool - by emoose (aka noob25x)
 
-It can print detailed info about package headers, resign, rehash, en/decrypt and verify data integrity of a package, it can also convert (some, but not all) decrypted XVD files to VHD.
+xvdtool is a C# command-line utility for manipulating Xbox One XVD/XVC packages. It can print detailed info about package headers, resign, rehash, en/decrypt and verify data integrity of a package, it can also convert (some, but not all) decrypted XVD files to VHD.
 
-Currently it's only been tested with dev-crypted packages, as the retail 256-bit ODK (Origin/Obfuscation Decryption Key?) is unknown.
+So far it's only been tested with dev-crypted packages (which use a different 256-bit "ODK" obfuscation key to retail packages), as the retail key is still unknown. **This currently makes the tool useless for 90% of people**, but developers looking into how XVD files work will find a detailed mapping of the XVD structures and complete methods for manipulating them.
 
-It's assumed based on observations of older system files that the retail ODK keyslot is only accessible via the PSP (Platform Security Processor). However right now it's unknown whether the key can actually be dumped from it or not, as it seems that the PSP itself handles decrypting the CIK (the XVD driver passes the XVD header over to the PSP, then the PSP decrypts the CIK and returns the new header)
+However **no encryption keys are provided with this tool**, you'll have to find them yourself. MD5 hashes for the dev keys are provided below, if you have an Xbox One development kit installed the keys can automatically be extracted from there too.
 
-Until the retail ODK has been found this tool is useless for 90% of people, but developers looking into how XVD files work will find a detailed mapping of the XVD structures and complete methods for manipulating them.
-
-However **no encryption keys are provided with this tool**, you'll have to find them yourself. MD5 hashes for the dev keys are provided below, but if you have an Xbox One development kit installed the keys can automatically be extracted from there too.
-
-Also included is a tool for extracting files from the XBFS (Xbox Boot File System) inside the Xbox One NAND, it's not much different from tuxuser's NANDOne tool except that it includes filenames for the XBFS entries, and also has a (very) small part of the NAND mapped out.
+Also included is a tool for extracting files from the XBFS (Xbox Boot File System) inside the Xbox One NAND, based on tuxuser's original [NANDOne](https://github.com/tuxuser/NANDOne) work with a few small additions.
 
 ### Usage
 Usage  : xvdtool.exe [parameters] [filename]
@@ -51,14 +46,14 @@ Parameters:
 
 To decrypt non-XVC packages you'll need the correct ODK, this key should be saved as odk_key.bin in the same folder as xvdtool. The devkit ODK is "widely known" and a MD5 hash is provided below, but as mentioned above the retail key is currently unknown.
 
-Decrypting XVC packages is a different matter, XVC packages use a **CIK (Content ?? Key?)** located outside the package (as opposed to non-XVC packages having the CIK inside the package, albeit an encrypted version which is decrypted with the ODK).
+Decrypting XVC packages is a different matter, XVC packages use a **CIK (Content Integrity Key)** which appears to be stored somewhere outside the package, however where and how it's stored is currently unknown. If you have the correct deobfuscated CIK for a given package you should be able to save it as cik_key.bin to decrypt the package.
 
-Devkit/test-signed XVC packages use a static CIK which is also "widely known", with a MD5 hash provided below, this key should be saved as cik_key.bin. Retail packages have their CIK stored in an encrypted form inside license data retrieved from Xbox Live/the game disk. The key to decrypt this CIK is unknown (most likely stored in the PSP keyvault). If you have the correct decrypted CIK for a given package you should be able to just save it as cik_key.bin to decrypt the package.
+Devkit/test-signed XVC packages use a static CIK which is also "widely known" (MD5 hash provided below), this key should be saved as cik_key.bin.
 
 ### Required Files
-To make full use of this tool you will need the following files, which **are not included**. However the tool will work fine without them, but some functions might not work.
+To make full use of this tool you'll need the following files, which **are not included**. The tool will work fine without them, but some functions might not work.
 
-If you have an Xbox One development kit installed xvdtool will also try to extract the keys from there (if one of the keys is missing)
+If you have an Xbox One development kit installed xvdtool will also try to extract the keys from there.
 
 - cik_keys.bin (CIK keys for XVC crypto, first entry should be the key used by SDK tools/devkits), format: [16 byte encryption key GUID][32 byte CIK]
 ~~~
@@ -73,10 +68,10 @@ md5sum: A2BCFA87F6F83A560BD5739586A5D516
 md5sum: 2DC371F46B67E29FFCC514C5B134BF73
 ~~~
 
-These files should be placed in the same folder as xvdtool.exe (xvdtool will also look for them in the root of any drives on your system, so the exe can be copied to different locations without needing to copy the keys with it.)
+These files should be placed in the same folder as xvdtool.exe, or at the root of any drive in your system.
 
 ### What are XVDs?
-XVD packages are a secured file format used by the Xbox One to store data, an evolution on the Xbox 360's STFS packages. XVD files are usually used to store system images/data while XVCs (a slightly modified variant of XVDs) are used to store game data.
+XVD packages are a secured file format used by the Xbox One to store data, an analogue to the Xbox 360's STFS packages. XVD files are usually used to store system images/data while XVCs (a slightly modified variant of XVDs) are used to store game data.
 
 For a more detailed explanation of XVD files see xvd_info.md
 
@@ -85,6 +80,4 @@ xvdtool has only been tested on Windows but it might work on other systems via M
 
 There's no help given for this tool besides this readme, it's also currently **very** experimental and **very** likely to blow up in your face. If you do encounter any bugs please submit a description of what happened to the issue tracker.
 
-If you want to help out with development feel free, just make a fork of this repo, make your changes in a new branch of that fork and then submit a pull request from that branch to the master branch of this repo. 
-
-Donations to help me buy an Xbox One to try things with (as I'm still stuck with a 360 ;_;) are appreciated, my bitcoin address is 17gkhLUF1UBMjfb2goaR39AN9RVUvNmAim
+If you want to help out with development feel free, just make a fork of this repo, make your changes in a new branch of that fork and then submit a pull request from that branch to the master branch of this repo.
