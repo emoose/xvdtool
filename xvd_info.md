@@ -1,5 +1,5 @@
 ### What are XVDs?
-XVD packages are a secured file format used by the Xbox One to store data, an advancement of the Xbox 360's STFS packages. XVD files are usually used to store system images/data while XVCs (a slightly modified version of XVDs) are used to store game data.
+XVD packages are a secured file format used by the Xbox One to store data, similar to the Xbox 360's STFS packages. XVD files are usually used to store system images/data while XVCs (a slightly modified version of XVDs) are used to store game data.
 
 An XVD file consists of a header containing the hash of the top level hash table, certain metadata about the file (such as content ID, content type, the sandbox ID the package was created for, the product ID that the package belongs to, etc) and also a signature of the header itself which is stored at the beginning of the XVD file, from 0h to 200h.
 
@@ -11,12 +11,12 @@ Following the hash tree is another optional area reserved for user data (also kn
 
 Finally after the user data comes the actual XVD data. If the XVD file is an XVC the first 3 blocks are reserved for an XVC descriptor (which is never encrypted). This specifies the content ID, any encryption keys used, the chunks used to update packages (if the XVC is using chunk-based updates) and offsets/lengths/keyIDs of the different XVC regions in the file, along with other metadata. XVC regions can be encrypted with any of the keys specified in the XVC descriptor. The region-based encryption also includes the XVC region ID as part of the AES-128-CTR IV/counter.
 
-Then comes the actual filesystem data. This data is encrypted with the CIK (not sure what it stands for, CIK can either be the decrypted value of the encrypted CIK in the XVD header if it's an XVD, or the key corresponding to the XVC key GUID.)
+Then comes the actual filesystem data. This data is encrypted with the CIK (Content Integrity Key, can either be the decrypted value of the encrypted CIK in the XVD header if it's an XVD, or the key corresponding to the XVC key GUID.)
 
 The filesystem data is just a normal NTFS filesystem containing the files inside the package, other filesystems may be possible but NTFS is the only one observed so far.
 
 ### Security Overview
-From a security standpoint XVDs are provably secure:
+From a security standpoint XVDs seem very secure:
 
 - Each block of data is hashed, with the hash stored in the bottom-most hash tree level
 - Each block in that hash tree level is then hashed with the hash result stored in the level above it
@@ -29,3 +29,12 @@ To make sure the package is authenticated by Microsoft and not tampered with the
 The data blocks inside XVD files are also secured with customized AES-128-CTR encryption (the encrypted data is then used for the hashes), with XVC packages the Xbox One either retrieves the encryption key over Xbox Live or retrieves it from the game disc, however it seems that the keys from these methods don't work as CIK keys. It's assumed that these keys are obfuscated/encrypted in some way (possibly with the retail ODK in the same way that the encrypted CIK in non-XVC files is encrypted?)
 
 Non-XVC files use an ODK (origin decryption key?) which appears to be static for all XVDs (but differs between retail/devkits ?), this key is used to decrypt the encrypted CIK in the XVD header, the decrypted CIK is then used to decrypt the XVD data.
+
+### Platform Security Processor
+The PSP is a self-contained core located on the Xbox CPU die. From official AMD documentation its described as an ARM core, however instead of running TrustZone per AMD's spec it appears to be running MS customized code.
+
+It seems that the PSP handles crypto for certain things, and also may use keyslots in a way similar to the Xbox 360's keyvault, except instead of the actual console OS having access to these keys only code running on the PSP can use them.
+
+The Xbox One HostOS contacts the PSP through the psp.sys driver. For decrypting XVDs it appears to send the header of the XVD to the PSP, which then (assumably) decrypts the CIK field in the header and sends it back, with the OS performing the rest of the decryption.
+
+psp.sys also has commands which seem to read memory from the PSP instead of sending commands to it, the contents of this memory are unknown, but it's possible (albeit unlikely) that the ODK may be in this area of memory.
