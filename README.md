@@ -2,7 +2,7 @@
 
 xvdtool is a C# command-line utility for manipulating Xbox One XVD/XVC packages. It can print detailed info about package headers, resign, rehash, en/decrypt and verify data integrity of a package, it can also convert (some, but not all) decrypted XVD files to VHD.
 
-So far it's only been tested with dev-crypted packages (which use a different 256-bit "ODK" obfuscation key to retail packages), as the retail key is still unknown. **This currently makes the tool useless for 90% of people**, but developers looking into how XVD files work will find a detailed mapping of the XVD structures and complete methods for manipulating them.
+So far it's only been tested with dev-crypted packages (which use a different 256-bit **Offline Distribution Key (ODK)** to retail packages), as the retail key is still unknown. **This currently makes the tool useless for 90% of people**, but developers looking into how XVD files work will find a detailed mapping of the XVD structures and complete methods for manipulating them.
 
 However **no encryption keys are provided with this tool**, you'll have to find them yourself. MD5 hashes for the dev keys are provided below, if you have an Xbox One development kit installed the keys can automatically be extracted from there too.
 
@@ -46,7 +46,7 @@ Parameters:
 
 To decrypt non-XVC packages you'll need the correct ODK, this key should be saved as odk_key.bin in the same folder as xvdtool. The devkit ODK is "widely known" and a MD5 hash is provided below, but as mentioned above the retail key is currently unknown.
 
-Decrypting XVC packages is a different matter, XVC packages use a **CIK (Content Integrity Key)** which appears to be stored somewhere outside the package, however where and how it's stored is currently unknown. If you have the correct deobfuscated CIK for a given package you should be able to save it as cik_key.bin to decrypt the package.
+Decrypting XVC packages is a different matter, XVC packages use a **Content Instance Key (CIK)** which appears to be stored somewhere outside the package, however where and how it's stored is currently unknown. If you have the correct deobfuscated CIK for a given package you should be able to save it as cik_key.bin to decrypt the package.
 
 Devkit/test-signed XVC packages use a static CIK which is also "widely known" (MD5 hash provided below), this key should be saved as cik_key.bin.
 
