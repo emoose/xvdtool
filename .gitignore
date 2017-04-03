@@ -3,3 +3,8 @@
 ################################################################################
 
 /.vs
+/LibXboxOne/obj
+/LibXboxOne/obj
+/LibXboxOne.Tests/obj
+/XBFSTool/obj
+/XVDTool/obj
