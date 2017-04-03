@@ -129,6 +129,33 @@ namespace LibXboxOne
         public byte[] RsaSignature;
     }
 
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
+    public struct FlashHeader
+    {
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
+        public char[] Magic;
+
+        public byte Version;
+        public byte BootSlot;
+        public ushort UnkVersion;
+
+        // reserved?
+        public byte Unk1;
+        public byte Unk2;
+        public byte Unk3;
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x3A)]
+        public XbfsEntry[] Entries;
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x220)]
+        public byte[] unkThing;
+
+        public Guid SystemUnkId; // need to check up on this
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
+        public byte[] XbfsHash; // SHA256 hash of 0x0 - 0x3E0
+    }
+
     // XBFS header, can be at 0x10000, 0x810000 or 0x820000
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
     public struct XbfsHeader

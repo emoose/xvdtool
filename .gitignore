@@ -8,3 +8,7 @@
 /LibXboxOne.Tests/obj
 /XBFSTool/obj
 /XVDTool/obj
+/LibXboxOne/bin/Debug
+/LibXboxOne.Tests/bin/Debug
+/XBFSTool/bin/Debug
+/XVDTool/bin/Debug
