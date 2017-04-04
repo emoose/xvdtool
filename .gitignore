@@ -1,0 +1,14 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/.vs
+/LibXboxOne/obj
+/LibXboxOne/obj
+/LibXboxOne.Tests/obj
+/XBFSTool/obj
+/XVDTool/obj
+/LibXboxOne/bin/Debug
+/LibXboxOne.Tests/bin/Debug
+/XBFSTool/bin/Debug
+/XVDTool/bin/Debug

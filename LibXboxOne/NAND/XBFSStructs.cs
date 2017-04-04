@@ -40,39 +40,120 @@ namespace LibXboxOne
         }
     }
 
+    //[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
+    //public struct ConsoleEndorsementCert
+    //{
+    //    /* 0x0 */ public uint Magic; // 0x43430004
+    //    /* 0x4 */ public uint Version; // 0x00010002
+
+    //    /* 0x8 */ public uint CertCreationTimestamp; // UNIX timestamp
+    //    /* 0xC */ public uint PspRevisionId; // 01 0A 22 10 = rev B0, 00 0A 22 10 = rev A0
+    //    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
+    //    /* 0x10 */ public byte[] SocId; // unique console ID, probably burned into the jaguar SoC during mfg
+
+    //    /* 0x20 */ public ushort IsPrivate; // 0x1
+    //    /* 0x22 */ public ushort Unknown3;
+    //    /* 0x24 */ public uint Unknown4;
+    //    /* 0x28 */ public ulong Unknown5; // might be console ID
+
+    //    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x100)]
+    //    /* 0x30 */ public byte[] UniqueKey1; // some sort of key, might be console private key
+
+    //    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x100)]
+    //    /* 0x130 */ public byte[] UniqueKey2; // another key
+
+    //    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x14)]
+    //    /* 0x230 */ public char[] ConsoleSerialNumber;
+
+    //    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
+    //    /* 0x244 */ public byte[] UnknownHash; // hash of something in the cert, 0x10 - 0x244 maybe, or 0x10 - 0x20, hash might be keyed in some way
+
+    //    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x1C)]
+    //    /* 0x264 */ public char[] ConsolePartNumber;
+
+    //    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x180)]
+    //    /* 0x280 */ public byte[] CertificateSignature;
+    //}
+
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
-    public struct ConsoleEndorsementCert
+    public struct PspConsoleCert
     {
-        /* 0x0 */ public uint Magic; // 0x43430004
-        /* 0x4 */ public uint Version; // 0x00010002
+        public UInt16 StructID; // 0x4343 (ASCII: CC = ConsoleCert?)
 
-        /* 0x8 */ public uint CertCreationTimestamp; // UNIX timestamp
-        /* 0xC */ public uint PspRevisionId; // 01 0A 22 10 = rev B0, 00 0A 22 10 = rev A0
+        public UInt16 Size;
+
+        public UInt16 IssuerKeyId;  // Key Version
+
+        public UInt16 ProtocolVer;  // unknown
+
+        public UInt32 IssueDate;   // POSIX time
+
+        public UInt32 PspRevisionId; // PSP Version
+
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
-        /* 0x10 */ public byte[] SocId; // unique console ID, probably burned into the jaguar SoC during mfg
+        public byte[] SocId;
 
-        /* 0x20 */ public ushort IsPrivate; // 0x1
-        /* 0x22 */ public ushort Unknown3;
-        /* 0x24 */ public uint Unknown4;
-        /* 0x28 */ public ulong Unknown5; // might be console ID
+        public UInt16 GenerationId;
+
+        public byte ConsoleRegion;
+
+        public byte ReservedByte; // 0
+
+        public UInt32 ReservedDword; // 0
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x8)]
+        public byte[] VendorId; // size of 8
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x100)]
-        /* 0x30 */ public byte[] UniqueKey1; // some sort of key, might be console private key
-        
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x100)]
-        /* 0x130 */ public byte[] UniqueKey2; // another key
+        public byte[] AttestationPubKey; // Public key that is used by the Xbox One ChalResp system
 
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x14)]
-        /* 0x230 */ public char[] ConsoleSerialNumber;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x100)]
+        public byte[] ReservedPublicKey;
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xC)]
+        public byte[] ConsoleSerialNumber;
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x8)]
+        public byte[] ConsoleSku;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
-        /* 0x244 */ public byte[] UnknownHash; // hash of something in the cert, 0x10 - 0x244 maybe, or 0x10 - 0x20, hash might be keyed in some way
+        public byte[] ConsoleSettingsHash; // Hash of factory settings (SHA-256)
 
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x1C)]
-        /* 0x264 */ public char[] ConsolePartNumber;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xC)]
+        public byte[] ConsolePartNumber;
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
+        public byte[] SomeData; // unknown
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x180)]
-        /* 0x280 */ public byte[] CertificateSignature;
+        public byte[] RsaSignature;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
+    public struct FlashHeader
+    {
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
+        public char[] Magic;
+
+        public byte Version;
+        public byte BootSlot;
+        public ushort UnkVersion;
+
+        // reserved?
+        public byte Unk1;
+        public byte Unk2;
+        public byte Unk3;
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x3A)]
+        public XbfsEntry[] Entries;
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x220)]
+        public byte[] unkThing;
+
+        public Guid SystemUnkId; // need to check up on this
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
+        public byte[] XbfsHash; // SHA256 hash of 0x0 - 0x3E0
     }
 
     // XBFS header, can be at 0x10000, 0x810000 or 0x820000
@@ -198,7 +279,7 @@ namespace LibXboxOne
         private readonly string _filePath;
 
         public List<XbfsHeader> XbfsHeaders;
-        public ConsoleEndorsementCert ConsoleCert;
+        public PspConsoleCert ConsoleCert;
 
         public string FilePath
         {
@@ -238,7 +319,7 @@ namespace LibXboxOne
             // 0x7410 - 0x40000 - blank
 
             _io.Stream.Position += 0x5400; // seek to start of unencrypted data in sp_s (console certificate)
-            ConsoleCert = _io.Reader.ReadStruct<ConsoleEndorsementCert>();
+            ConsoleCert = _io.Reader.ReadStruct<PspConsoleCert>();
 
             return true;
         }

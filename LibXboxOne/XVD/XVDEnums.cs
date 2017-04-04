@@ -33,6 +33,39 @@
         // ReSharper restore InconsistentNaming
     }
 
+    public enum XvdContentTypeNew : uint
+    {
+        ContentTypeData = 0,
+        ContentTypeTitle = 1,
+        ContentTypeSystemOS = 2,
+        ContentTypeEraOS = 3,
+        ContentTypeScratch = 4,
+        ContentTypeResetData = 5,
+        ContentTypeApplication = 6,
+        ContentTypeHostOS = 7,
+        ContentTypeX360STFS = 8,
+        ContentTypeX360FATX = 9,
+        ContentTypeX360GDFX = 0xA,
+        ContentTypeUpdater = 0xB,
+        ContentTypeOfflineUpdater = 0xC,
+        ContentTypeTemplate = 0xD,
+        ContentTypeMteHost = 0xE,
+        ContentTypeMteApp = 0xF,
+        ContentTypeMteTitle = 0x10,
+        ContentTypeMteEraOS = 0x11,
+        ContentTypeEraTools = 0x12,
+        ContentTypeSystemTools = 0x13,
+        ContentTypeSystemAux = 0x14,
+        ContentTypeSomethingSomething = 0x15,
+        ContentTypeCodec = 0x16,
+        ContentTypeQaslt = 0x17,
+        ContentTypeAppDlc = 0x18,
+        ContentTypeTitleDlc = 0x19,
+        ContentTypeUniversalDlc = 0x1A,
+        ContentTypeSystemData = 0x1B,
+        ContentTypeTest = 0x1C
+    }
+
     public enum XvcRegionFlags : uint
     {
         Resident = 1,
