@@ -98,6 +98,14 @@ namespace LibXboxOne
             get { return !Header.VolumeFlags.IsFlagSet((uint)XvdVolumeFlags.DataIntegrityDisabled); }
         }
 
+        public XvdFile(string path)
+        {
+            _filePath = path;
+            _io = new IO(path);
+
+            LoadKeysFromDisk();
+        }
+
         private void CryptHeaderCik(bool encrypt)
         {
             if ((!encrypt && CikIsDecrypted) || IsXvcFile)
@@ -182,9 +190,10 @@ namespace LibXboxOne
             return true;
         }
 
-        private ulong CalculateHashBlockNumForBlockNum(uint unk1, ulong blockNum, uint idx, out ulong entryNumInBlock)
+        internal static ulong CalculateHashBlockNumForBlockNum(uint unk1, ulong hashTreeLevels, ulong xvdDataBlockCount,
+                                                                ulong blockNum, uint idx, out ulong entryNumInBlock)
         {
-            var tempHashTreeLevels = HashTreeLevels;
+            var tempHashTreeLevels = hashTreeLevels;
 
             entryNumInBlock = 0;
 
@@ -217,7 +226,7 @@ namespace LibXboxOne
                 if (tempHashTreeLevels == 0)
                     return returnVal;
 
-                var addr = XvdDataBlockCount + 0x70E3;
+                var addr = xvdDataBlockCount + 0x70E3;
 
                 addr = addr * 0x9121b243;
                 edx = (uint)(addr >> 32);
@@ -273,7 +282,7 @@ namespace LibXboxOne
                 if (tempHashTreeLevels == 0)
                     return returnVal;
 
-                var addr = XvdDataBlockCount + 0x4AF767;
+                var addr = xvdDataBlockCount + 0x4AF767;
 
                 addr = addr*0xDA8D187D;
                 edx = (uint)(addr >> 32);
@@ -329,7 +338,7 @@ namespace LibXboxOne
                 if (tempHashTreeLevels == 0)
                     return returnVal;
 
-                var addr = XvdDataBlockCount + 0x31C84B0F;
+                var addr = xvdDataBlockCount + 0x31C84B0F;
 
                 var newAddr = addr * 0x491CC17D;
                 edx = (uint)(newAddr >> 32);
@@ -376,7 +385,7 @@ namespace LibXboxOne
             return returnVal;
         }
 
-        private ulong CalculateNumHashBlocksInLevel(ulong size, ulong idx)
+        internal static ulong CalculateNumHashBlocksInLevel(ulong size, ulong idx)
         {
             var tempSize = size;
             if (idx == 0)
@@ -463,14 +472,6 @@ namespace LibXboxOne
                 UserDataOffset = HashTreeOffset;
 
             DataOffset = UserDataOffset + (userDataBlocks * 0x1000);
-        }
-
-        public XvdFile(string path)
-        {
-            _filePath = path;
-            _io = new IO(path);
-
-            LoadKeysFromDisk();
         }
 
         public static void LoadKeysFromDisk()
@@ -627,11 +628,6 @@ namespace LibXboxOne
             GetTestCikKey();
 
             return true;
-        }
-
-        public void Dispose()
-        {
-            _io.Dispose();
         }
 
         public bool Decrypt()
@@ -878,7 +874,7 @@ namespace LibXboxOne
 
             byte[] xvcData = ms.ToArray();
             msIo.Dispose();
-            byte[] hash = SHA256.Create().ComputeHash(xvcData);
+            byte[] hash = HashUtils.ComputeSha256(xvcData);
             bool isValid = Header.OriginalXvcDataHash.IsEqualTo(hash);
 
             if (rehash)
@@ -987,7 +983,9 @@ namespace LibXboxOne
             for (int i = 0; i < dataBlockCount; i++)
             {
                 ulong stackNum;
-                var blockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated, (ulong)i, 0, out stackNum);
+                var blockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated,
+                                                                HashTreeLevels, XvdDataBlockCount,
+                                                                (ulong)i, 0, out stackNum);
 
                 var hashEntryOffset = (blockNum*0x1000) + HashTreeOffset;
                 hashEntryOffset += stackNum*0x18;
@@ -999,7 +997,7 @@ namespace LibXboxOne
 
                 _io.Stream.Position = (long)dataToHashOffset;
                 byte[] data = _io.Reader.ReadBytes(0x1000);
-                byte[] hash = SHA256.Create().ComputeHash(data);
+                byte[] hash = HashUtils.ComputeSha256(data);
                 Array.Resize(ref hash, 0x18);
 
                 bool writeIdx = false; // encrypted data uses 0x14 hashes with a block IDX added to the end to make the 0x18 hash
@@ -1066,13 +1064,17 @@ namespace LibXboxOne
                     while (dataBlockNum < XvdDataBlockCount)
                     {
                         ulong entryNum;
-                        var blockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated, dataBlockNum, hashTreeLevel - 1, out entryNum);
+                        var blockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated,
+                                                                        HashTreeLevels, XvdDataBlockCount,
+                                                                        dataBlockNum, hashTreeLevel - 1, out entryNum);
                         _io.Stream.Position = (long)(HashTreeOffset + (blockNum * 0x1000));
-                        byte[] blockHash = SHA256.Create().ComputeHash(_io.Reader.ReadBytes(0x1000));
+                        byte[] blockHash = HashUtils.ComputeSha256(_io.Reader.ReadBytes(0x1000));
                         Array.Resize(ref blockHash, 0x18);
 
                         ulong entryNum2;
-                        var secondBlockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated, dataBlockNum, hashTreeLevel, out entryNum2);
+                        var secondBlockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated,
+                                                                                HashTreeLevels, XvdDataBlockCount,
+                                                                                dataBlockNum, hashTreeLevel, out entryNum2);
                         
                         var hashEntryOffset = HashTreeOffset + (secondBlockNum*0x1000);
                         hashEntryOffset += (entryNum2 + (entryNum2 * 2)) << 3;
@@ -1092,7 +1094,7 @@ namespace LibXboxOne
                 blocksPerLevel = blocksPerLevel * 0xAA;
             }
             _io.Stream.Position = (long)HashTreeOffset;
-            byte[] hash = SHA256.Create().ComputeHash(_io.Reader.ReadBytes(0x1000));
+            byte[] hash = HashUtils.ComputeSha256(_io.Reader.ReadBytes(0x1000));
             Header.TopHashBlockHash = hash;
 
             return true;
@@ -1104,7 +1106,7 @@ namespace LibXboxOne
                 return true;
 
             _io.Stream.Position = (long)HashTreeOffset;
-            byte[] hash = SHA256.Create().ComputeHash(_io.Reader.ReadBytes(0x1000));
+            byte[] hash = HashUtils.ComputeSha256(_io.Reader.ReadBytes(0x1000));
             if (!Header.TopHashBlockHash.IsEqualTo(hash))
                 return false;
 
@@ -1122,14 +1124,18 @@ namespace LibXboxOne
                     while (dataBlockNum < XvdDataBlockCount)
                     {
                         ulong entryNum;
-                        var blockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated, dataBlockNum, hashTreeLevel - 1, out entryNum);
+                        var blockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated,
+                                                                        HashTreeLevels, XvdDataBlockCount,
+                                                                        dataBlockNum, hashTreeLevel - 1, out entryNum);
 
                         _io.Stream.Position = (long) (HashTreeOffset + (blockNum*0x1000));
-                        byte[] blockHash = SHA256.Create().ComputeHash(_io.Reader.ReadBytes(0x1000));
+                        byte[] blockHash = HashUtils.ComputeSha256(_io.Reader.ReadBytes(0x1000));
                         Array.Resize(ref blockHash, 0x18);
 
                         ulong entryNum2;
-                        var secondBlockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated, dataBlockNum, hashTreeLevel, out entryNum2);
+                        var secondBlockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated,
+                                                                              HashTreeLevels, XvdDataBlockCount,
+                                                                              dataBlockNum, hashTreeLevel, out entryNum2);
                         topHashTreeBlock = secondBlockNum;
 
                         var hashEntryOffset = HashTreeOffset + (secondBlockNum * 0x1000);
@@ -1423,5 +1429,10 @@ namespace LibXboxOne
             return b.ToString();
         }
         #endregion
+
+        public void Dispose()
+        {
+            _io.Dispose();
+        }
     }
 }
