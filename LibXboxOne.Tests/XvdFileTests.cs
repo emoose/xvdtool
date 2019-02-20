@@ -7,7 +7,7 @@ namespace LibXboxOne.Tests
 {
     public class XvdFileTests
     {
-        [Fact]
+        [Fact(Skip="Relies on xvd data blob")]
         public void Dev_Signed_ValidHash_Test()
         {
             using (var file = new XvdFile(@"F:\XBone\XVDs\TestXVDs\xvd1"))
@@ -22,7 +22,7 @@ namespace LibXboxOne.Tests
             }
         }
 
-        [Fact]
+        [Fact(Skip="Relies on xvd data blob")]
         public void Dev_Signed_InvalidHashTree_Test()
         {
             using (var file = new XvdFile(@"F:\XBone\XVDs\TestXVDs\xvd1_brokehash"))
@@ -36,7 +36,7 @@ namespace LibXboxOne.Tests
             }
         }
 
-        [Fact]
+        [Fact(Skip="Relies on xvd data blob")]
         public void Dev_Signed_InvalidDataHashTree_Test()
         {
             using (var file = new XvdFile(@"F:\XBone\XVDs\TestXVDs\xvd1_brokedatahash"))
@@ -51,7 +51,7 @@ namespace LibXboxOne.Tests
             }
         }
 
-        [Fact]
+        [Fact(Skip="Relies on xvd data blob")]
         public void Dev_Signed_XVC_Decrypt_Test()
         {
             const string dest = @"F:\XBone\XVDs\TestXVDs\xvd1_decrypted_temp";
@@ -96,7 +96,7 @@ namespace LibXboxOne.Tests
             Assert.True(generatedHash.IsEqualTo(expectedHash));
         }
 
-        [Fact]
+        [Fact(Skip="Relies on xvd data blob")]
         public void Dev_Signed_XVC_Encrypt_Test()
         {
             const string dest = @"F:\XBone\XVDs\TestXVDs\xvd1_encrypted_temp";
@@ -137,7 +137,7 @@ namespace LibXboxOne.Tests
             Assert.True(generatedHash.IsEqualTo(expectedHash));
         }
 
-        [Fact]
+        [Fact(Skip="Relies on xvd data blob")]
         public void Unsigned_XVD_Decrypt_Test()
         {
             const string dest = @"F:\XBone\XVDs\TestXVDs\xvd2_decrypted_temp";
@@ -183,7 +183,7 @@ namespace LibXboxOne.Tests
             Assert.True(generatedHash.IsEqualTo(expectedHash));
         }
 
-        [Fact]
+        [Fact(Skip="Relies on xvd data blob")]
         public void Unsigned_XVD_Encrypt_Test()
         {
             const string dest = @"F:\XBone\XVDs\TestXVDs\xvd2_encrypted_temp";
@@ -233,7 +233,7 @@ namespace LibXboxOne.Tests
             Assert.True(generatedHash.IsEqualTo(expectedHash));
         }
 
-        [Fact]
+        [Fact(Skip="Relies on xvd data blob")]
         public void XvdSign_Key_Extract()
         {
             var sdkVersions = new List<string> { "XDK_11785" };
