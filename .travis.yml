@@ -1,0 +1,45 @@
+language: csharp
+mono: none
+dotnet: 2.2.100
+
+env:
+  global:
+  - PACKAGE_SUFFIX=$TRAVIS_BRANCH-$TRAVIS_OS_NAME
+
+matrix:
+  include:
+  - os: linux
+    dist: xenial
+    env: PUBLISH_TARGET=linux-x64 BUILD_CONFIG=Release
+  - os: osx
+    osx_image: xcode9.2
+    env: PUBLISH_TARGET=osx.10.12-x64 BUILD_CONFIG=Release
+
+script:
+- dotnet --info
+- dotnet restore
+- dotnet test
+- dotnet build -c $BUILD_CONFIG
+# - dotnet publish -c $BUILD_CONFIG -r $PUBLISH_TARGET -o publish XVDTool
+# - dotnet publish -c $BUILD_CONFIG -r $PUBLISH_TARGET -o publish XBFSTool
+
+# before_deploy:
+# - cd XVDTool/publish
+# - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then zip -r $TRAVIS_BUILD_DIR/XVDTool-$PACKAGE_SUFFIX.zip .; fi
+# - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then tar czvf $TRAVIS_BUILD_DIR/XVDTool-$PACKAGE_SUFFIX.tar.gz *; fi
+# - cd ../..
+# - cd XBFSTool/publish
+# - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then zip -r $TRAVIS_BUILD_DIR/XBFSTool-$PACKAGE_SUFFIX.zip .; fi
+# - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then tar czvf $TRAVIS_BUILD_DIR/XBFSTool-$PACKAGE_SUFFIX.tar.gz *; fi
+# - cd $TRAVIS_BUILD_DIR
+#
+#deploy:
+#  - provider: releases
+#    api_key:
+#      secure: <fill>
+#    file_glob: true
+#    file: "$TRAVIS_BUILD_DIR/*-$PACKAGE_SUFFIX.*"
+#    skip_cleanup: true
+#    on:
+#      tags: true
+#      branch: master
