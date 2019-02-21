@@ -82,7 +82,7 @@ namespace LibXboxOne.Tests
             byte[] generatedHash;
             using (FileStream stream = File.OpenRead(dest))
             {
-                generatedHash = new SHA256Managed().ComputeHash(stream);
+                generatedHash = HashUtils.ComputeSha256(stream);
             }
 
             File.Delete(dest);
@@ -90,7 +90,7 @@ namespace LibXboxOne.Tests
             byte[] expectedHash;
             using (FileStream stream = File.OpenRead(fileToCompare))
             {
-                expectedHash = new SHA256Managed().ComputeHash(stream);
+                expectedHash = HashUtils.ComputeSha256(stream);
             }
 
             Assert.True(generatedHash.IsEqualTo(expectedHash));
@@ -123,7 +123,7 @@ namespace LibXboxOne.Tests
             byte[] generatedHash;
             using (FileStream stream = File.OpenRead(dest))
             {
-                generatedHash = new SHA256Managed().ComputeHash(stream);
+                generatedHash = HashUtils.ComputeSha256(stream);
             }
 
             File.Delete(dest);
@@ -131,7 +131,7 @@ namespace LibXboxOne.Tests
             byte[] expectedHash;
             using (FileStream stream = File.OpenRead(fileToCompare))
             {
-                expectedHash = new SHA256Managed().ComputeHash(stream);
+                expectedHash = HashUtils.ComputeSha256(stream);
             }
 
             Assert.True(generatedHash.IsEqualTo(expectedHash));
@@ -169,7 +169,7 @@ namespace LibXboxOne.Tests
             byte[] generatedHash;
             using (FileStream stream = File.OpenRead(dest))
             {
-                generatedHash = new SHA256Managed().ComputeHash(stream);
+                generatedHash = HashUtils.ComputeSha256(stream);
             }
 
             File.Delete(dest);
@@ -177,7 +177,7 @@ namespace LibXboxOne.Tests
             byte[] expectedHash;
             using (FileStream stream = File.OpenRead(fileToCompare))
             {
-                expectedHash = new SHA256Managed().ComputeHash(stream);
+                expectedHash = HashUtils.ComputeSha256(stream);
             }
 
             Assert.True(generatedHash.IsEqualTo(expectedHash));
@@ -219,7 +219,7 @@ namespace LibXboxOne.Tests
             byte[] generatedHash;
             using (FileStream stream = File.OpenRead(dest))
             {
-                generatedHash = new SHA256Managed().ComputeHash(stream);
+                generatedHash = HashUtils.ComputeSha256(stream);
             }
 
             File.Delete(dest);
@@ -227,7 +227,7 @@ namespace LibXboxOne.Tests
             byte[] expectedHash;
             using (FileStream stream = File.OpenRead(fileToCompare))
             {
-                expectedHash = new SHA256Managed().ComputeHash(stream);
+                expectedHash = HashUtils.ComputeSha256(stream);
             }
 
             Assert.True(generatedHash.IsEqualTo(expectedHash));

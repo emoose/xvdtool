@@ -6,43 +6,43 @@ using Xunit;
 
 namespace LibXboxOne.Tests
 {
+    public static class BCryptRsaHelper
+    {
+        static async Task<RSAParameters> GetRsa(int keyStrength, string keyIdentifier)
+        {
+            var blob = await ResourcesProvider.GetBytesAsync($"RSA_{keyStrength}_{keyIdentifier}.bin",
+                                                ResourceType.RsaKeys);
+            return BCryptRsaImport.BlobToParameters(blob);
+        }
+
+        public static Task<RSAParameters> GetRsaPublic(int keyStrength)
+        {
+            return GetRsa(keyStrength, "RSAPUBLICBLOB");
+        }
+
+        public static Task<RSAParameters> GetRsaPrivate(int keyStrength)
+        {
+            return GetRsa(keyStrength, "RSAPRIVATEBLOB");
+        }
+
+        public static Task<RSAParameters> GetRsaFullPrivate(int keyStrength)
+        {
+            return GetRsa(keyStrength, "RSAFULLPRIVATEBLOB");
+        }
+
+        public static Task<RSAParameters> GetRsaPublicCAPI(int keyStrength)
+        {
+            return GetRsa(keyStrength, "CAPIPUBLICBLOB");
+        }
+
+        public static Task<RSAParameters> GetRsaPrivateCAPI(int keyStrength)
+        {
+            return GetRsa(keyStrength, "CAPIPRIVATEBLOB");
+        }
+    }
+
     public class BCryptImportTests
     {
-        async Task<RSAParameters> GetRsaPublic(int keyStrength)
-        {
-            var blob = await ResourcesProvider.GetBytesAsync($"RSA_{keyStrength}_RSAPUBLICBLOB.bin",
-                                                    ResourceType.RsaKeys);
-            return BCryptRsaImport.BlobToParameters(blob);
-        }
-
-        async Task<RSAParameters> GetRsaPrivate(int keyStrength)
-        {
-            var blob = await ResourcesProvider.GetBytesAsync($"RSA_{keyStrength}_RSAPRIVATEBLOB.bin",
-                                                    ResourceType.RsaKeys);
-            return BCryptRsaImport.BlobToParameters(blob);
-        }
-
-        async Task<RSAParameters> GetRsaFullPrivate(int keyStrength)
-        {
-            var blob = await ResourcesProvider.GetBytesAsync($"RSA_{keyStrength}_RSAFULLPRIVATEBLOB.bin",
-                                                    ResourceType.RsaKeys);
-            return BCryptRsaImport.BlobToParameters(blob);
-        }
-
-        async Task<RSAParameters> GetRsaPublicCAPI(int keyStrength)
-        {
-            var blob = await ResourcesProvider.GetBytesAsync($"RSA_{keyStrength}_CAPIPUBLICBLOB.bin",
-                                                    ResourceType.RsaKeys);
-            return BCryptRsaImport.BlobToParameters(blob);
-        }
-
-        async Task<RSAParameters> GetRsaPrivateCAPI(int keyStrength)
-        {
-            var blob = await ResourcesProvider.GetBytesAsync($"RSA_{keyStrength}_CAPIPRIVATEBLOB.bin",
-                                                    ResourceType.RsaKeys);
-            return BCryptRsaImport.BlobToParameters(blob);
-        }
-
         [Theory]
         [InlineData(512)]
         [InlineData(1024)]
@@ -51,7 +51,7 @@ namespace LibXboxOne.Tests
         [InlineData(4096)]
         public async void ImportRsaPublicBlob(int keyStrength)
         {
-            RSAParameters rsaParams = await GetRsaPublic(keyStrength);
+            RSAParameters rsaParams = await BCryptRsaHelper.GetRsaPublic(keyStrength);
 
             Assert.NotEmpty(rsaParams.Exponent);
             Assert.NotEmpty(rsaParams.Modulus);
@@ -65,7 +65,7 @@ namespace LibXboxOne.Tests
         [InlineData(4096)]
         public async void ImportRsaPrivateBlob(int keyStrength)
         {
-            RSAParameters rsaParams = await GetRsaPrivate(keyStrength);
+            RSAParameters rsaParams = await BCryptRsaHelper.GetRsaPrivate(keyStrength);
             
             Assert.NotEmpty(rsaParams.Exponent);
             Assert.NotEmpty(rsaParams.Modulus);
@@ -82,7 +82,7 @@ namespace LibXboxOne.Tests
         [InlineData(4096)]
         public async void ImportRsaFullPrivateBlob(int keyStrength)
         {
-            RSAParameters rsaParams = await GetRsaFullPrivate(keyStrength);
+            RSAParameters rsaParams = await BCryptRsaHelper.GetRsaFullPrivate(keyStrength);
             
             Assert.NotEmpty(rsaParams.Exponent);
             Assert.NotEmpty(rsaParams.Modulus);
@@ -104,8 +104,8 @@ namespace LibXboxOne.Tests
         [InlineData(4096)]
         public async void ImportAndComparePrivateBlobs(int keyStrength)
         {
-            RSAParameters rsaParams = await GetRsaPrivate(keyStrength);
-            RSAParameters rsaParamsFull = await GetRsaFullPrivate(keyStrength);
+            RSAParameters rsaParams = await BCryptRsaHelper.GetRsaPrivate(keyStrength);
+            RSAParameters rsaParamsFull = await BCryptRsaHelper.GetRsaFullPrivate(keyStrength);
             
             Assert.NotEmpty(rsaParams.Exponent);
             Assert.NotEmpty(rsaParams.Modulus);
@@ -125,8 +125,8 @@ namespace LibXboxOne.Tests
         [InlineData(4096)]
         public async void ImportAndComparePublicBlobs(int keyStrength)
         {
-            RSAParameters rsaParamsPublic = await GetRsaPublic(keyStrength);
-            RSAParameters rsaParamsFullprivate = await GetRsaFullPrivate(keyStrength);
+            RSAParameters rsaParamsPublic = await BCryptRsaHelper.GetRsaPublic(keyStrength);
+            RSAParameters rsaParamsFullprivate = await BCryptRsaHelper.GetRsaFullPrivate(keyStrength);
             
             Assert.NotEmpty(rsaParamsPublic.Exponent);
             Assert.NotEmpty(rsaParamsPublic.Modulus);
@@ -144,7 +144,7 @@ namespace LibXboxOne.Tests
         public void ImportInvalidPublicBlobCAPI(int keyStrength)
         {
             Assert.ThrowsAsync<InvalidDataException>(async () =>
-                await GetRsaPublicCAPI(keyStrength)
+                await BCryptRsaHelper.GetRsaPublicCAPI(keyStrength)
             );
         }
 
@@ -157,7 +157,7 @@ namespace LibXboxOne.Tests
         public void ImportInvalidPrivateBlobCAPI(int keyStrength)
         {
             Assert.ThrowsAsync<InvalidDataException>(async () =>
-                await GetRsaPrivateCAPI(keyStrength)
+                await BCryptRsaHelper.GetRsaPrivateCAPI(keyStrength)
             );
         }
     }

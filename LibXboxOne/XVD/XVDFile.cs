@@ -20,7 +20,7 @@ namespace LibXboxOne
             foreach (var kvp in CikKeys)
             {
                 byte[] guidBytes = kvp.Key.ToByteArray();
-                byte[] guidHash = SHA1.Create().ComputeHash(guidBytes);
+                byte[] guidHash = HashUtils.ComputeSha1(guidBytes);
                 if (guidHash.IsEqualTo(TestCikHash))
                 {
                     return kvp.Key;
@@ -150,42 +150,39 @@ namespace LibXboxOne
             if (key == null)
                 return false;
 
-            return CryptSection(encrypt, key, header.Id, header.Offset, header.Length);
+            return CryptSectionXts(encrypt, key, header.Id, header.Offset, header.Length);
         }
 
-        private bool CryptSection(bool encrypt, byte[] key, uint headerId, ulong offset, ulong length)
+        internal bool CryptSectionXts(bool encrypt, byte[] key, uint headerId, ulong offset, ulong length)
         {
-            var ivKey = new byte[0x10];
-            var dataKey = new byte[0x10];
-            Array.Copy(key, ivKey, 0x10);
-            Array.Copy(key, 0x10, dataKey, 0, 0x10);
+            ulong numDataUnits = (length + 0xFFF) / 0x1000;
+            var headerIdBytes = BitConverter.GetBytes(headerId);
 
-            var counterToEncrypt = new byte[0x10];
-            Array.Copy(Header.VDUID, 0, counterToEncrypt, 0x8, 0x8);
-            byte[] test = BitConverter.GetBytes(headerId);
-            Array.Copy(test, 0, counterToEncrypt, 0x4, 0x4);
+            var tweakAesKey = new byte[0x10];
+            var dataAesKey = new byte[0x10];
 
-            int numBlocks = (int)(length + 0xFFF) / 0x1000;
+            var tweak = new byte[0x10];
 
-            var ivCipher = new AesCipher(ivKey);
+            // Split tweak- / Data AES key
+            Array.Copy(key, tweakAesKey, 0x10);
+            Array.Copy(key, 0x10, dataAesKey, 0, 0x10);
+
+            // Copy VDUID and header Id as tweak
+            Array.Copy(Header.VDUID, 0, tweak, 0x8, 0x8);
+            Array.Copy(headerIdBytes, 0, tweak, 0x4, 0x4);
+
+            var cipher = new AesXtsTransform(tweak, dataAesKey, tweakAesKey, encrypt);
 
             _io.Stream.Position = (long)offset;
-            for (int i = 0; i < numBlocks; i++)
+            for (ulong dataUnit = 0; dataUnit < numDataUnits; dataUnit++)
             {
-                var counter = new byte[0x10];
-                Array.Copy(counterToEncrypt, counter, 0x10);
+                var transformedData = new byte[0x1000];
+                var origData = _io.Reader.ReadBytes(0x1000);
+                _io.Stream.Position -= 0x1000;
 
-                var blockIdBytes = BitConverter.GetBytes(i);
-                Array.Copy(blockIdBytes, counter, 4);
+                cipher.TransformDataUnit(origData, 0, origData.Length, transformedData, 0, dataUnit);
 
-                var counterEnc = new byte[0x10];
-                ivCipher.EncryptBlock(counter, 0, 0x10, counterEnc, 0);
-
-                byte[] origData = _io.Reader.ReadBytes(0x1000);
-                byte[] newData = Shared.CryptData(encrypt, origData, dataKey, counterEnc);
-
-                _io.Stream.Position = _io.Stream.Position - 0x1000;
-                _io.Writer.Write(newData);
+                _io.Writer.Write(transformedData);
             }
             return true;
         }
@@ -566,13 +563,12 @@ namespace LibXboxOne
             var testSign = new byte[0x91B];
             var testSignFound = false;
 
-            var sha = SHA256.Create();
             for (int i = 0; i < exeData.Length - 0x20; i += 8)
             {
                 if (odkFound && cikFound && cikGuidFound && testSignFound)
                     break;
-                byte[] hash16 = sha.ComputeHash(exeData, i, 16);
-                byte[] hash32 = sha.ComputeHash(exeData, i, 32);
+                byte[] hash16 = HashUtils.ComputeSha256(exeData, i, 16);
+                byte[] hash32 = HashUtils.ComputeSha256(exeData, i, 32);
 
                 if (!odkFound && hash32.IsEqualTo(testOdkHash))
                 {
@@ -594,7 +590,7 @@ namespace LibXboxOne
                 }
                 else if(!testSignFound)
                 {
-                    byte[] signHash = sha.ComputeHash(exeData, i, 0x91B); // 0x91B = RSA3 struct size
+                    byte[] signHash = HashUtils.ComputeSha256(exeData, i, 0x91B); // 0x91B = RSA3 struct size
                     if (signHash.IsEqualTo(testSignHash))
                     {
                         Array.Copy(exeData, i, testSign, 0, 0x91B);
@@ -656,7 +652,7 @@ namespace LibXboxOne
             else
             {
                 // todo: check with more non-xvc xvds and see if they use any other headerId besides 0x1
-                success = CryptSection(false, Header.EncryptedCIK, 0x1, UserDataOffset,
+                success = CryptSectionXts(false, Header.EncryptedCIK, 0x1, UserDataOffset,
                     (ulong)_io.Stream.Length - UserDataOffset);
             }
 
@@ -687,7 +683,7 @@ namespace LibXboxOne
                 }
 
                 // todo: check with more non-xvc xvds and see if they use any other headerId besides 0x1
-                success = CryptSection(true, Header.EncryptedCIK, 0x1, UserDataOffset,
+                success = CryptSectionXts(true, Header.EncryptedCIK, 0x1, UserDataOffset,
                     (ulong)_io.Stream.Length - UserDataOffset);
             }
             else
