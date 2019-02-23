@@ -10,7 +10,7 @@ namespace LibXboxOne.Tests
         public static byte[] Data => new byte[]{
                 0x48,0x45,0x4c,0x4c,0x4f,0x2c,0x20,0x49,0x54,0x53,0x20,0x4d,0x45,0x2c,0x20,0x54,
                 0x45,0x53,0x54,0x44,0x41,0x54,0x41,0x0a,0x01,0x11,0x21,0x31,0x41,0x51,0x61,0x71};
-        
+
         public static byte[] Sha256Hash => new byte[]{
                 0x3C,0x47,0xF6,0x32,0x57,0x72,0xCC,0x80,0xAE,0x72,0x0D,0xA2,0x4C,0x60,0xD8,0x1A,
                 0xBF,0xD1,0x7E,0x8A,0x63,0xA8,0xCC,0xDE,0x4B,0xD9,0xF2,0xB8,0xBB,0xC3,0x82,0x0F};
@@ -36,7 +36,7 @@ namespace LibXboxOne.Tests
         public void TestComputeSha256()
         {
             var result = HashUtils.ComputeSha256(HashUtilsData.Data);
-            
+
             Assert.Equal(HashUtilsData.Sha256Hash.Length, result.Length);
             Assert.Equal(HashUtilsData.Sha256Hash, result);
         }
@@ -56,30 +56,32 @@ namespace LibXboxOne.Tests
         }
 
         [Theory]
-        [InlineData(1024, "RSAPRIVATEBLOB")]
+        // [InlineData(1024, "RSAPRIVATEBLOB")]
         [InlineData(1024, "RSAFULLPRIVATEBLOB")]
-        public void TestSignHash(int bits, string blobType)
+        public void TestSignData(int bits, string blobType)
         {
             var rsaBlob = GetRsaBlob(blobType, bits);
-            uint result = HashUtils.SignHash(rsaBlob, blobType, HashUtilsData.Sha256Hash,
+            bool result = HashUtils.SignData(rsaBlob, blobType, HashUtilsData.Data,
                                              out byte[] signature);
-            Assert.Equal((uint)0, result);
+            Assert.True(result);
             Assert.NotEqual(HashUtilsData.RsaSignature, signature); // Cant be same, due to PSS
 
-            
+
             result = HashUtils.VerifySignature(rsaBlob, blobType, signature,
-                                                HashUtilsData.Sha256Hash);
-            Assert.Equal((uint)0, result);
+                                                HashUtilsData.Data);
+            Assert.True(result);
         }
 
         [Fact]
-        public void TestSignHashFailPubKey()
+        public void TestSignDataFailPubKey()
         {
             var rsaBlob = GetRsaBlob("RSAPUBLICBLOB", 1024);
-            uint result = HashUtils.SignHash(rsaBlob, "RSAPUBLICBLOB", HashUtilsData.Sha256Hash,
-                                             out byte[] signature);
 
-            Assert.NotEqual((uint)0, result);
+            Assert.Throws<CryptographicException>(() =>
+            {
+                HashUtils.SignData(rsaBlob, "RSAPUBLICBLOB", HashUtilsData.Data,
+                                             out byte[] signature);
+            });
         }
 
         [Theory]
@@ -89,10 +91,10 @@ namespace LibXboxOne.Tests
         public void TestVerifySignature(int bits, string blobType)
         {
             var rsaBlob = GetRsaBlob(blobType, bits);
-            uint result = HashUtils.VerifySignature(rsaBlob, blobType, HashUtilsData.RsaSignature,
-                                                    HashUtilsData.Sha256Hash);
+            bool success = HashUtils.VerifySignature(rsaBlob, blobType, HashUtilsData.RsaSignature,
+                                                    HashUtilsData.Data);
 
-            Assert.Equal((uint)0, result);
+            Assert.True(success);
         }
     }
 }

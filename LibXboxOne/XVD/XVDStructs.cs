@@ -102,8 +102,6 @@ namespace LibXboxOne
         {
             get
             {
-                if (XvdFile.DisableNativeFunctions)
-                    return false;
                 if (!XvdFile.SignKeyLoaded)
                     return false;
 
@@ -115,15 +113,11 @@ namespace LibXboxOne
                 Array.Copy(hdrRawData, 0x200, hdrData, 0, hdrData.Length - 0x200);
                 Array.Resize(ref hdrRawData, 0x200); // hdrRawData is just the signature now
 
-                byte[] hash = HashUtils.ComputeSha256(hdrData);
-                return HashUtils.VerifySignature(XvdFile.SignKey, "RSAFULLPRIVATEBLOB", hdrRawData, hash) == 0;
+                return HashUtils.VerifySignature(XvdFile.SignKey, "RSAFULLPRIVATEBLOB", hdrRawData, hdrData);
             }
         }
         public bool Resign(byte[] key, string keyType)
         {
-            if (XvdFile.DisableNativeFunctions)
-                return false;
-
             var hdrRawData = Shared.StructToBytes(this);
             var hdrData = new byte[0xE00];
             for (int i = 0; i < 0xE00; i++)
@@ -131,9 +125,7 @@ namespace LibXboxOne
 
             Array.Copy(hdrRawData, 0x200, hdrData, 0, hdrData.Length - 0x200);
 
-            byte[] hash = HashUtils.ComputeSha256(hdrData);
-            uint result = HashUtils.SignHash(key, keyType, hash, out Signature);
-            return result == 0;
+            return HashUtils.SignData(key, keyType, hdrData, out Signature);
         }
 
         public bool ResignWithSignKey()

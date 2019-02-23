@@ -1,6 +1,9 @@
 using System;
 using System.IO;
 using System.Security.Cryptography;
+using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Security;
 
 namespace LibXboxOne
 {
@@ -36,64 +39,30 @@ namespace LibXboxOne
             return SHA1.Create().ComputeHash(data, offset, length);
         }
 
-        public static uint SignHash(byte[] key, string keyType, byte[] hash, out byte[] signature) // keyType = RSAFULLPRIVATEBLOB, RSAPRIVATEBLOB, RSAPUBLICBLOB
+        public static bool SignData(byte[] key, string keyType, byte[] data, out byte[] signature) // keyType = RSAFULLPRIVATEBLOB, RSAPRIVATEBLOB, RSAPUBLICBLOB
         {
-            IntPtr hProvider;
-            IntPtr hKey;
+            if (keyType != "RSAFULLPRIVATEBLOB")
+                throw new CryptographicException("Only RSAFULLPRIVATEBLOB can be used for signing");
 
-            signature = null;
+            var rsaKey = DotNetUtilities.GetRsaKeyPair(BCryptRsaImport.BlobToParameters(key)).Private;
+            ISigner s = SignerUtilities.GetSigner("SHA256withRSA/PSS");
 
-            uint result = Natives.NCryptOpenStorageProvider(out hProvider, "Microsoft Software Key Storage Provider", 0);
-            if (result != 0)
-                return result;
+            s.Init(true, new ParametersWithRandom(rsaKey));
+            s.BlockUpdate(data, 0, data.Length);
 
-            result = Natives.NCryptImportKey(hProvider, IntPtr.Zero, keyType, IntPtr.Zero, out hKey, key, (uint)key.Length, 0);
-            if (result != 0)
-            {
-                Natives.NCryptFreeObject(hProvider);
-                return result;
-            }
-
-            var pss = new Natives.BCRYPT_PSS_PADDING_INFO("SHA256", 0x20);
-
-            uint resultSigLength;
-
-            result = Natives.NCryptSignHash(hKey, ref pss, hash, hash.Length, IntPtr.Zero, 0, out resultSigLength, 8);
-            if (result == 0)
-            {
-                signature = new byte[resultSigLength];
-                result = Natives.NCryptSignHash(hKey, ref pss, hash, hash.Length, signature, 0x200, out resultSigLength, 8);
-            }
-
-            Natives.NCryptFreeObject(hKey);
-            Natives.NCryptFreeObject(hProvider);
-
-            return result;
+            signature = s.GenerateSignature();
+            return true;
         }
 
-        public static uint VerifySignature(byte[] key, string keyType, byte[] signature, byte[] hash) // keyType = RSAFULLPRIVATEBLOB, RSAPRIVATEBLOB, RSAPUBLICBLOB
+        public static bool VerifySignature(byte[] key, string keyType, byte[] signature, byte[] data) // keyType = RSAFULLPRIVATEBLOB, RSAPRIVATEBLOB, RSAPUBLICBLOB
         {
-            IntPtr hProvider;
-            IntPtr hKey;
+            var rsaKey = DotNetUtilities.GetRsaPublicKey(BCryptRsaImport.BlobToParameters(key));
+            ISigner s = SignerUtilities.GetSigner("SHA256withRSA/PSS");
 
-            uint result = Natives.NCryptOpenStorageProvider(out hProvider, "Microsoft Software Key Storage Provider", 0);
-            if (result != 0)
-                return result;
-            result = Natives.NCryptImportKey(hProvider, IntPtr.Zero, keyType, IntPtr.Zero, out hKey, key, (uint)key.Length, 0);
-            if (result != 0)
-            {
-                Natives.NCryptFreeObject(hProvider);
-                return result;
-            }
+            s.Init(false, new ParametersWithRandom(rsaKey));
+            s.BlockUpdate(data, 0, data.Length);
 
-            var pss = new Natives.BCRYPT_PSS_PADDING_INFO("SHA256", 0x20);
-
-            result = Natives.NCryptVerifySignature(hKey, ref pss, hash, hash.Length, signature, signature.Length, 8);
-
-            Natives.NCryptFreeObject(hKey);
-            Natives.NCryptFreeObject(hProvider);
-
-            return result;
+            return s.VerifySignature(signature);
         }
     }
 }

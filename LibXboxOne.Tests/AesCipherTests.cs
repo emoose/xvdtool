@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Security.Cryptography;
 using Xunit;
 
 namespace LibXboxOne.Tests
@@ -23,25 +24,33 @@ namespace LibXboxOne.Tests
         [Fact]
         public void TestAesEncryption()
         {
-            var result = new byte[0x20];
+            var data = AesChipherData.PlaintextData;
 
-            var cipher = new AesCipher(AesChipherData.AesKey);
-            cipher.EncryptBlock(AesChipherData.PlaintextData, 0, 0x10, result, 0);
-            cipher.EncryptBlock(AesChipherData.PlaintextData, 0x10, 0x10, result, 0x10);
+            byte[] nullIv = new byte[16];
+            var cipher = Aes.Create();
+            cipher.Mode = CipherMode.ECB;
+            cipher.Padding = PaddingMode.None;
 
-            Assert.Equal(AesChipherData.EncryptedData, result);
+            ICryptoTransform transform = cipher.CreateEncryptor(AesChipherData.AesKey, nullIv);
+            transform.TransformBlock(data, 0, data.Length, data, 0);
+
+            Assert.Equal(AesChipherData.EncryptedData, data);
         }
 
         [Fact]
         public void TestAesDecryption()
         {
-            var result = new byte[0x20];
+            var data = AesChipherData.EncryptedData;
 
-            var cipher = new AesCipher(AesChipherData.AesKey);
-            cipher.DecryptBlock(AesChipherData.EncryptedData, 0, 0x10, result, 0);
-            cipher.DecryptBlock(AesChipherData.EncryptedData, 0x10, 0x10, result, 0x10);
+            byte[] nullIv = new byte[16];
+            var cipher = Aes.Create();
+            cipher.Mode = CipherMode.ECB;
+            cipher.Padding = PaddingMode.None;
 
-            Assert.Equal(AesChipherData.PlaintextData, result);
+            ICryptoTransform transform = cipher.CreateDecryptor(AesChipherData.AesKey, nullIv);
+            transform.TransformBlock(data, 0, data.Length, data, 0);
+
+            Assert.Equal(AesChipherData.PlaintextData, data);
         }
     }
 }

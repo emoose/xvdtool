@@ -42,7 +42,6 @@ namespace XVDTool
                 { "o|output=", v => outputFile = v },
 
                 { "nd|nodatahash", v => XvdFile.DisableDataHashChecking = v != null },
-                { "nn|nonatives", v => XvdFile.DisableNativeFunctions = v != null },
                 { "ne|noextract", v => disableDataExtract = v != null },
 
                 { "r|rehash", v => rehashPackage = v != null },
@@ -97,9 +96,6 @@ namespace XVDTool
                 Console.WriteLine(fmt + "-o (-output) <output-path> - specify output filename");
                 Console.WriteLine(fmt + "-nd (-nodatahash) - disable data hash checking, speeds up -l and -f");
                 Console.WriteLine(fmt + "-ne (-noextract) - disable data (embedded XVD/user data) extraction, speeds up -l and -f");
-                Console.WriteLine(fmt + "-nn (-nonatives) - disable importing native windows functions (ncrypt etc)");
-                Console.WriteLine(fmt + fmt +
-                                  "note that signature verification/resigning won't work with this!");
                 Console.WriteLine();
                 Console.WriteLine(fmt + "-eu (-decrypt) = decrypt output xvd");
                 Console.WriteLine(fmt + "-ee (-encrypt) [keyid] = encrypt output xvd");
@@ -115,7 +111,7 @@ namespace XVDTool
                 Console.WriteLine();
                 Console.WriteLine(fmt + "-xe (-extractembedded) <output-file> - extract embedded XVD from package");
                 Console.WriteLine(fmt + "-xu (-extractuserdata) <output-file> - extract user data from package");
-                Console.WriteLine(fmt + "-xv (-extractvhd) <output-vhd> - extracts filesystem from XVD into a VHD file, doesn't seem to work properly with XVC packages yet (also removes NTFS compression from output VHD so Windows can mount it, use -nn to disable)");
+                Console.WriteLine(fmt + "-xv (-extractvhd) <output-vhd> - extracts filesystem from XVD into a VHD file, doesn't seem to work properly with XVC packages yet (also removes NTFS compression from output VHD so Windows can mount it)");
                 Console.WriteLine();
                 Console.WriteLine(fmt + "The next two commands will write info about each package found to [filename].txt");
                 Console.WriteLine(fmt + "also extracts embedded XVD and user data to [filename].exvd.bin / [filename].userdata.bin");

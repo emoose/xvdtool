@@ -28,72 +28,6 @@ namespace LibXboxOne
         [DllImport("xsapi.dll", SetLastError = true)]
         public static extern uint XvdCloseAdapter(IntPtr phXvdHandle);
 
-        [StructLayout(LayoutKind.Sequential)]
-// ReSharper disable once InconsistentNaming
-        public struct BCRYPT_PSS_PADDING_INFO
-        {
-            public BCRYPT_PSS_PADDING_INFO(string pszAlgId, int cbSalt)
-            {
-                this.pszAlgId = pszAlgId;
-                this.cbSalt = cbSalt;
-            }
-
-            [MarshalAs(UnmanagedType.LPWStr)]
-            public string pszAlgId;
-            public int cbSalt;
-        }
-
-
-        [DllImport("ncrypt.dll", SetLastError = false)]
-        public static extern uint NCryptOpenStorageProvider(out IntPtr phProvider,
-                                                              [MarshalAs(UnmanagedType.LPWStr)] string pszProviderName,
-                                                              uint dwFlags);
-
-        [DllImport("ncrypt.dll", SetLastError = false)]
-        public static extern uint NCryptImportKey(IntPtr hProvider,
-                                                  IntPtr hImportKey,
-                                                  [MarshalAs(UnmanagedType.LPWStr)] string pszBlobType,
-                                                  IntPtr pParameterList,
-                                                  out IntPtr phKey,
-                                                  [MarshalAs(UnmanagedType.LPArray)]
-                                                  byte[] pbData,
-                                                  uint cbData,
-                                                  uint dwFlags);
-
-        [DllImport("ncrypt.dll", SetLastError = false)]
-        public static extern uint NCryptVerifySignature(IntPtr hKey,
-                                                        [In] ref BCRYPT_PSS_PADDING_INFO pPaddingInfo,
-                                                        [In, MarshalAs(UnmanagedType.LPArray)] byte[] pbHashValue,
-                                                        int cbHashValue,
-                                                        [In, MarshalAs(UnmanagedType.LPArray)] byte[] pbSignature,
-                                                        int cbSignature,
-                                                        uint dwFlags);
-
-        [DllImport("ncrypt.dll", SetLastError = false)]
-        public static extern uint NCryptSignHash(IntPtr hKey,
-                                                        [In] ref BCRYPT_PSS_PADDING_INFO pPaddingInfo,
-                                                        [MarshalAs(UnmanagedType.LPArray)]
-                                                        byte[] pbHashValue,
-                                                        int cbHashValue,
-                                                        [MarshalAs(UnmanagedType.LPArray)]
-                                                        byte[] pbSignature,
-                                                        int cbSignature,
-                                                        [Out] out uint pcbResult,
-                                                        int dwFlags);
-
-        [DllImport("ncrypt.dll", SetLastError = false)]
-        public static extern uint NCryptSignHash(IntPtr hKey,
-                                                        [In] ref BCRYPT_PSS_PADDING_INFO pPaddingInfo,
-                                                        [In, MarshalAs(UnmanagedType.LPArray)] byte[] pbHashValue,
-                                                        int cbHashValue,
-                                                        IntPtr pbSignature,
-                                                        int cbSignature,
-                                                        [Out] out uint pcbResult,
-                                                        uint dwFlags);
-
-        [DllImport("ncrypt.dll", SetLastError = false)]
-        public static extern uint NCryptFreeObject(IntPtr hObject);
-
         [DllImport("kernel32.dll")]
         public static extern int DeviceIoControl(IntPtr hDevice, int
             dwIoControlCode, ref short lpInBuffer, int nInBufferSize, IntPtr
@@ -308,66 +242,6 @@ namespace LibXboxOne
             b.AppendLine(str + " ");
         }
 
-        public static byte[] MorphIv(byte[] iv)
-        {
-            byte dl = 0;
-            var newIv = new byte[0x10];
-
-            for (int i = 0; i < 0x10; i++)
-            {
-                byte cl = iv[i];
-                byte al = cl;
-                al = (byte)(al + al);
-                al = (byte)(al | dl);
-                dl = cl;
-                newIv[i] = al;
-                dl = (byte)(dl >> 7);
-            }
-            if (dl != 0)
-                newIv[0] = (byte)(newIv[0] ^ 0x87);
-            return newIv;
-        }
-
-        public static byte[] CryptData(bool encrypt, byte[] data, byte[] key, byte[] startIv)
-        {
-            var cipher = new AesCipher(key);
-            int blocks = data.Length / 0x10;
-            var newData = new byte[data.Length];
-            var iv = new byte[startIv.Length];
-            Array.Copy(startIv, iv, startIv.Length);
-            for (int i = 0; i < blocks; i++)
-            {
-                byte[] crypted = CryptBlock(encrypt, data, i * 0x10, 0x10, iv, cipher);
-                iv = MorphIv(iv);
-                Array.Copy(crypted, 0, newData, i * 0x10, 0x10);
-            }
-            return newData;
-        }
-
-        static byte[] CryptBlock(bool encrypt, byte[] data, int dataOffset, int dataLength, byte[] iv, AesCipher cipher)
-        {
-            var newData = new byte[dataLength];
-
-            //if (!encrypt)
-                for (int i = 0; i < dataLength; i++)
-                {
-                    newData[i] = (byte)(data[dataOffset + i] ^ iv[i % iv.Length]);
-                }
-
-            var cryptData = new byte[dataLength];
-
-            if(encrypt)
-                cipher.EncryptBlock(newData, 0, dataLength, cryptData, 0);
-            else
-                cipher.DecryptBlock(newData, 0, dataLength, cryptData, 0);
-
-            for (int i = 0; i < dataLength; i++)
-            {
-                cryptData[i] = (byte)(cryptData[i] ^ iv[i % iv.Length]);
-            }
-
-            return cryptData;
-        }
         public static ushort EndianSwap(this ushort num)
         {
             byte[] data = BitConverter.GetBytes(num);

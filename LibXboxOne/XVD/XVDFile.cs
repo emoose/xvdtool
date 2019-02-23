@@ -36,7 +36,6 @@ namespace LibXboxOne
         public static bool SignKeyLoaded = false;
         public static byte[] SignKey;
 
-        public static bool DisableNativeFunctions = false;
         public static bool DisableDataHashChecking = false;
 
         public XvdHeader Header;
@@ -117,17 +116,16 @@ namespace LibXboxOne
             if (!OdkKeyLoaded)
                 return;
 
-            var cipher = new AesCipher(OdkKey);
-            if (encrypt)
-            {
-                cipher.EncryptBlock(Header.EncryptedCIK, 0, 0x10, Header.EncryptedCIK, 0);
-                cipher.EncryptBlock(Header.EncryptedCIK, 0x10, 0x10, Header.EncryptedCIK, 0x10);
-            }
-            else
-            {
-                cipher.DecryptBlock(Header.EncryptedCIK, 0, 0x10, Header.EncryptedCIK, 0);
-                cipher.DecryptBlock(Header.EncryptedCIK, 0x10, 0x10, Header.EncryptedCIK, 0x10);
-            }
+            byte[] nullIv = new byte[16];
+
+            var cipher = Aes.Create();
+            cipher.Mode = CipherMode.ECB;
+            cipher.Padding = PaddingMode.None;
+
+            ICryptoTransform transform = encrypt ? cipher.CreateEncryptor(OdkKey, nullIv) :
+                                                   cipher.CreateDecryptor(OdkKey, nullIv);
+
+            transform.TransformBlock(Header.EncryptedCIK, 0, Header.EncryptedCIK.Length, Header.EncryptedCIK, 0);
 
             CikIsDecrypted = !encrypt;
         }
@@ -1220,8 +1218,6 @@ namespace LibXboxOne
 
                 vhdFile.Writer.WriteStruct(footer);
             }
-            if (DisableNativeFunctions)
-                return true;
 
             // make sure NTFS compression is disabled on the vhd
 

@@ -19,8 +19,6 @@ Parameters:
     -o (-output) <output-path> - specify output filename
     -nd (-nodatahash) - disable data hash checking, speeds up -l and -f
     -ne (-noextract) - disable data (embedded XVD/user data) extraction, speeds up -l and -f
-    -nn (-nonatives) - disable importing native windows functions (ncrypt etc)
-        note that signature verification/resigning won't work with this!
 
     -eu (-decrypt) = decrypt output xvd
     -ee (-encrypt) [keyid] = encrypt output xvd
