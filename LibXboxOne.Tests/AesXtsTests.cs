@@ -74,7 +74,7 @@ namespace LibXboxOne.Tests
         public void TestEncryptFail()
         {
             var cipher = new AesXtsTransform(AesXtsData.Tweak, AesXtsData.DataKey, AesXtsData.TweakKey,
-                                             encrypt: false);
+                                             encrypt: true);
             
             var plaintext = AesXtsData.PlainData;
             var ciphertext = AesXtsData.CipherData;
@@ -83,7 +83,7 @@ namespace LibXboxOne.Tests
 
             for (int dataUnit=0; dataUnit < 3; dataUnit++)
             {
-                transformedBytes += cipher.TransformDataUnit(ciphertext, dataUnit * 0x1000, 0x1000,
+                transformedBytes += cipher.TransformDataUnit(plaintext, dataUnit * 0x1000, 0x1000,
                                          result, dataUnit * 0x1000,
                                          (ulong)dataUnit+1); // <- Invalid data unit
             }
