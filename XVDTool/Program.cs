@@ -22,6 +22,9 @@ namespace XVDTool
             var userDataDest = String.Empty;
             var vhdDest = String.Empty;
 
+            var mountPackage = false;
+            var unmountPackage = false;
+
             var decryptPackage = false;
             var encryptPackage = false;
             var encryptKeyId = 0;
@@ -40,6 +43,9 @@ namespace XVDTool
                 { "i|info", v => printInfo = v != null },
                 { "wi|writeinfo", v => writeInfo = v != null },
                 { "o|output=", v => outputFile = v },
+
+                { "m|mount", v => mountPackage = v != null },
+                { "um|unmount", v => unmountPackage = v != null },
 
                 { "nd|nodatahash", v => XvdFile.DisableDataHashChecking = v != null },
                 { "ne|noextract", v => disableDataExtract = v != null },
@@ -94,6 +100,10 @@ namespace XVDTool
                 Console.WriteLine(fmt + "-i (-info) - print info about package");
                 Console.WriteLine(fmt + "-wi (-writeinfo) - write info about package to [filename].txt");
                 Console.WriteLine(fmt + "-o (-output) <output-path> - specify output filename");
+                Console.WriteLine();
+                Console.WriteLine(fmt + "-m (-mount) - mount package");
+                Console.WriteLine(fmt + "-um (-unmount) - unmount package");
+                Console.WriteLine();
                 Console.WriteLine(fmt + "-nd (-nodatahash) - disable data hash checking, speeds up -l and -f");
                 Console.WriteLine(fmt + "-ne (-noextract) - disable data (embedded XVD/user data) extraction, speeds up -l and -f");
                 Console.WriteLine();
@@ -195,6 +205,24 @@ namespace XVDTool
                     }
                     File.Copy(filePath, outputFile);
                     filePath = outputFile;
+                }
+
+                if (mountPackage)
+                {
+                    ulong result = XvdMount.MountXvd(filePath);
+                    Console.WriteLine("Mounting {0} {1}", filePath, result == 0 ?
+                        "completed successfully" :
+                        String.Format("with errors, Code: 0x{0:X}", result));
+                    return;
+                }
+
+                if (unmountPackage)
+                {
+                    ulong result = XvdMount.UnmountXvd(filePath);
+                    Console.WriteLine("Unmounting {0} {1}", filePath, result == 0 ?
+                        "completed successfully" :
+                        String.Format("with errors, Code: 0x{0:X}", result));
+                    return;
                 }
 
                 var file = new XvdFile(filePath);

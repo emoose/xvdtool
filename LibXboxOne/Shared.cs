@@ -12,7 +12,10 @@ namespace LibXboxOne
         public static extern uint XvdMount(IntPtr unk1,
                                            out int mountedDiskNum, 
                                            IntPtr hXvdHandle,
-                                           [MarshalAs(UnmanagedType.LPWStr)] string pszXvdPath);
+                                           [MarshalAs(UnmanagedType.LPWStr)] string pszXvdPath,
+                                           long unk2,
+                                           long unk3,
+                                           int unk4);
 
         [DllImport("xsapi.dll", SetLastError = true)]
         public static extern uint XvdUnmountDiskNumber(IntPtr hXvdHandle, 
