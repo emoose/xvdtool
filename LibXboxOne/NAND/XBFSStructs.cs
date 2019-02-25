@@ -12,8 +12,7 @@ namespace LibXboxOne
     {
         /* 0x0 */ public uint LBA;
         /* 0x4 */ public uint Length;
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
-        /* 0x8 */ public byte[] Padding;
+        /* 0x8 */ public ulong Reserved;
 
         public override string ToString()
         {
@@ -27,14 +26,11 @@ namespace LibXboxOne
 
             string fmt = formatted ? "    " : "";
 
-            if (!Padding.IsArrayEmpty())
-                b.AppendLineSpace(fmt + "Padding != null");
-
             b.AppendLine();
 
             b.AppendLineSpace(fmt + "LBA: 0x" + LBA.ToString("X") + " (0x" + (LBA * 0x1000).ToString("X") + ")");
             b.AppendLineSpace(fmt + "Length: 0x" + Length.ToString("X") + " (0x" + (Length * 0x1000).ToString("X") + ")");
-            b.AppendLineSpace(fmt + "Padding: " + Padding.ToHexString());
+            b.AppendLineSpace(fmt + "Padding: " + Reserved.ToString("X"));
 
             return b.ToString();
         }
@@ -129,61 +125,69 @@ namespace LibXboxOne
         public byte[] RsaSignature;
     }
 
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
-    public struct FlashHeader
-    {
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
-        public char[] Magic;
-
-        public byte Version;
-        public byte BootSlot;
-        public ushort UnkVersion;
-
-        // reserved?
-        public byte Unk1;
-        public byte Unk2;
-        public byte Unk3;
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x3A)]
-        public XbfsEntry[] Entries;
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x220)]
-        public byte[] unkThing;
-
-        public Guid SystemUnkId; // need to check up on this
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
-        public byte[] XbfsHash; // SHA256 hash of 0x0 - 0x3E0
-    }
-
     // XBFS header, can be at 0x10000, 0x810000 or 0x820000
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
     public struct XbfsHeader
     {
+        public static readonly int DataToHash = 0x3E0;
+        public static readonly string XbfsMagic = "SFBX";
+
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
         /* 0x0 */ public char[] Magic; // SFBX
 
-        /* 0x4 */ public byte Version; // 1
-        /* 0x5 */ public byte BootSlot; // 1 or 2, has to match with boot slot location (1 = 0x10000, 2 = 0x810000, not sure about the value for 0x820000 but i guess its 3)
-        /* 0x6 */ public byte Unknown1; // 3
-        /* 0x7 */ public byte Unknown2; // 0
-        /* 0x8 */ public int Unknown3; // 0
-        /* 0xC */ public int Unknown4; // 0
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
-        /* 0x10 */ public byte[] Unknown5;
+        /* 0x4 */ public byte FormatVersion;
+        /* 0x5 */ public byte SequenceNumber; // Indicates latest filesystem, wraps around: 0xFF -> 0x00
+        /* 0x6 */ public ushort LayoutVersion; // 3
+        /* 0x8 */ public ulong Reserved08; // 0
+        /* 0x10 */ public ulong Reserved10; // 0
+        /* 0x18 */ public ulong Reserved18; // 0
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x3A)]
-        /* 0x20 */ public XbfsEntry[] Entries;
+        /* 0x20 */ public XbfsEntry[] Files;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
-        /* 0x3C0 */ public byte[] Unknown6;
+        /* 0x3C0 */ public byte[] Reserved3C0;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
-        /* 0x3D0 */ public byte[] Unknown7;
+        /* 0x3D0 */ public byte[] SystemXVID; // GUID
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
         /* 0x3E0 */ public byte[] XbfsHash; // SHA256 hash of 0x0 - 0x3E0
+
+        public string MagicString
+        {
+            get
+            {
+                return new string(Magic);
+            }
+        }
+
+        public bool IsValid
+        {
+            get
+            {
+                return MagicString == XbfsMagic;
+            }
+        }
+
+        public bool IsHashValid
+        {
+            get
+            {
+                return XbfsHash.IsEqualTo(CalculateHash());
+            }
+        }
+
+        byte[] CalculateHash()
+        {
+            byte[] data = Shared.StructToBytes(this);
+            return HashUtils.ComputeSha256(data, 0, DataToHash);
+        }
+
+        public void Rehash()
+        {
+            XbfsHash = CalculateHash();
+        }
 
         public override string ToString()
         {
@@ -197,40 +201,22 @@ namespace LibXboxOne
 
             string fmt = formatted ? "    " : "";
 
-            if (Version != 1)
-                b.AppendLineSpace(fmt + "Version != 1");
-            if (Unknown1 != 3)
-                b.AppendLineSpace(fmt + "Unknown1 != 3");
-            if (Unknown2 != 0)
-                b.AppendLineSpace(fmt + "Unknown2 != 0");
-            if (Unknown3 != 0)
-                b.AppendLineSpace(fmt + "Unknown3 != 0");
-            if (Unknown4 != 0)
-                b.AppendLineSpace(fmt + "Unknown4 != 0");
-            if (!Unknown5.IsArrayEmpty())
-                b.AppendLineSpace(fmt + "Unknown5 != null");
-            if (!Unknown6.IsArrayEmpty())
-                b.AppendLineSpace(fmt + "Unknown6 != null");
-            if (!Unknown7.IsArrayEmpty())
-                b.AppendLineSpace(fmt + "Unknown7 != null");
-
             b.AppendLine();
             b.AppendLineSpace(fmt + "Magic: " + new string(Magic));
-            b.AppendLineSpace(fmt + "Version: 0x" + Version.ToString("X"));
-            b.AppendLineSpace(fmt + "Boot Slot: 0x" + BootSlot.ToString("X"));
-            b.AppendLineSpace(fmt + "Unknown1: 0x" + Unknown1.ToString("X"));
-            b.AppendLineSpace(fmt + "Unknown2: 0x" + Unknown2.ToString("X"));
-            b.AppendLineSpace(fmt + "Unknown3: 0x" + Unknown3.ToString("X"));
-            b.AppendLineSpace(fmt + "Unknown4: 0x" + Unknown4.ToString("X"));
-            b.AppendLineSpace(fmt + "Unknown5: 0x" + Unknown5.ToHexString());
-            b.AppendLineSpace(fmt + "Unknown6: 0x" + Unknown6.ToHexString());
-            b.AppendLineSpace(fmt + "Unknown7: 0x" + Unknown7.ToHexString());
+            b.AppendLineSpace(fmt + "Format Version: 0x" + FormatVersion.ToString("X"));
+            b.AppendLineSpace(fmt + "Sequence Number: 0x" + SequenceNumber.ToString("X"));
+            b.AppendLineSpace(fmt + "Layout Version: 0x" + LayoutVersion.ToString("X"));
+            b.AppendLineSpace(fmt + "Reserved08: 0x" + Reserved08.ToString("X"));
+            b.AppendLineSpace(fmt + "Reserved10: 0x" + Reserved10.ToString("X"));
+            b.AppendLineSpace(fmt + "Reserved18: 0x" + Reserved18.ToString("X"));
+            b.AppendLineSpace(fmt + "Reserved3C0: 0x" + Reserved3C0.ToHexString());
+            b.AppendLineSpace(fmt + "System XVID: 0x" + SystemXVID.ToHexString());
             b.AppendLineSpace(fmt + "XBFS header hash: " + Environment.NewLine + fmt + XbfsHash.ToHexString());
 
-            for(int i = 0; i < Entries.Length; i++)
+            for(int i = 0; i < Files.Length; i++)
             {
-                XbfsEntry entry = Entries[i];
-                b.AppendLine("Entry " + i);
+                XbfsEntry entry = Files[i];
+                b.AppendLine("File " + i);
                 b.Append(entry.ToString(formatted));
             }
 
@@ -240,7 +226,8 @@ namespace LibXboxOne
 
     public class XbfsFile
     {
-        public static int[] XbfsOffsets = { 0x10000, 0x810000, 0x820000 };
+        public static readonly int BlockSize = 0x1000;
+        public static readonly int[] XbfsOffsets = { 0x10000, 0x810000, 0x820000 };
         public static string[] XbfsFilenames =
         {
             "1smcbl_a.bin", // 0
@@ -292,6 +279,16 @@ namespace LibXboxOne
             _io = new IO(path);
         }
 
+        public static long FromLBA(uint lba)
+        {
+            return lba * BlockSize;
+        }
+
+        public static uint ToLBA(long offset)
+        {
+            return (uint)(offset / BlockSize);
+        }
+
         public bool Load()
         {
             // read each XBFS header
@@ -333,15 +330,15 @@ namespace LibXboxOne
             long size = 0;
             for (int i = 0; i < XbfsHeaders.Count; i++)
             {
-                if (XbfsHeaders[i].Version != 1)
+                if (!XbfsHeaders[i].IsValid)
                     continue;
-                if (idx >= XbfsHeaders[i].Entries.Length)
+                if (idx >= XbfsHeaders[i].Files.Length)
                     continue;
-                var ent = XbfsHeaders[i].Entries[idx];
+                var ent = XbfsHeaders[i].Files[idx];
                 if (ent.Length == 0)
                     continue;
-                _io.Stream.Position = ent.LBA*0x1000;
-                size = ent.Length*0x1000;
+                _io.Stream.Position = FromLBA(ent.LBA);
+                size = FromLBA(ent.Length);
             }
             return size;
         }
@@ -351,15 +348,15 @@ namespace LibXboxOne
             var info = new Dictionary<long, string>();
             for (int i = 0; i < XbfsHeaders.Count; i++)
             {
-                if (XbfsHeaders[i].Version != 1)
+                if (!XbfsHeaders[i].IsValid)
                     continue;
-                for (int y = 0; y < XbfsHeaders[i].Entries.Length; y++)
+                for (int y = 0; y < XbfsHeaders[i].Files.Length; y++)
                 {
-                    var ent = XbfsHeaders[i].Entries[y];
+                    var ent = XbfsHeaders[i].Files[y];
                     if (ent.Length == 0)
                         continue;
-                    long start = (long)ent.LBA * 0x1000;
-                    long length = (long)ent.Length * 0x1000;
+                    long start = FromLBA(ent.LBA);
+                    long length = FromLBA(ent.Length);
                     long end = start + length;
                     string addInfo = String.Format("{0:X} {1}_{2}", end, i, y);
                     if (info.ContainsKey(start))
@@ -382,19 +379,19 @@ namespace LibXboxOne
             var doneAddrs = new List<long>();
             for (int i = 0; i < XbfsHeaders.Count; i++)
             {
-                if (XbfsHeaders[i].Version != 1)
+                if (!XbfsHeaders[i].IsValid)
                     continue;
-                for (int y = 0; y < XbfsHeaders[i].Entries.Length; y++)
+                for (int y = 0; y < XbfsHeaders[i].Files.Length; y++)
                 {
-                    var ent = XbfsHeaders[i].Entries[y];
+                    var ent = XbfsHeaders[i].Files[y];
                     if (ent.Length == 0)
                         continue;
 
-                    string fileName = (ent.LBA * 0x1000).ToString("X") + "_" + (ent.Length * 0x1000).ToString("X") + "_" + i + "_" + y + "_" + XbfsFilenames[y];
+                    string fileName = FromLBA(ent.LBA).ToString("X") + "_" + FromLBA(ent.Length).ToString("X") + "_" + i + "_" + y + "_" + XbfsFilenames[y];
 
                     long read = 0;
-                    long total = (long)ent.Length*0x1000;
-                    _io.Stream.Position = (long)ent.LBA * 0x1000;
+                    long total = FromLBA(ent.Length);
+                    _io.Stream.Position = FromLBA(ent.LBA);
 
                     bool writeFile = true;
                     if (doneAddrs.Contains(_io.Stream.Position))
