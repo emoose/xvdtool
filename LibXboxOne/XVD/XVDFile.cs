@@ -1202,19 +1202,17 @@ namespace LibXboxOne
 
                 vhdFile.Stream.Position = driveSize;
 
-                var footer = new VhdFooter();
+                var footer = new Vhd.VhdFooter();
                 footer.InitDefaults();
-                footer.OrigSize = ((ulong) driveSize).EndianSwap();
-                footer.CurSize = footer.OrigSize;
+                footer.OriginalSize = ((ulong) driveSize).EndianSwap();
+                footer.CurrentSize = footer.OriginalSize;
                 footer.UniqueId = Header.VDUID;
 
                 // don't need to calculate these
-                footer.DiskGeometryHeads = 0;
-                footer.DiskGeometrySectors = 0;
-                footer.DiskGeometryCylinders = 0;
+                footer.DiskGeometry = 0;
                 footer.TimeStamp = 0;
 
-                footer.CalculateChecksum();
+                footer.FixChecksum();
 
                 vhdFile.Writer.WriteStruct(footer);
             }
