@@ -1,223 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text;
+using System.Linq;
 
-namespace LibXboxOne
+namespace LibXboxOne.Nand
 {
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct XbfsEntry
-    {
-        /* 0x0 */ public uint LBA;
-        /* 0x4 */ public uint Length;
-        /* 0x8 */ public ulong Reserved;
-
-        public override string ToString()
-        {
-            return ToString(false);
-        }
-
-        public string ToString(bool formatted)
-        {
-            string fmt = formatted ? "    " : "";
-
-            var b = new StringBuilder();
-            b.Append(String.Format("LBA: 0x{0:X} (0x{1:X}), ", LBA, LBA * 0x1000));
-            b.Append(String.Format("Length: 0x{0:X} (0x{1:X}), ", Length, Length * 0x1000));
-            b.Append(String.Format("Reserved: 0x{0:X}", Reserved));
-
-            return b.ToString();
-        }
-    }
-
-    //[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
-    //public struct ConsoleEndorsementCert
-    //{
-    //    /* 0x0 */ public uint Magic; // 0x43430004
-    //    /* 0x4 */ public uint Version; // 0x00010002
-
-    //    /* 0x8 */ public uint CertCreationTimestamp; // UNIX timestamp
-    //    /* 0xC */ public uint PspRevisionId; // 01 0A 22 10 = rev B0, 00 0A 22 10 = rev A0
-    //    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
-    //    /* 0x10 */ public byte[] SocId; // unique console ID, probably burned into the jaguar SoC during mfg
-
-    //    /* 0x20 */ public ushort IsPrivate; // 0x1
-    //    /* 0x22 */ public ushort Unknown3;
-    //    /* 0x24 */ public uint Unknown4;
-    //    /* 0x28 */ public ulong Unknown5; // might be console ID
-
-    //    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x100)]
-    //    /* 0x30 */ public byte[] UniqueKey1; // some sort of key, might be console private key
-
-    //    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x100)]
-    //    /* 0x130 */ public byte[] UniqueKey2; // another key
-
-    //    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x14)]
-    //    /* 0x230 */ public char[] ConsoleSerialNumber;
-
-    //    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
-    //    /* 0x244 */ public byte[] UnknownHash; // hash of something in the cert, 0x10 - 0x244 maybe, or 0x10 - 0x20, hash might be keyed in some way
-
-    //    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x1C)]
-    //    /* 0x264 */ public char[] ConsolePartNumber;
-
-    //    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x180)]
-    //    /* 0x280 */ public byte[] CertificateSignature;
-    //}
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
-    public struct PspConsoleCert
-    {
-        public UInt16 StructID; // 0x4343 (ASCII: CC = ConsoleCert?)
-
-        public UInt16 Size;
-
-        public UInt16 IssuerKeyId;  // Key Version
-
-        public UInt16 ProtocolVer;  // unknown
-
-        public UInt32 IssueDate;   // POSIX time
-
-        public UInt32 PspRevisionId; // PSP Version
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
-        public byte[] SocId;
-
-        public UInt16 GenerationId;
-
-        public byte ConsoleRegion;
-
-        public byte ReservedByte; // 0
-
-        public UInt32 ReservedDword; // 0
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x8)]
-        public byte[] VendorId; // size of 8
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x100)]
-        public byte[] AttestationPubKey; // Public key that is used by the Xbox One ChalResp system
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x100)]
-        public byte[] ReservedPublicKey;
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xC)]
-        public byte[] ConsoleSerialNumber;
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x8)]
-        public byte[] ConsoleSku;
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
-        public byte[] ConsoleSettingsHash; // Hash of factory settings (SHA-256)
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xC)]
-        public byte[] ConsolePartNumber;
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
-        public byte[] SomeData; // unknown
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x180)]
-        public byte[] RsaSignature;
-    }
-
-    // XBFS header, can be at 0x10000, 0x810000 or 0x820000
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
-    public struct XbfsHeader
-    {
-        public static readonly int DataToHash = 0x3E0;
-        public static readonly string XbfsMagic = "SFBX";
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
-        /* 0x0 */ public char[] Magic; // SFBX
-
-        /* 0x4 */ public byte FormatVersion;
-        /* 0x5 */ public byte SequenceNumber; // Indicates latest filesystem, wraps around: 0xFF -> 0x00
-        /* 0x6 */ public ushort LayoutVersion; // 3
-        /* 0x8 */ public ulong Reserved08; // 0
-        /* 0x10 */ public ulong Reserved10; // 0
-        /* 0x18 */ public ulong Reserved18; // 0
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x3A)]
-        /* 0x20 */ public XbfsEntry[] Files;
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
-        /* 0x3C0 */ public byte[] Reserved3C0;
-
-        /* 0x3D0 */ public Guid SystemXVID; // GUID
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
-        /* 0x3E0 */ public byte[] XbfsHash; // SHA256 hash of 0x0 - 0x3E0
-
-        public string MagicString
-        {
-            get
-            {
-                return new string(Magic);
-            }
-        }
-
-        public bool IsValid
-        {
-            get
-            {
-                return MagicString == XbfsMagic;
-            }
-        }
-
-        public bool IsHashValid
-        {
-            get
-            {
-                return XbfsHash.IsEqualTo(CalculateHash());
-            }
-        }
-
-        byte[] CalculateHash()
-        {
-            byte[] data = Shared.StructToBytes(this);
-            return HashUtils.ComputeSha256(data, 0, DataToHash);
-        }
-
-        public void Rehash()
-        {
-            XbfsHash = CalculateHash();
-        }
-
-        public override string ToString()
-        {
-            return ToString(false);
-        }
-
-        public string ToString(bool formatted)
-        {            
-            string fmt = formatted ? "    " : "";
-
-            var b = new StringBuilder();
-            b.AppendLineSpace(fmt + "Magic: " + new string(Magic));
-            b.AppendLineSpace(fmt + "Format Version: 0x" + FormatVersion.ToString("X"));
-            b.AppendLineSpace(fmt + "Sequence Number: 0x" + SequenceNumber.ToString("X"));
-            b.AppendLineSpace(fmt + "Layout Version: 0x" + LayoutVersion.ToString("X"));
-            b.AppendLineSpace(fmt + "Reserved08: 0x" + Reserved08.ToString("X"));
-            b.AppendLineSpace(fmt + "Reserved10: 0x" + Reserved10.ToString("X"));
-            b.AppendLineSpace(fmt + "Reserved18: 0x" + Reserved18.ToString("X"));
-            b.AppendLineSpace(fmt + "Reserved3C0: " + Reserved3C0.ToHexString());
-            b.AppendLineSpace(fmt + "System XVID: " + SystemXVID);
-            b.AppendLineSpace(fmt + "XBFS header hash: " + Environment.NewLine + fmt + XbfsHash.ToHexString());
-            b.AppendLine();
-
-            for(int i = 0; i < Files.Length; i++)
-            {
-                XbfsEntry entry = Files[i];
-                if (entry.Length == 0)
-                    continue;
-                b.AppendLine($"File {i}: {XbfsFile.XbfsFilenames[i]} {entry.ToString(formatted)}");
-            }
-
-            return b.ToString();
-        }
-    }
-
     public class XbfsFile
     {
         public static readonly int BlockSize = 0x1000;
@@ -260,7 +48,7 @@ namespace LibXboxOne
         private readonly string _filePath;
 
         public List<XbfsHeader> XbfsHeaders;
-        public PspConsoleCert ConsoleCert;
+        public Certificates.PspConsoleCert ConsoleCert;
 
         public string FilePath
         {
@@ -310,7 +98,7 @@ namespace LibXboxOne
             // 0x7410 - 0x40000 - blank
 
             _io.Stream.Position += 0x5400; // seek to start of unencrypted data in sp_s (console certificate)
-            ConsoleCert = _io.Reader.ReadStruct<PspConsoleCert>();
+            ConsoleCert = _io.Reader.ReadStruct<Certificates.PspConsoleCert>();
 
             return true;
         }

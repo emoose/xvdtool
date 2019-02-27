@@ -1,5 +1,6 @@
 using System.IO;
 using Xunit;
+using LibXboxOne.Nand;
 
 namespace LibXboxOne.Tests
 {
