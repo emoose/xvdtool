@@ -21,16 +21,12 @@ namespace LibXboxOne
 
         public string ToString(bool formatted)
         {
-            var b = new StringBuilder();
-            b.AppendLine("XbfsEntry:");
-
             string fmt = formatted ? "    " : "";
 
-            b.AppendLine();
-
-            b.AppendLineSpace(fmt + "LBA: 0x" + LBA.ToString("X") + " (0x" + (LBA * 0x1000).ToString("X") + ")");
-            b.AppendLineSpace(fmt + "Length: 0x" + Length.ToString("X") + " (0x" + (Length * 0x1000).ToString("X") + ")");
-            b.AppendLineSpace(fmt + "Padding: " + Reserved.ToString("X"));
+            var b = new StringBuilder();
+            b.Append(String.Format("LBA: 0x{0:X} (0x{1:X}), ", LBA, LBA * 0x1000));
+            b.Append(String.Format("Length: 0x{0:X} (0x{1:X}), ", Length, Length * 0x1000));
+            b.Append(String.Format("Reserved: 0x{0:X}", Reserved));
 
             return b.ToString();
         }
@@ -148,8 +144,7 @@ namespace LibXboxOne
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
         /* 0x3C0 */ public byte[] Reserved3C0;
 
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
-        /* 0x3D0 */ public byte[] SystemXVID; // GUID
+        /* 0x3D0 */ public Guid SystemXVID; // GUID
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
         /* 0x3E0 */ public byte[] XbfsHash; // SHA256 hash of 0x0 - 0x3E0
@@ -195,13 +190,10 @@ namespace LibXboxOne
         }
 
         public string ToString(bool formatted)
-        {
-            var b = new StringBuilder();
-            b.AppendLine("XbfsHeader:");
-
+        {            
             string fmt = formatted ? "    " : "";
 
-            b.AppendLine();
+            var b = new StringBuilder();
             b.AppendLineSpace(fmt + "Magic: " + new string(Magic));
             b.AppendLineSpace(fmt + "Format Version: 0x" + FormatVersion.ToString("X"));
             b.AppendLineSpace(fmt + "Sequence Number: 0x" + SequenceNumber.ToString("X"));
@@ -209,15 +201,17 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + "Reserved08: 0x" + Reserved08.ToString("X"));
             b.AppendLineSpace(fmt + "Reserved10: 0x" + Reserved10.ToString("X"));
             b.AppendLineSpace(fmt + "Reserved18: 0x" + Reserved18.ToString("X"));
-            b.AppendLineSpace(fmt + "Reserved3C0: 0x" + Reserved3C0.ToHexString());
-            b.AppendLineSpace(fmt + "System XVID: 0x" + SystemXVID.ToHexString());
+            b.AppendLineSpace(fmt + "Reserved3C0: " + Reserved3C0.ToHexString());
+            b.AppendLineSpace(fmt + "System XVID: " + SystemXVID);
             b.AppendLineSpace(fmt + "XBFS header hash: " + Environment.NewLine + fmt + XbfsHash.ToHexString());
+            b.AppendLine();
 
             for(int i = 0; i < Files.Length; i++)
             {
                 XbfsEntry entry = Files[i];
-                b.AppendLine("File " + i);
-                b.Append(entry.ToString(formatted));
+                if (entry.Length == 0)
+                    continue;
+                b.AppendLine($"File {i}: {XbfsFile.XbfsFilenames[i]} {entry.ToString(formatted)}");
             }
 
             return b.ToString();
@@ -435,7 +429,10 @@ namespace LibXboxOne
             b.AppendLine();
             for (int i = 0; i < XbfsHeaders.Count; i++)
             {
-                b.AppendLine("XbfsHeader slot " + i + " (0x" + XbfsOffsets[i].ToString("X") + ")");
+                if(!XbfsHeaders[i].IsValid)
+                    continue;
+
+                b.AppendLine(String.Format("XbfsHeader slot {0}: (0x{1:X})", i, XbfsOffsets[i]));
                 b.Append(XbfsHeaders[i].ToString(formatted));
             }
             return b.ToString();
