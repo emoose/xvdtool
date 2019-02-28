@@ -33,7 +33,7 @@ namespace LibXboxOne
         /* 0x60 */ public byte[] OriginalXvcDataHash; // hash of XVC data pre-hashtables, with no PDUIDs
 
         /* 0x80 */ public uint Unknown1_HashTableRelated; // can only be 1 or 0, seems to be hash table related
-        /* 0x84 */ public uint ContentType; // if above 0x1A = not an XVC
+        /* 0x84 */ public XvdContentType ContentType; // if above 0x1A = not an XVC
         /* 0x88 */ public uint EmbeddedXVDLength;
         /* 0x8C */ public uint UserDataLength; // aka Persistent Local Storage ?
         /* 0x90 */ public uint XvcDataLength;

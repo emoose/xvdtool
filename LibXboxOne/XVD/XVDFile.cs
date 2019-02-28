@@ -57,16 +57,16 @@ namespace LibXboxOne
 
         public bool CikIsDecrypted = false;
 
-        public static uint[] XvcContentTypes = 
+        public static XvdContentType[] XvcContentTypes = 
         { // taken from bit test 0x07018042 (00000111000000011000000001000010)
           // idx of each set bit (from right to left) is an XVC-enabled content type
-            0x1,
-            0x6,
-            0xF,
-            0x10,
-            0x18,
-            0x19,
-            0x1A
+            XvdContentType.Title,
+            XvdContentType.Application,
+            XvdContentType.MteApp,
+            XvdContentType.MteTitle,
+            XvdContentType.AppDlc,
+            XvdContentType.TitleDlc,
+            XvdContentType.UniversalDlc
         };
 
         private readonly IO _io;
@@ -84,7 +84,7 @@ namespace LibXboxOne
 
         public bool IsXvcFile
         {
-            get { return Header.ContentType < 0x1A && XvcContentTypes.Contains(Header.ContentType); }
+            get { return XvcContentTypes.Contains(Header.ContentType); }
         }
 
         public bool IsEncrypted
