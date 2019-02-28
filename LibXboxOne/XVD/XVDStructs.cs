@@ -87,9 +87,9 @@ namespace LibXboxOne
         /* 0x268 */ public uint WriteablePolicyFlags;
         /* 0x26C */ public uint PersistentLocalStorageSize;
 
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x24)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x1C)]
         /* 0x270 */ public byte[] Reserved1;
-        
+        /* 0x28C */ public long SequenceNumber;
         /* 0x294 */ public ushort RequiredSystemVersion1;
         /* 0x296 */ public ushort RequiredSystemVersion2;
         /* 0x298 */ public ushort RequiredSystemVersion3;
@@ -222,6 +222,7 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + "Sandbox Id: " + new string(SandboxId).Replace("\0", ""));
             b.AppendLineSpace(fmt + "Product Id: " + new Guid(ProductId));
             b.AppendLineSpace(fmt + "PDUID/Build Id: " + new Guid(PDUID));
+            b.AppendLineSpace(fmt + "Sequence Number: " + SequenceNumber);
             b.AppendLineSpace(fmt + String.Format("Package Version: {3}.{2}.{1}.{0}", PackageVersion1, PackageVersion2, PackageVersion3, PackageVersion4));
             b.AppendLineSpace(fmt + String.Format("Required System Version: {3}.{2}.{1}.{0}", RequiredSystemVersion1, RequiredSystemVersion2, RequiredSystemVersion3, RequiredSystemVersion4));
             b.AppendLineSpace(fmt + "ODK Keyslot ID: " + ODKKeyslotID.ToString());
