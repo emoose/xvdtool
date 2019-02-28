@@ -209,6 +209,16 @@ namespace LibXboxOne
             return bytes.Aggregate("", (current, b) => current + (b.ToString("X2") + " "));
         }
 
+        public static string ToHexString(this uint[] array)
+        {
+            return array.Aggregate("", (current, b) => current + "0x" + (b.ToString("X8") + " "));
+        }
+
+        public static string ToHexString(this ushort[] array)
+        {
+            return array.Aggregate("", (current, b) => current + "0x" + (b.ToString("X4") + " "));
+        }
+
         public static bool IsArrayEmpty(this byte[] bytes)
         {
             return bytes.All(b => b == 0);

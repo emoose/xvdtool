@@ -125,7 +125,7 @@ namespace LibXboxOne
             ICryptoTransform transform = encrypt ? cipher.CreateEncryptor(OdkKey, nullIv) :
                                                    cipher.CreateDecryptor(OdkKey, nullIv);
 
-            transform.TransformBlock(Header.EncryptedCIK, 0, Header.EncryptedCIK.Length, Header.EncryptedCIK, 0);
+            transform.TransformBlock(Header.KeyMaterial, 0, Header.KeyMaterial.Length, Header.KeyMaterial, 0);
 
             CikIsDecrypted = !encrypt;
         }
@@ -185,14 +185,14 @@ namespace LibXboxOne
             return true;
         }
 
-        internal static ulong CalculateHashBlockNumForBlockNum(uint unk1, ulong hashTreeLevels, ulong xvdDataBlockCount,
+        internal static ulong CalculateHashBlockNumForBlockNum(XvdType type, ulong hashTreeLevels, ulong xvdDataBlockCount,
                                                                 ulong blockNum, uint idx, out ulong entryNumInBlock)
         {
             var tempHashTreeLevels = hashTreeLevels;
 
             entryNumInBlock = 0;
 
-            if (unk1 > 1)
+            if ((uint)type > 1)
                 return 0;
 
             uint edx;
@@ -650,7 +650,7 @@ namespace LibXboxOne
             else
             {
                 // todo: check with more non-xvc xvds and see if they use any other headerId besides 0x1
-                success = CryptSectionXts(false, Header.EncryptedCIK, 0x1, UserDataOffset,
+                success = CryptSectionXts(false, Header.KeyMaterial, 0x1, UserDataOffset,
                     (ulong)_io.Stream.Length - UserDataOffset);
             }
 
@@ -672,16 +672,16 @@ namespace LibXboxOne
 
             if (!IsXvcFile)
             {
-                if (Header.EncryptedCIK.IsArrayEmpty())
+                if (Header.KeyMaterial.IsArrayEmpty())
                 {
                     // generate a new CIK if there's none specified
                     var rng = new Random();
-                    Header.EncryptedCIK = new byte[0x20];
-                    rng.NextBytes(Header.EncryptedCIK);
+                    Header.KeyMaterial = new byte[0x20];
+                    rng.NextBytes(Header.KeyMaterial);
                 }
 
                 // todo: check with more non-xvc xvds and see if they use any other headerId besides 0x1
-                success = CryptSectionXts(true, Header.EncryptedCIK, 0x1, UserDataOffset,
+                success = CryptSectionXts(true, Header.KeyMaterial, 0x1, UserDataOffset,
                     (ulong)_io.Stream.Length - UserDataOffset);
             }
             else
@@ -977,7 +977,7 @@ namespace LibXboxOne
             for (int i = 0; i < dataBlockCount; i++)
             {
                 ulong stackNum;
-                var blockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated,
+                var blockNum = CalculateHashBlockNumForBlockNum(Header.Type,
                                                                 HashTreeLevels, XvdDataBlockCount,
                                                                 (ulong)i, 0, out stackNum);
 
@@ -1058,7 +1058,7 @@ namespace LibXboxOne
                     while (dataBlockNum < XvdDataBlockCount)
                     {
                         ulong entryNum;
-                        var blockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated,
+                        var blockNum = CalculateHashBlockNumForBlockNum(Header.Type,
                                                                         HashTreeLevels, XvdDataBlockCount,
                                                                         dataBlockNum, hashTreeLevel - 1, out entryNum);
                         _io.Stream.Position = (long)(HashTreeOffset + (blockNum * 0x1000));
@@ -1066,7 +1066,7 @@ namespace LibXboxOne
                         Array.Resize(ref blockHash, 0x18);
 
                         ulong entryNum2;
-                        var secondBlockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated,
+                        var secondBlockNum = CalculateHashBlockNumForBlockNum(Header.Type,
                                                                                 HashTreeLevels, XvdDataBlockCount,
                                                                                 dataBlockNum, hashTreeLevel, out entryNum2);
                         
@@ -1118,7 +1118,7 @@ namespace LibXboxOne
                     while (dataBlockNum < XvdDataBlockCount)
                     {
                         ulong entryNum;
-                        var blockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated,
+                        var blockNum = CalculateHashBlockNumForBlockNum(Header.Type,
                                                                         HashTreeLevels, XvdDataBlockCount,
                                                                         dataBlockNum, hashTreeLevel - 1, out entryNum);
 
@@ -1127,7 +1127,7 @@ namespace LibXboxOne
                         Array.Resize(ref blockHash, 0x18);
 
                         ulong entryNum2;
-                        var secondBlockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated,
+                        var secondBlockNum = CalculateHashBlockNumForBlockNum(Header.Type,
                                                                               HashTreeLevels, XvdDataBlockCount,
                                                                               dataBlockNum, hashTreeLevel, out entryNum2);
                         topHashTreeBlock = secondBlockNum;

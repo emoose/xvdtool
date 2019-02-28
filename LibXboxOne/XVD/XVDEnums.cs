@@ -2,6 +2,12 @@
 
 namespace LibXboxOne
 {
+    public enum XvdType : uint
+    {
+        Fixed = 0,
+        Dynamic = 1
+    }
+
     public enum XvdContentType : uint
     {
         Data = 0,

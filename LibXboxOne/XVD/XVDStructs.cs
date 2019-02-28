@@ -32,36 +32,36 @@ namespace LibXboxOne
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
         /* 0x60 */ public byte[] OriginalXvcDataHash; // hash of XVC data pre-hashtables, with no PDUIDs
 
-        /* 0x80 */ public uint Unknown1_HashTableRelated; // can only be 1 or 0, seems to be hash table related
+        /* 0x80 */ public XvdType Type;
         /* 0x84 */ public XvdContentType ContentType; // if above 0x1A = not an XVC
         /* 0x88 */ public uint EmbeddedXVDLength;
         /* 0x8C */ public uint UserDataLength; // aka Persistent Local Storage ?
         /* 0x90 */ public uint XvcDataLength;
         /* 0x94 */ public uint DynamicHeaderLength;
-        /* 0x98 */ public uint Unknown2; // always 0x000AA000, value seems to be used (staticly built into the exe) during xvdsign en/decryption
-
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x60)]
-        /* 0x9C */ public byte[] Unknown3; // padding?
-
-        /* 0xFC */ public ulong PECatalogInfo0; // not exactly sure what these PECatalogInfo fields are filled with
-        /* 0x104 */ public ulong Unknown4; // ? never seems to be set
+        /* 0x98 */ public uint BlockSize; // always 0x000AA000, value seems to be used (staticly built into the exe) during xvdsign en/decryption
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x4)]
-        /* 0x10C */ public ulong[] PECatalogInfo1;
+        /* 0x9C */ public XvdExtEntry[] ExtEntries;
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x8)]
+        /* 0xFC */ public ushort[] Capabilities;
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
+        /* 0x10C */ public byte[] PECatalogHash;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
         /* 0x12C */ public byte[] EmbeddedXVD_PDUID;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
-        /* 0x13C */ public byte[] Unknown5;
+        /* 0x13C */ public byte[] Reserved0;
 
         // encrypted CIK is only used in non-XVC XVDs, field is decrypted with ODK and then used as the CIK to decrypt data blocks
         
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
-        /* 0x14C */ public byte[] EncryptedCIK;
+        /* 0x14C */ public byte[] KeyMaterial;
 
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x4)]
-        /* 0x16C */ public ulong[] PECatalogInfo2;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
+        /* 0x16C */ public byte[] UserDataHash;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
         /* 0x18C */ public char[] SandboxId;
@@ -77,14 +77,18 @@ namespace LibXboxOne
         /* 0x1C0 */ public ushort PackageVersion3;
         /* 0x1C2 */ public ushort PackageVersion4;
 
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x14)]
-        /* 0x1C4 */ public ulong[] PECatalogInfo3;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
+        /* 0x1C4 */ public ushort[] PECatalogCaps;
 
-        /* 0x264 */ public ulong Unknown6;
-        /* 0x26C */ public uint Unknown7;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x80)]
+        /* 0x1E4 */ public byte[] PECatalogs;
+
+        /* 0x264 */ public uint WriteableExpirationDate;
+        /* 0x268 */ public uint WriteablePolicyFlags;
+        /* 0x26C */ public uint PersistentLocalStorageSize;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x24)]
-        /* 0x270 */ public byte[] Unknown8;
+        /* 0x270 */ public byte[] Reserved1;
         
         /* 0x294 */ public ushort RequiredSystemVersion1;
         /* 0x296 */ public ushort RequiredSystemVersion2;
@@ -94,7 +98,7 @@ namespace LibXboxOne
         /* 0x29C */ public uint ODKKeyslotID; // 0x2 for test ODK, 0x0 for retail ODK? (makepkg doesn't set this for test ODK crypted packages?)
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xB60)]
-        /* 0x2A0 */ public byte[] Reserved;
+        /* 0x2A0 */ public byte[] Reserved2;
 
         /* 0xE00 = END */
 
@@ -147,36 +151,12 @@ namespace LibXboxOne
 
             string fmt = formatted ? "    " : "";
 
-            if (FormatVersion != 3)
-                b.AppendLineSpace(fmt + "FormatVersion != 3");
-            if (Unknown1_HashTableRelated != 1)
-                b.AppendLineSpace(fmt + "Unknown1 != 1");
-            if (Unknown2 != 0xAA000)
-                b.AppendLineSpace(fmt + "Unknown2 != 0xAA000");
-            if (!Unknown3.IsArrayEmpty())
-                b.AppendLineSpace(fmt + "Unknown3 != null");
-            if (Unknown4 != 0)
-                b.AppendLineSpace(fmt + "Unknown4 != 0");
-            if (!Unknown5.IsArrayEmpty())
-                b.AppendLineSpace(fmt + "Unknown5 != null");
-            if (Unknown6 != 0)
-                b.AppendLineSpace(fmt + "Unknown6 != 0");
-            if (Unknown7 != 0)
-                b.AppendLineSpace(fmt + "Unknown7 != 0");
-            if (!Unknown8.IsArrayEmpty())
-                b.AppendLineSpace(fmt + "Unknown8 != null");
-            if (!Reserved.IsArrayEmpty())
-                b.AppendLineSpace(fmt + "Reserved != null");
-
             if (!Enum.IsDefined(typeof(XvdContentType), ContentType))
                 b.AppendLineSpace(fmt + "Unknown content type 0x" + ContentType.ToString("X"));
 
             b.AppendLineSpace(fmt + (IsSignedWithRedKey ? "Signed" : "Not signed") + " with red key");
 
             b.AppendLineSpace(fmt + "Using " + (ODKKeyslotID == 2 ? "test" : "unknown") + " ODK(?)");
-
-            if (VolumeFlags.HasFlag(XvdVolumeFlags.LegacySectorSize))
-                b.AppendLineSpace(fmt + "System file");
 
             b.AppendLineSpace(fmt + "Read-only flag " + (VolumeFlags.HasFlag(XvdVolumeFlags.ReadOnly) ? "set" : "not set"));
 
@@ -202,66 +182,84 @@ namespace LibXboxOne
 
             b.AppendLineSpace(fmt + "Magic: " + new string(Magic));
             b.AppendLineSpace(fmt + "Volume Flags: 0x" + VolumeFlags.ToString("X"));
+            b.AppendLineSpace(fmt + "Format Version: 0x" + FormatVersion.ToString("X"));
 
             string contentType = "0x" + ContentType.ToString("X") + " (" + ((XvdContentType)ContentType) + ")";
 
             b.AppendLineSpace(fmt + "File Time Created: " + DateTime.FromFileTime(FileTimeCreated));
             b.AppendLineSpace(fmt + "Drive Size: 0x" + DriveSize.ToString("X"));
-            b.AppendLineSpace(fmt + "Format Version: 0x" + FormatVersion.ToString("X"));
 
-            b.AppendLineSpace(fmt + String.Format("VDUID / Drive Id: {0} (UDUID / User Id: {1})", new Guid(VDUID), new Guid(UDUID)));
+            b.AppendLineSpace(fmt + String.Format("VDUID / Drive Id: {0}", new Guid(VDUID)));
+            b.AppendLineSpace(fmt + String.Format("UDUID / User Id: {0}", new Guid(UDUID)));
+
+            b.AppendLineSpace(fmt + "Top Hash Block Hash:" + Environment.NewLine + fmt + TopHashBlockHash.ToHexString());
+            b.AppendLineSpace(fmt + "Original XVC Data Hash:" + Environment.NewLine + fmt + OriginalXvcDataHash.ToHexString());
+
+            b.AppendLineSpace(fmt + "XvdType: " + Type);
             b.AppendLineSpace(fmt + "Content Type: " + contentType);
             b.AppendLineSpace(fmt + "Embedded XVD PDUID/Build Id: " + new Guid(EmbeddedXVD_PDUID));
             b.AppendLineSpace(fmt + "Embedded XVD Length: 0x" + EmbeddedXVDLength.ToString("X"));
             b.AppendLineSpace(fmt + "User Data Length: 0x" + UserDataLength.ToString("X"));
             b.AppendLineSpace(fmt + "XVC Data Length: 0x" + XvcDataLength.ToString("X"));
             b.AppendLineSpace(fmt + "Dynamic Header Length: 0x" + DynamicHeaderLength.ToString("X"));
-            b.AppendLineSpace(fmt + "Top Hash Block Hash:" + Environment.NewLine + fmt + TopHashBlockHash.ToHexString());
-            b.AppendLineSpace(fmt + "Original XVC Data Hash:" + Environment.NewLine + fmt + OriginalXvcDataHash.ToHexString());
+            b.AppendLineSpace(fmt + "BlockSize: 0x" + BlockSize.ToString("X"));
+            b.AppendLineSpace(fmt + "Ext Entries: " + ExtEntries.Length);
+            foreach(XvdExtEntry entry in ExtEntries)
+                b.AppendLineSpace(fmt + entry.ToString(true));
+
+            b.AppendLineSpace(fmt + "Capabilities: " + Capabilities.ToHexString());
+
+            b.AppendLineSpace(fmt + "PE Catalog Hash: " + PECatalogHash.ToHexString());
+            b.AppendLineSpace(fmt + "Userdata hash: " + UserDataHash.ToHexString());
+
+            b.AppendLineSpace(fmt + "PE Catalog Caps: " + PECatalogCaps.ToHexString());
+            b.AppendLineSpace(fmt + "PE Catalogs: " + PECatalogs.ToHexString());
+
+            b.AppendLineSpace(fmt + "Writeable Expiration Date: 0x" + WriteableExpirationDate.ToString("X"));
+            b.AppendLineSpace(fmt + "Writeable Policy flags: 0x" + WriteablePolicyFlags.ToString("X"));
+            b.AppendLineSpace(fmt + "Persistent Local storage length: 0x" + PersistentLocalStorageSize.ToString("X"));
+
             b.AppendLineSpace(fmt + "Sandbox Id: " + new string(SandboxId).Replace("\0", ""));
             b.AppendLineSpace(fmt + "Product Id: " + new Guid(ProductId));
             b.AppendLineSpace(fmt + "PDUID/Build Id: " + new Guid(PDUID));
             b.AppendLineSpace(fmt + String.Format("Package Version: {3}.{2}.{1}.{0}", PackageVersion1, PackageVersion2, PackageVersion3, PackageVersion4));
             b.AppendLineSpace(fmt + String.Format("Required System Version: {3}.{2}.{1}.{0}", RequiredSystemVersion1, RequiredSystemVersion2, RequiredSystemVersion3, RequiredSystemVersion4));
             b.AppendLineSpace(fmt + "ODK Keyslot ID: " + ODKKeyslotID.ToString());
-            b.AppendLineSpace(fmt + "Encrypted CIK:" + Environment.NewLine + fmt + EncryptedCIK.ToHexString());
-            b.AppendLineSpace(fmt + "PECatalogInfo0: 0x" + PECatalogInfo0.ToString("X"));
+            b.AppendLineSpace(fmt + "KeyMaterial:" + Environment.NewLine + fmt + KeyMaterial.ToHexString());
 
-            string catalogInfo1 = "";
-            foreach (ulong catalogInfo in PECatalogInfo1)
-                catalogInfo1 += "0x" + catalogInfo.ToString("X") + " ";
-
-            b.AppendLine(fmt + "PECatalogInfo1: " + catalogInfo1);
-
-            string catalogInfo2 = "";
-            foreach (ulong catalogInfo in PECatalogInfo2)
-                catalogInfo2 += "0x" + catalogInfo.ToString("X") + " ";
-
-            b.AppendLine(fmt + "PECatalogInfo2: " + catalogInfo2);
-
-            b.AppendLine(fmt + "PECatalogInfo3: ");
-            b.Append(fmt);
-            foreach (ulong catalogInfo in PECatalogInfo3)
-                b.Append("0x" + catalogInfo.ToString("X") + " ");
-
-            b.AppendLine();
-            b.AppendLine();
-
-            b.AppendLineSpace(fmt + "Unknown1: 0x" + Unknown1_HashTableRelated.ToString("X"));
-            b.AppendLineSpace(fmt + "Unknown2: 0x" + Unknown2.ToString("X"));
-            b.AppendLineSpace(fmt + "Unknown3:" + Environment.NewLine + fmt + Unknown3.ToHexString());
-            b.AppendLineSpace(fmt + "Unknown4: 0x" + Unknown4.ToString("X"));
-            b.AppendLineSpace(fmt + "Unknown5:" + Environment.NewLine + fmt + Unknown5.ToHexString());
-            b.AppendLineSpace(fmt + "Unknown6: 0x" + Unknown6.ToString("X"));
-            b.AppendLineSpace(fmt + "Unknown7: 0x" + Unknown7.ToString("X"));
-            b.AppendLineSpace(fmt + "Unknown8: " + Environment.NewLine + fmt + Unknown8.ToHexString());
-
-            if (!Reserved.IsArrayEmpty())
-                b.AppendLineSpace(fmt + "Reserved: " + Environment.NewLine + fmt + Reserved.ToHexString());
+            if (!Reserved0.IsArrayEmpty())
+                b.AppendLineSpace(fmt + "Reserved0: " + Environment.NewLine + fmt + Reserved0.ToHexString());
+            if (!Reserved1.IsArrayEmpty())
+                b.AppendLineSpace(fmt + "Reserved1: " + Environment.NewLine + fmt + Reserved1.ToHexString());
+            if (!Reserved2.IsArrayEmpty())
+                b.AppendLineSpace(fmt + "Reserved2: " + Environment.NewLine + fmt + Reserved2.ToHexString());
 
             return b.ToString();
         }
     }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode, Pack = 1)]
+    public struct XvdExtEntry
+    {
+        /* 0x00 */ uint Code;
+        /* 0x04 */ uint Length;
+        /* 0x08 */ ulong Offset;
+        /* 0x10 */ uint DataLength;
+        /* 0x14 */ uint Reserved;
+
+        /* 0x18 = END */
+
+        public override string ToString()
+        {
+            return ToString(false);
+        }
+
+        public string ToString(bool formatted)
+        {
+            string fmt = formatted ? "    " : "";
+            return fmt + $"XvdExtEntry: Code: {Code:X}, Length: {Length:X}, Offset: {Offset:X}, DataLength: {DataLength:X}";
+        }
+    } 
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct XvcUpdateSegmentInfo
