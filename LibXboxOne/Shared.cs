@@ -225,21 +225,6 @@ namespace LibXboxOne
             return true;
         }
 
-        public static bool IsFlagSet(this uint flags, uint flag)
-        {
-            return (flags & flag) == flag;
-        }
-
-        public static uint RemoveFlag(this uint flags, uint flag)
-        {
-            return IsFlagSet(flags, flag) ? ToggleFlag(flags, flag) : flags;
-        }
-
-        public static uint ToggleFlag(this uint flags, uint flag)
-        {
-            return (flags ^ flag);
-        }
-
         public static void AppendLineSpace(this StringBuilder b, string str)
         {
             b.AppendLine(str + " ");

@@ -89,12 +89,12 @@ namespace LibXboxOne
 
         public bool IsEncrypted
         {
-            get { return !Header.VolumeFlags.IsFlagSet((uint) XvdVolumeFlags.EncryptionDisabled); }
+            get { return !Header.VolumeFlags.HasFlag(XvdVolumeFlags.EncryptionDisabled); }
         }
 
         public bool IsDataIntegrityEnabled
         {
-            get { return !Header.VolumeFlags.IsFlagSet((uint)XvdVolumeFlags.DataIntegrityDisabled); }
+            get { return !Header.VolumeFlags.HasFlag(XvdVolumeFlags.DataIntegrityDisabled); }
         }
 
         public XvdFile(string path)
@@ -657,7 +657,7 @@ namespace LibXboxOne
             if (!success)
                 return false;
 
-            Header.VolumeFlags = Header.VolumeFlags.ToggleFlag((uint) XvdVolumeFlags.EncryptionDisabled);
+            Header.VolumeFlags ^= XvdVolumeFlags.EncryptionDisabled;
             Save();
 
             return true;
@@ -715,12 +715,12 @@ namespace LibXboxOne
 
             CryptHeaderCik(true);
 
-            Header.VolumeFlags = Header.VolumeFlags.ToggleFlag((uint)XvdVolumeFlags.EncryptionDisabled);
+            Header.VolumeFlags ^= XvdVolumeFlags.EncryptionDisabled;
 
             // seems the readonly flag gets set when encrypting
-            if (!Header.VolumeFlags.IsFlagSet((uint) XvdVolumeFlags.ReadOnly))
+            if (!Header.VolumeFlags.HasFlag(XvdVolumeFlags.ReadOnly))
             {
-                Header.VolumeFlags = Header.VolumeFlags.ToggleFlag((uint)XvdVolumeFlags.ReadOnly);
+                Header.VolumeFlags ^= XvdVolumeFlags.ReadOnly;
             }
 
             Save();
@@ -888,7 +888,7 @@ namespace LibXboxOne
             if (!_io.AddBytes(hashTreeSize))
                 return false;
 
-            Header.VolumeFlags = Header.VolumeFlags.ToggleFlag((uint)XvdVolumeFlags.DataIntegrityDisabled);
+            Header.VolumeFlags ^= XvdVolumeFlags.DataIntegrityDisabled;
 
             if (IsXvcFile)
             {
@@ -934,7 +934,7 @@ namespace LibXboxOne
             if (!_io.DeleteBytes(hashTreeSize))
                 return false;
 
-            Header.VolumeFlags = Header.VolumeFlags.ToggleFlag((uint)XvdVolumeFlags.DataIntegrityDisabled);
+            Header.VolumeFlags ^= XvdVolumeFlags.DataIntegrityDisabled;
             
             for (int i = 0; i < Header.TopHashBlockHash.Length; i++)
                 Header.TopHashBlockHash[i] = 0;

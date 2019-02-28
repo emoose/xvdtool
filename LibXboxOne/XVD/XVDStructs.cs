@@ -15,7 +15,7 @@ namespace LibXboxOne
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
         /* 0x0 (from signature) */ public char[] Magic; // msft-xvd
 
-        /* 0x8 */ public uint VolumeFlags;
+        /* 0x8 */ public XvdVolumeFlags VolumeFlags;
         /* 0xC */ public uint FormatVersion; // 3 in latest xvds
         /* 0x10 */ public long FileTimeCreated;
         /* 0x18 */ public ulong DriveSize;
@@ -175,20 +175,28 @@ namespace LibXboxOne
 
             b.AppendLineSpace(fmt + "Using " + (ODKKeyslotID == 2 ? "test" : "unknown") + " ODK(?)");
 
-            if (VolumeFlags.IsFlagSet((uint)XvdVolumeFlags.SystemFile))
+            if (VolumeFlags.HasFlag(XvdVolumeFlags.LegacySectorSize))
                 b.AppendLineSpace(fmt + "System file");
 
-            b.AppendLineSpace(fmt + "Read-only flag " + (VolumeFlags.IsFlagSet((uint)XvdVolumeFlags.ReadOnly) ? "set" : "not set"));
+            b.AppendLineSpace(fmt + "Read-only flag " + (VolumeFlags.HasFlag(XvdVolumeFlags.ReadOnly) ? "set" : "not set"));
 
-            b.AppendLineSpace(fmt + (VolumeFlags.IsFlagSet((uint)XvdVolumeFlags.EncryptionDisabled)
+            b.AppendLineSpace(fmt + (VolumeFlags.HasFlag(XvdVolumeFlags.EncryptionDisabled)
                 ? "Decrypted"
                 : "Encrypted"));
 
-            b.AppendLineSpace(fmt + (VolumeFlags.IsFlagSet((uint)XvdVolumeFlags.DataIntegrityDisabled)
+            b.AppendLineSpace(fmt + (VolumeFlags.HasFlag(XvdVolumeFlags.DataIntegrityDisabled)
                 ? "Data integrity disabled (doesn't use hash tree)"
                 : "Data integrity enabled (uses hash tree)"));
-
-            b.AppendLineSpace(fmt + "Unknown flag 0x40 " + (VolumeFlags.IsFlagSet((uint)XvdVolumeFlags.Unknown) ? "set" : "not set"));
+            
+            b.AppendLineSpace(fmt + (VolumeFlags.HasFlag(XvdVolumeFlags.LegacySectorSize)
+                ? "Legacy Sector Size (512 bytes)"
+                : "Sector Size (4096 bytes)"));
+            
+            b.AppendLineSpace(fmt + "ResiliencyEnabled " + (VolumeFlags.HasFlag(XvdVolumeFlags.ResiliencyEnabled) ? "set" : "not set"));
+            b.AppendLineSpace(fmt + "SraReadOnly " + (VolumeFlags.HasFlag(XvdVolumeFlags.SraReadOnly) ? "set" : "not set"));
+            
+            b.AppendLineSpace(fmt + "RegionIdInXts " + (VolumeFlags.HasFlag(XvdVolumeFlags.RegionIdInXts) ? "set" : "not set"));
+            b.AppendLineSpace(fmt + "EraSpecific " + (VolumeFlags.HasFlag(XvdVolumeFlags.EraSpecific) ? "set" : "not set"));
 
             b.AppendLine();
 

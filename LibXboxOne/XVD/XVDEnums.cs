@@ -1,4 +1,6 @@
-﻿namespace LibXboxOne
+﻿using System;
+
+namespace LibXboxOne
 {
     public enum XvdContentType : uint
     {
@@ -33,6 +35,7 @@
         Test = 0x1C
     }
 
+    [Flags]
     public enum XvcRegionFlags : uint
     {
         Resident = 1,
@@ -41,12 +44,16 @@
         FileSystemMetadata = 8
     }
 
+    [Flags]
     public enum XvdVolumeFlags : uint
     {
         ReadOnly = 1,
         EncryptionDisabled = 2, // data decrypted, no encrypted CIKs
         DataIntegrityDisabled = 4, // unsigned and unhashed
-        SystemFile = 8, // only observed in system files
-        Unknown = 0x40, // unsure, never set on unsigned/unhashed files
+        LegacySectorSize = 8,
+        ResiliencyEnabled = 0x10,
+        SraReadOnly = 0x20,
+        RegionIdInXts = 0x40,
+        EraSpecific = 0x80
     }
 }
