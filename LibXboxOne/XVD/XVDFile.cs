@@ -186,233 +186,56 @@ namespace LibXboxOne
         }
 
         internal static ulong CalculateHashBlockNumForBlockNum(XvdType type, ulong hashTreeLevels, ulong xvdDataBlockCount,
-                                                                ulong blockNum, uint idx, out ulong entryNumInBlock)
+                                                                ulong blockNum, uint index, out ulong entryNumInBlock)
         {
-            var tempHashTreeLevels = hashTreeLevels;
+            ulong HashBlockExponent(ulong blockCount)
+            {
+                return (ulong)Math.Pow(0xAA, blockCount);
+            }
 
+            long _hashTreeLevels = (long)hashTreeLevels;
+            ulong result = 0xFFFF;
             entryNumInBlock = 0;
 
-            if ((uint)type > 1)
+            if ((uint)type > 1 || index > 3)
+                return result; // Invalid data
+
+            if (index == 0)
+                entryNumInBlock = blockNum % 0xAA;
+            else
+                entryNumInBlock = blockNum / HashBlockExponent(index) % 0xAA;
+
+            if (index == 3)
                 return 0;
 
-            uint edx;
+            result = blockNum / HashBlockExponent(index + 1);
+            hashTreeLevels -= (index + 1);
 
-            ulong returnVal = 0;
-            if (idx == 0)
+            if (index == 0 && hashTreeLevels > 0)
             {
-                ulong newBlock = blockNum*0xc0c0c0c1;
-                edx = (uint)(newBlock >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newBlock = (uint)(newBlock & uint.MaxValue);
-
-                returnVal = edx >> 7;
-
-                var eax = returnVal * 0xAA;
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                edx = (uint)(eax >> 32);
-                eax = (uint)(eax & uint.MaxValue);
-
-                blockNum -= eax;
-                entryNumInBlock = blockNum;
-                tempHashTreeLevels--;
-
-                if (tempHashTreeLevels == 0)
-                    return returnVal;
-
-                var addr = xvdDataBlockCount + 0x70E3;
-
-                addr = addr * 0x9121b243;
-                edx = (uint)(addr >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                addr = (uint)(addr & uint.MaxValue);
-
-                edx = edx >> 0xE;
-                returnVal += edx;
-                tempHashTreeLevels--;
+                result += (xvdDataBlockCount + HashBlockExponent(2) - 1) / HashBlockExponent(2);
+                hashTreeLevels--;
             }
-            if (idx == 1)
+            
+            if ((index == 0 || index == 1) && hashTreeLevels > 0)
             {
-                var newBlock = blockNum * 0xc0c0c0c1;
-                edx = (uint)(newBlock >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newBlock = (uint)(newBlock & uint.MaxValue);
-
-                ulong ecx = edx;
-                ecx = ecx >> 7;
-
-                var newEcx = ecx * 0xc0c0c0c1;
-                edx = (uint)(newEcx >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newEcx = (uint)(newEcx & uint.MaxValue);
-
-                edx = edx >> 7;
-
-                var eax = (ulong)edx * 0xAA;
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                edx = (uint)(eax >> 32);
-                eax = (uint)(eax & uint.MaxValue);
-
-                ecx -= eax;
-
-                entryNumInBlock = ecx;
-
-                newBlock = blockNum * 0x9121b243;
-                edx = (uint)(newBlock >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newBlock = (uint)(newBlock & uint.MaxValue);
-
-                returnVal = edx;
-                returnVal = returnVal >> 0xE;
-                tempHashTreeLevels -= 2;
+                result += (xvdDataBlockCount + HashBlockExponent(3) - 1) / HashBlockExponent(3);
+                hashTreeLevels--;
             }
-            if (idx == 0 || idx == 1)
-            {
-                if (tempHashTreeLevels == 0)
-                    return returnVal;
 
-                var addr = xvdDataBlockCount + 0x4AF767;
+            if (hashTreeLevels > 0 )
+                result += (xvdDataBlockCount + HashBlockExponent(4) - 1) / HashBlockExponent(4);
 
-                addr = addr*0xDA8D187D;
-                edx = (uint)(addr >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                addr = (uint)(addr & uint.MaxValue);
-
-                tempHashTreeLevels--;
-                edx = edx >> 0x16;
-                returnVal += edx;
-            }
-            if (idx == 2)
-            {
-                var newBlock = blockNum * 0x9121B243;
-                edx = (uint)(newBlock >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newBlock = (uint)(newBlock & uint.MaxValue);
-
-                ulong ecx = edx;
-                ecx = ecx >> 0xE;
-
-                var newEcx = ecx * 0xc0c0c0c1;
-                edx = (uint)(newEcx >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newEcx = (uint)(newEcx & uint.MaxValue);
-
-                edx = edx >> 7;
-
-                var eax = (ulong)edx * 0xAA;
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                edx = (uint)(eax >> 32);
-                eax = (uint)(eax & uint.MaxValue);
-
-                ecx -= eax;
-
-                entryNumInBlock = ecx;
-
-                newBlock = blockNum * 0xda8d187d;
-                edx = (uint)(newBlock >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newBlock = (uint)(newBlock & uint.MaxValue);
-
-                returnVal = edx;
-                tempHashTreeLevels -= 3;
-                returnVal = returnVal >> 0x16;
-            }
-            if (idx == 0 || idx == 1 || idx == 2)
-            {
-                if (tempHashTreeLevels == 0)
-                    return returnVal;
-
-                var addr = xvdDataBlockCount + 0x31C84B0F;
-
-                var newAddr = addr * 0x491CC17D;
-                edx = (uint)(newAddr >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newAddr = (uint)(newAddr & uint.MaxValue);
-
-                addr -= edx;
-                addr = addr >> 1;
-                addr += edx;
-                addr = addr >> 0x1D;
-                returnVal += addr;
-                return returnVal;
-            }
-            if (idx == 3)
-            {
-                var newBlock = blockNum * 0xDA8D187D;
-                edx = (uint)(newBlock >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newBlock = (uint)(newBlock & uint.MaxValue);
-
-                ulong ecx = edx;
-                ecx = ecx >> 0x16;
-
-                var newEcx = ecx * 0xc0c0c0c1;
-                edx = (uint)(newEcx >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newEcx = (uint)(newEcx & uint.MaxValue);
-
-                edx = edx >> 7;
-
-                ulong eax = (ulong)edx * 0xAA;
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                edx = (uint)(eax >> 32);
-                eax = (uint)(eax & uint.MaxValue);
-
-                ecx -= eax;
-                entryNumInBlock = ecx;
-                returnVal = 0;
-            }
-            return returnVal;
+            return result;
         }
 
         internal static ulong CalculateNumHashBlocksInLevel(ulong size, ulong idx)
         {
-            var tempSize = size;
-            if (idx == 0)
-            {
-                tempSize += 0xA9;
-                tempSize = tempSize * 0xc0c0c0c1;
-                return (tempSize >> 32) / 0x80;
-            }
-            if (idx == 1)
-            {
-                tempSize += 0x70e3;
-                tempSize = tempSize * 0x9121b243;
-                return (tempSize >> 32) / 0x4000;
-            }
-            if (idx == 2)
-            {
-                tempSize += 0x4af767;
-                tempSize = tempSize * 0xDA8D187D;
-                return (tempSize >> 32) / 0x400000;
-            }
-            if (idx == 3)
-            {
-                tempSize += 0x31C84B0F;
-                tempSize = tempSize * 0x491CC17D;
-                var high = (tempSize >> 32);
-                var low = (tempSize & uint.MaxValue);
-                low -= high;
-                low = low / 2;
-                low += high;
-                return low / 0x20000000;
-            }
-            return 0;
+            if (idx > 3)
+                return 0;
+
+            ulong blockSz = (ulong)Math.Pow(0xAA, idx + 1);
+            return (size + blockSz - 1) / blockSz;
         }
 
         public byte[] ExtractEmbeddedXvd()
@@ -431,20 +254,18 @@ namespace LibXboxOne
             return _io.Reader.ReadBytes((int) Header.UserDataLength);
         }
 
+        internal static ulong CalculateHashTreeBlockCount(ulong xvdDataBlockCount)
+        {
+            return (xvdDataBlockCount + 0xa9) / 0xAA;
+        }
+
         private void CalculateDataOffsets()
         {
             ulong[] longs = { Header.UserDataLength, Header.XvcDataLength, Header.DynamicHeaderLength, Header.DriveSize };
             // count up how many blocks each of the sections lengths in the header take up
             XvdDataBlockCount = longs.Select(addLong => (addLong + 0xFFF) / 0x1000).Aggregate<ulong, ulong>(0, (current, newLong) => current + newLong);
+            HashTreeBlockCount = CalculateHashTreeBlockCount(XvdDataBlockCount);
 
-            ulong total2 = XvdDataBlockCount + 0xa9;
-            total2 = total2 * 0xC0C0C0C1;
-
-            var high = (uint)(total2 >> 32);
-            // ReSharper disable once UnusedVariable
-            var low = (uint)(total2 & uint.MaxValue);
-
-            HashTreeBlockCount = high / 0x80;
             if (HashTreeBlockCount > 1)
             {
                 HashTreeLevels = 1;
