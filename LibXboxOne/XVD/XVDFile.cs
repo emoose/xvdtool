@@ -50,6 +50,7 @@ namespace LibXboxOne
         public ulong UserDataOffset;
         public ulong DataOffset;
         public ulong XvdDataBlockCount;
+        public int SectorSize;
 
         public bool HashTreeValid = false;
         public bool DataHashTreeValid = false;
@@ -95,6 +96,11 @@ namespace LibXboxOne
         public bool IsDataIntegrityEnabled
         {
             get { return !Header.VolumeFlags.HasFlag(XvdVolumeFlags.DataIntegrityDisabled); }
+        }
+
+        public bool UsesLegacySectorSize
+        {
+            get { return Header.VolumeFlags.HasFlag(XvdVolumeFlags.LegacySectorSize); }
         }
 
         public XvdFile(string path)
@@ -487,6 +493,11 @@ namespace LibXboxOne
             Header = _io.Reader.ReadStruct<XvdHeader>();
 
             CikIsDecrypted = !IsEncrypted;
+
+            if (UsesLegacySectorSize)
+                SectorSize = 512;
+            else
+                SectorSize = 4096;
 
             CalculateDataOffsets();
 
