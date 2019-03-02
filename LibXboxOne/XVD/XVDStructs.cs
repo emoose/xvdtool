@@ -3,6 +3,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using LibXboxOne.Keys;
 
 namespace LibXboxOne
 {
@@ -95,48 +96,54 @@ namespace LibXboxOne
         /* 0x298 */ public ushort RequiredSystemVersion3;
         /* 0x29A */ public ushort RequiredSystemVersion4;
 
-        /* 0x29C */ public uint ODKKeyslotID; // 0x2 for test ODK, 0x0 for retail ODK? (makepkg doesn't set this for test ODK crypted packages?)
+        /* 0x29C */ public Keys.OdkIndex ODKKeyslotID; // 0x2 for test ODK, 0x0 for retail ODK? (makepkg doesn't set this for test ODK crypted packages?)
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xB60)]
         /* 0x2A0 */ public byte[] Reserved2;
 
         /* 0xE00 = END */
 
-        public bool IsSignedWithRedKey
+        public bool IsSigned => !Signature.IsArrayEmpty();
+
+        byte[] GetHeaderWithoutSignature()
+        {
+            var rawHeader = Shared.StructToBytes(this);
+            byte[] headerData = new byte[rawHeader.Length - Signature.Length];
+            // Copy headerdata, skipping signature
+            Array.Copy(rawHeader, Signature.Length, headerData, 0, headerData.Length);
+            return headerData;
+        }
+
+        public string SignedBy
         {
             get
             {
-                if (!XvdFile.SignKeyLoaded)
-                    return false;
+                if (!IsSigned)
+                    return "<UNSIGNED>";
 
-                var hdrRawData = Shared.StructToBytes(this);
-                var hdrData = new byte[0xE00];
-                for (int i = 0; i < 0xE00; i++)
-                    hdrData[i] = 0;
-
-                Array.Copy(hdrRawData, 0x200, hdrData, 0, hdrData.Length - 0x200);
-                Array.Resize(ref hdrRawData, 0x200); // hdrRawData is just the signature now
-
-                return HashUtils.VerifySignature(XvdFile.SignKey, "RSAFULLPRIVATEBLOB", hdrRawData, hdrData);
+                var headerData = GetHeaderWithoutSignature();
+                foreach(var signKey in DurangoKeys.GetAllXvdSigningKeys())
+                {
+                    if(HashUtils.VerifySignature(signKey.Value.KeyData, Signature, headerData))
+                        return signKey.Key;
+                }
+                return "<UNKNOWN>";
             }
         }
+
         public bool Resign(byte[] key, string keyType)
         {
-            var hdrRawData = Shared.StructToBytes(this);
-            var hdrData = new byte[0xE00];
-            for (int i = 0; i < 0xE00; i++)
-                hdrData[i] = 0;
-
-            Array.Copy(hdrRawData, 0x200, hdrData, 0, hdrData.Length - 0x200);
-
-            return HashUtils.SignData(key, keyType, hdrData, out Signature);
+            var headerData = GetHeaderWithoutSignature();
+            return HashUtils.SignData(key, keyType, headerData, out Signature);
         }
 
-        public bool ResignWithSignKey()
+        public bool ResignWithRedKey()
         {
-            if (!XvdFile.SignKeyLoaded)
-                return false;
-            return Resign(XvdFile.SignKey, "RSAFULLPRIVATEBLOB");
+            DurangoKeyEntry key = (DurangoKeyEntry)DurangoKeys.GetSignkeyByName("RedXvdPrivateKey");
+            if (key == null || !key.HasKeyData)
+                throw new InvalidOperationException("Private Xvd Red key is not loaded, cannot resign xvd header");
+
+            return Resign(key.KeyData, "RSAFULLPRIVATEBLOB");
         }
 
         public override string ToString()
@@ -154,9 +161,9 @@ namespace LibXboxOne
             if (!Enum.IsDefined(typeof(XvdContentType), ContentType))
                 b.AppendLineSpace(fmt + "Unknown content type 0x" + ContentType.ToString("X"));
 
-            b.AppendLineSpace(fmt + (IsSignedWithRedKey ? "Signed" : "Not signed") + " with red key");
+            b.AppendLineSpace(fmt + $"Signed by: {SignedBy}");
 
-            b.AppendLineSpace(fmt + "Using " + (ODKKeyslotID == 2 ? "test" : "unknown") + " ODK(?)");
+            b.AppendLineSpace(fmt + $"Using ODK keyslot: {ODKKeyslotID}");
 
             b.AppendLineSpace(fmt + "Read-only flag " + (VolumeFlags.HasFlag(XvdVolumeFlags.ReadOnly) ? "set" : "not set"));
 
@@ -420,7 +427,11 @@ namespace LibXboxOne
         {
             get
             {
-                return XvdFile.CikFileLoaded && !XvdFile.GetTestCikKey().ToByteArray().IsArrayEmpty() && EncryptionKeyIds != null && EncryptionKeyIds.Length > 0 && EncryptionKeyIds[0].KeyId.IsEqualTo(XvdFile.GetTestCikKey().ToByteArray());
+                Guid testCik = new Guid("33EC8436-5A0E-4F0D-B1CE-3F29C3955039");
+                return testCik != null &&
+                       EncryptionKeyIds != null &&
+                       EncryptionKeyIds.Length > 0 &&
+                       EncryptionKeyIds[0].KeyId.IsEqualTo(testCik.ToByteArray());
             }
         }
 

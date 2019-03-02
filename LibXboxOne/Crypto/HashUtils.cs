@@ -44,7 +44,8 @@ namespace LibXboxOne
             if (keyType != "RSAFULLPRIVATEBLOB")
                 throw new CryptographicException("Only RSAFULLPRIVATEBLOB can be used for signing");
 
-            var rsaKey = DotNetUtilities.GetRsaKeyPair(BCryptRsaImport.BlobToParameters(key)).Private;
+            var rsaParams = BCryptRsaImport.BlobToParameters(key, out int bitLength, out bool isPrivate);
+            var rsaKey = DotNetUtilities.GetRsaKeyPair(rsaParams).Private;
             ISigner s = SignerUtilities.GetSigner("SHA256withRSA/PSS");
 
             s.Init(true, new ParametersWithRandom(rsaKey));
@@ -54,9 +55,10 @@ namespace LibXboxOne
             return true;
         }
 
-        public static bool VerifySignature(byte[] key, string keyType, byte[] signature, byte[] data) // keyType = RSAFULLPRIVATEBLOB, RSAPRIVATEBLOB, RSAPUBLICBLOB
+        public static bool VerifySignature(byte[] key, byte[] signature, byte[] data) // keyType = RSAFULLPRIVATEBLOB, RSAPRIVATEBLOB, RSAPUBLICBLOB
         {
-            var rsaKey = DotNetUtilities.GetRsaPublicKey(BCryptRsaImport.BlobToParameters(key));
+            var rsaParams = BCryptRsaImport.BlobToParameters(key, out int bitLength, out bool isPrivate);
+            var rsaKey = DotNetUtilities.GetRsaPublicKey(rsaParams);
             ISigner s = SignerUtilities.GetSigner("SHA256withRSA/PSS");
 
             s.Init(false, new ParametersWithRandom(rsaKey));

@@ -5,37 +5,12 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Xml;
+using LibXboxOne.Keys;
 
 namespace LibXboxOne
 {
     public class XvdFile : IDisposable
     {
-        public static bool CikFileLoaded = false;
-        public static Dictionary<Guid, byte[]> CikKeys = new Dictionary<Guid, byte[]>();
-        public static Guid NullGuid = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        public static byte[] TestCikHash = { 0xb7, 0x18, 0x3b, 0x86, 0x83, 0x56, 0x43, 0x02, 0x99, 0xe5, 0xef, 0xcb, 0xa9, 0xe8, 0x34, 0x97, 0x5d, 0x78, 0xcf, 0x6f };
-
-        public static Guid GetTestCikKey()
-        {
-            foreach (var kvp in CikKeys)
-            {
-                byte[] guidBytes = kvp.Key.ToByteArray();
-                byte[] guidHash = HashUtils.ComputeSha1(guidBytes);
-                if (guidHash.IsEqualTo(TestCikHash))
-                {
-                    return kvp.Key;
-                }
-            }
-
-            return NullGuid;
-        }
-
-        public static bool OdkKeyLoaded = false;
-        public static byte[] OdkKey;
-
-        public static bool SignKeyLoaded = false;
-        public static byte[] SignKey;
-
         public static bool DisableDataHashChecking = false;
 
         public XvdHeader Header;
@@ -107,8 +82,6 @@ namespace LibXboxOne
         {
             _filePath = path;
             _io = new IO(path);
-
-            LoadKeysFromDisk();
         }
 
         private void CryptHeaderCik(bool encrypt)
@@ -119,8 +92,17 @@ namespace LibXboxOne
                 return;
             }
 
-            if (!OdkKeyLoaded)
-                return;
+            var odkKey = Keys.DurangoKeys.GetOdkById(Header.ODKKeyslotID);
+            if (odkKey == null)
+            {
+                throw new InvalidOperationException(
+                    $"ODK with Id \'{Header.ODKKeyslotID}\' not found! Cannot crypt CIK in header");
+            }
+            else if (!odkKey.HasKeyData)
+            {
+                throw new InvalidOperationException(
+                    $"ODK with Id \'{Header.ODKKeyslotID}\' is known but not loaded! Cannot crypt CIK in header");
+            }
 
             byte[] nullIv = new byte[16];
 
@@ -128,8 +110,8 @@ namespace LibXboxOne
             cipher.Mode = CipherMode.ECB;
             cipher.Padding = PaddingMode.None;
 
-            ICryptoTransform transform = encrypt ? cipher.CreateEncryptor(OdkKey, nullIv) :
-                                                   cipher.CreateDecryptor(OdkKey, nullIv);
+            ICryptoTransform transform = encrypt ? cipher.CreateEncryptor(odkKey.KeyData, nullIv) :
+                                                   cipher.CreateDecryptor(odkKey.KeyData, nullIv);
 
             transform.TransformBlock(Header.KeyMaterial, 0, Header.KeyMaterial.Length, Header.KeyMaterial, 0);
 
@@ -296,59 +278,6 @@ namespace LibXboxOne
             DataOffset = UserDataOffset + (userDataBlocks * 0x1000);
         }
 
-        public static void LoadKeysFromDisk()
-        {
-            if (!CikFileLoaded)
-            {
-                string cikFile = Shared.FindFile("cik_keys.bin");
-                if (!String.IsNullOrEmpty(cikFile))
-                {
-                    using(var cikIo = new IO(cikFile))
-                    {
-                        if (cikIo.Stream.Length >= 0x30)
-                        {
-                            var numKeys = (int)(cikIo.Stream.Length/0x30);
-                            for (int i = 0; i < numKeys; i++)
-                            {
-                                var keyGuid = new Guid(cikIo.Reader.ReadBytes(0x10));
-                                byte[] key = cikIo.Reader.ReadBytes(0x20);
-                                if(!CikKeys.ContainsKey(keyGuid))
-                                    CikKeys.Add(keyGuid, key);
-                            }
-                            CikFileLoaded = true;
-                        }
-                    }
-                    GetTestCikKey();
-                }
-            }
-            if (!OdkKeyLoaded)
-            {
-                string odkFile = Shared.FindFile("odk_key.bin");
-                if (!String.IsNullOrEmpty(odkFile))
-                {
-                    byte[] testKey = File.ReadAllBytes(odkFile);
-                    if (testKey.Length >= 0x20)
-                    {
-                        OdkKey = testKey;
-                        OdkKeyLoaded = true;
-                    }
-                }
-            }
-            if (!SignKeyLoaded)
-            {
-                string keyFile = Shared.FindFile("rsa3_key.bin");
-                if (!String.IsNullOrEmpty(keyFile))
-                {
-                    byte[] testKey = File.ReadAllBytes(keyFile);
-                    if (testKey.Length >= 0x91B)
-                    {
-                        SignKey = testKey;
-                        SignKeyLoaded = true;
-                    }
-                }
-            }
-        }
-
         public bool Decrypt()
         {
             if (!IsEncrypted)
@@ -388,7 +317,7 @@ namespace LibXboxOne
             return true;
         }
 
-        public bool Encrypt(int cikKeyId = 0)
+        public bool Encrypt(Guid cikKeyId)
         {
             if (IsEncrypted)
                 return true;
@@ -411,13 +340,19 @@ namespace LibXboxOne
             }
             else
             {
-                if (cikKeyId >= 0) // if cikKeyId isn't -1 set the XvcInfo key GUID to one we know
+                if (cikKeyId != null && cikKeyId != Guid.Empty) // if cikKeyId is set, set the XvcInfo key accordingly
                 {
-                    var keyGuids = CikKeys.Keys.ToList();
-                    if (cikKeyId < 0 || cikKeyId >= keyGuids.Count)
-                        return false;
+                    var key = DurangoKeys.GetCikByGuid(cikKeyId);
+                    if (key == null)
+                    {
+                        throw new InvalidOperationException($"Desired CIK with GUID {cikKeyId} is unknown");
+                    }
+                    else if (!key.HasKeyData)
+                    {
+                        throw new InvalidOperationException($"Desired CIK with GUID {cikKeyId} is known but not loaded");
+                    }
 
-                    XvcInfo.EncryptionKeyIds[0].KeyId = keyGuids[cikKeyId].ToByteArray();
+                    XvcInfo.EncryptionKeyIds[0].KeyId = cikKeyId.ToByteArray();
                 }
 
                 for (int i = 0; i < RegionHeaders.Count; i++)
@@ -967,41 +902,61 @@ namespace LibXboxOne
             return true;
         }
 
-        public string GetXvcKey(int keyIndex, out byte[] keyOutput)
+        public bool GetXvcKey(ushort keyIndex, out byte[] keyOutput)
+        {
+            keyOutput = null;
+            if (XvcInfo.EncryptionKeyIds == null || XvcInfo.EncryptionKeyIds.Length < 1 || XvcInfo.KeyCount == 0)
+                return false;
+            
+            XvcEncryptionKeyId xvcKeyEntry = XvcInfo.EncryptionKeyIds[keyIndex];
+            if (xvcKeyEntry.IsKeyNulled)
+                return false;
+            
+            return GetXvcKeyByGuid(new Guid(xvcKeyEntry.KeyId), out keyOutput);
+        }
+
+        public bool GetXvcKeyByGuid(Guid keyGuid, out byte[] keyOutput)
         {
             keyOutput = null;
 
-            if (XvcInfo.EncryptionKeyIds == null || 
-                XvcInfo.EncryptionKeyIds.Length <= keyIndex ||
-                XvcInfo.KeyCount == 0 || 
-                XvcInfo.EncryptionKeyIds[keyIndex].IsKeyNulled)
-                return null;
-
-            var keyGuid = new Guid(XvcInfo.EncryptionKeyIds[keyIndex].KeyId);
-
-            if (XvcInfo.IsUsingTestCik && keyGuid == GetTestCikKey())
+            if (XvcInfo.EncryptionKeyIds == null || XvcInfo.EncryptionKeyIds.Length < 1 || XvcInfo.KeyCount == 0)
+                return false;
+            
+            bool keyFound = false;
+            foreach(var xvcKey in XvcInfo.EncryptionKeyIds)
             {
-                keyOutput = CikKeys[keyGuid];
-                return "testsigned";
+                if ((new Guid(xvcKey.KeyId) == keyGuid))
+                {
+                    keyFound = true;
+                }
             }
 
-            if (CikKeys.ContainsKey(keyGuid))
+            if (!keyFound)
             {
-                keyOutput = CikKeys[keyGuid];
-                return keyGuid.ToString() + " (from cik_keys.bin)";
+                Console.WriteLine($"Key {keyGuid} is not used by this XVC");
+                return false;
             }
+
+            if(DurangoKeys.IsCikLoaded(keyGuid))
+            {
+                keyOutput = DurangoKeys.GetCikByGuid(keyGuid).KeyData;
+                return true;
+            }
+
+            Console.WriteLine($"Did not find CIK {keyGuid} loaded in Keystorage");
+            Console.WriteLine("Checking for XML licenses...");
 
             string licenseFolder = Path.GetDirectoryName(FilePath);
             if (Path.GetFileName(licenseFolder) == "MSXC")
                 licenseFolder = Path.GetDirectoryName(licenseFolder);
 
             if (String.IsNullOrEmpty(licenseFolder))
-                return null; // fix for weird resharper warning
+                return false;
 
             licenseFolder = Path.Combine(licenseFolder, "Licenses");
 
             if (!Directory.Exists(licenseFolder))
-                return null;
+                return false;
 
             foreach (string file in Directory.GetFiles(licenseFolder, "*.xml"))
             {
@@ -1028,9 +983,7 @@ namespace LibXboxOne
                 if (keyIdNode == null)
                     continue;
 
-                string keyId = keyIdNode.InnerText;
-
-                if (keyId != keyGuid.ToString())
+                if (keyGuid != new Guid(keyIdNode.InnerText))
                     continue;
 
                 XmlNode licenseBlockNode = licenseXml.SelectSingleNode("//resp:SPLicenseBlock", xmlns2);
@@ -1045,7 +998,7 @@ namespace LibXboxOne
                 if (keyIdBlock == null)
                     continue;
 
-                if (!keyIdBlock.BlockData.IsEqualTo(XvcInfo.EncryptionKeyIds[keyIndex].KeyId))
+                if (!(new Guid(keyIdBlock.BlockData) == keyGuid))
                     continue;
 
                 var decryptKeyBlock = block.GetBlockWithId(XvcLicenseBlockId.EncryptedCik);
@@ -1053,12 +1006,12 @@ namespace LibXboxOne
                     continue;
 
                 keyOutput = decryptKeyBlock.BlockData;
-
+                Console.WriteLine($"Xvd CIK key found in {file}");
                 // todo: decrypt/deobfuscate the key
 
-                return file;
+                return true;
             }
-            return null;
+            return false;
         }
 
         public byte[] Read(long offset, int count)
@@ -1113,16 +1066,11 @@ namespace LibXboxOne
             if (formatted)
             {
                 byte[] decryptKey;
-                string licenseFile = GetXvcKey(0, out decryptKey);
-                if (!String.IsNullOrEmpty(licenseFile))
+                bool xvcKeyFound = GetXvcKey(0, out decryptKey);
+                if (xvcKeyFound)
                 {
-                    if (licenseFile != "testsigned")
-                        b.AppendLine("Decrypt key from license file " + licenseFile +
-                                     " (key is wrong though until the obfuscation/encryption on it is figured out)");
-                    else
-                        b.AppendLine("Decrypt key for test-signed package:");
-
-                    b.AppendLine(decryptKey.ToHexString());
+                    b.AppendLine($"Decrypt key for xvc keyslot 0:" + decryptKey.ToHexString());
+                    b.AppendLine("(key is wrong though until the obfuscation/encryption on it is figured out)");
                     b.AppendLine();
                 }
             } 
@@ -1136,7 +1084,7 @@ namespace LibXboxOne
                     b.Append(RegionHeaders[i].ToString(formatted));
                 }
 
-            if (RegionHeaders != null)
+            if (UpdateSegments != null)
                 for (int i = 0; i < UpdateSegments.Count; i++)
                 {
                     if (UpdateSegments[i].Unknown1 == 0)

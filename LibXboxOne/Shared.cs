@@ -204,9 +204,9 @@ namespace LibXboxOne
             return bytes;
         }
 
-        public static string ToHexString(this byte[] bytes)
+        public static string ToHexString(this byte[] bytes, bool spaces = true)
         {
-            return bytes.Aggregate("", (current, b) => current + (b.ToString("X2") + " "));
+            return bytes.Aggregate("", (current, b) => current + (b.ToString("X2") + (spaces ? " " : "")));
         }
 
         public static string ToHexString(this uint[] array)

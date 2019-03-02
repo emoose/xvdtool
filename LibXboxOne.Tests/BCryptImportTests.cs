@@ -12,7 +12,11 @@ namespace LibXboxOne.Tests
         {
             var blob = await ResourcesProvider.GetBytesAsync($"RSA_{keyStrength}_{keyIdentifier}.bin",
                                                 ResourceType.RsaKeys);
-            return BCryptRsaImport.BlobToParameters(blob);
+            var rsaParams = BCryptRsaImport.BlobToParameters(blob, out int resultBitLength, out bool isPrivate);
+            if (keyStrength != resultBitLength)
+                throw new InvalidDataException("Desired keyStrength does not match parsed data");
+            
+            return rsaParams;
         }
 
         public static Task<RSAParameters> GetRsaPublic(int keyStrength)

@@ -2,15 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using LibXboxOne;
-using LibXboxOne.Keystore;
+using LibXboxOne.Keys;
 
 namespace DurangoKeyExtractor
 {
     public class KeyExtractor
     {
-        public readonly Dictionary<string,byte[]> FoundCikKeys;
-        public readonly Dictionary<string,byte[]> FoundOdkKeys;
-        public readonly Dictionary<string,byte[]> FoundXvdSignKeys;
         public string FilePath { get; private set; }
 
         public KeyExtractor(string filePath)
@@ -19,57 +16,78 @@ namespace DurangoKeyExtractor
                 throw new InvalidOperationException($"File {filePath} does not exist");
 
             FilePath = filePath;
-            FoundCikKeys = new Dictionary<string, byte[]>();
-            FoundOdkKeys = new Dictionary<string, byte[]>();
-            FoundXvdSignKeys = new Dictionary<string, byte[]>();
-        }
-
-        void StoreKey(string keyName, IKeyEntry keyEntry, byte[] keyData)
-        {
-
-            switch (keyEntry.KeyType)
-            {
-                case KeyType.CikKey:
-                    // Assemble GUID + keyData blob
-                    var assembledKey = new byte[0x30];
-                    Array.Copy(((CikKeyEntry)keyEntry).KeyId.ToByteArray(), 0, assembledKey, 0, 16);
-                    Array.Copy(keyData, 0, assembledKey, 16, 32);
-
-                    FoundCikKeys[keyName] = assembledKey;
-                    break;
-                case KeyType.OdkKey:
-                    FoundOdkKeys[keyName] = keyData;
-                    break;
-                case KeyType.XvdSigningKey:
-                    FoundXvdSignKeys[keyName] = keyData;
-                    break;
-                default:
-                    throw new InvalidDataException("Invalid KeyType provided");
-            }
         }
 
         public int PullKeysFromFile()
         {
             var exeData = File.ReadAllBytes(FilePath);
 
+            DurangoKeyEntry keyEntry;
             int foundCount = 0;
-            for (int i = 0; i < exeData.Length - 32; i += 8)
+            for (int i = 0; i < exeData.Length - 32; i++)
             {
                 byte[] hash32 = HashUtils.ComputeSha256(exeData, i, 32);
-                foreach(var kvp in DurangoKeys.KnownKeys)
+                foreach(var kvp in DurangoKeys.GetAllXvdSigningKeys())
                 {
                     string keyName = kvp.Key;
-                    IKeyEntry keyEntry = kvp.Value;
+                    keyEntry = kvp.Value;
+
+                    if (keyEntry.HasKeyData)
+                        continue;
+                    else if (keyEntry.DataSize > (exeData.Length - i))
+                        continue;
                     
-                    if ((keyEntry.DataSize == 32 && hash32.IsEqualTo(keyEntry.SHA256Hash)) ||
-                        (keyEntry.DataSize != 32 && keyEntry.DataSize <= (exeData.Length - i) &&
-                         keyEntry.SHA256Hash.IsEqualTo(HashUtils.ComputeSha256(exeData, i, keyEntry.DataSize))))
+                    byte[] signKeyHash = HashUtils.ComputeSha256(exeData, i, keyEntry.DataSize);
+
+                    if(keyEntry.SHA256Hash.IsEqualTo(signKeyHash))
                     {
                         Console.WriteLine($"Found {keyEntry.KeyType} \"{keyName}\" at offset 0x{i:X}");
                         
                         byte[] keyData = new byte[keyEntry.DataSize];
                         Array.Copy(exeData, i, keyData, 0, keyData.Length);
-                        StoreKey(keyName, keyEntry, keyData);
+
+                        DurangoKeys.LoadSignKey(keyName, keyData, out bool newKey, out keyName);
+                        foundCount++;
+                    }
+                }
+
+                foreach(var kvp in DurangoKeys.GetAllODK())
+                {
+                    OdkIndex keyId = kvp.Key;
+                    keyEntry = kvp.Value;
+
+                    if (keyEntry.HasKeyData)
+                        continue;
+
+                    if (hash32.IsEqualTo(keyEntry.SHA256Hash))
+                    {
+                        Console.WriteLine($"Found {keyEntry.KeyType} \"{keyId}\" at offset 0x{i:X}");
+                        
+                        byte[] keyData = new byte[keyEntry.DataSize];
+                        Array.Copy(exeData, i, keyData, 0, keyData.Length);
+
+                        DurangoKeys.LoadOdkKey(keyId, keyData, out bool newKey);
+                        foundCount++;
+                    }
+                }
+
+                foreach(var kvp in DurangoKeys.GetAllCIK())
+                {
+                    Guid keyId = kvp.Key;
+                    keyEntry = kvp.Value;
+
+                    if (keyEntry.HasKeyData)
+                        continue;
+
+                    if (hash32.IsEqualTo(keyEntry.SHA256Hash))
+                    {
+                        Console.WriteLine($"Found {keyEntry.KeyType} \"{keyId}\" at offset 0x{i:X}");
+                        
+                        byte[] keyData = new byte[0x10 + keyEntry.DataSize];
+                        Array.Copy(keyId.ToByteArray(), 0, keyData, 0, 0x10);
+                        Array.Copy(exeData, i, keyData, 0x10, keyEntry.DataSize);
+
+                        DurangoKeys.LoadCikKeys(keyData, out Guid[] keyGuid);
                         foundCount++;
                     }
                 }
@@ -80,27 +98,56 @@ namespace DurangoKeyExtractor
 
         public bool SaveFoundKeys(string destinationDirectory)
         {
-            if (!Directory.Exists(destinationDirectory))
+            var path = String.Empty;
+
+            foreach (var keyType in Enum.GetNames(typeof(KeyType)))
             {
-                Directory.CreateDirectory(destinationDirectory);
+                path = Path.Combine(destinationDirectory, $"{keyType}");
+                if (!Directory.Exists(path))
+                {
+                    Directory.CreateDirectory(path);
+                }
             }
 
-            foreach(var entry in FoundCikKeys)
+            /* Xvd signing keys */
+            foreach(var kvp in DurangoKeys.GetAllXvdSigningKeys())
             {
-                var path = Path.Combine(destinationDirectory, $"CIK_{entry.Key}.bin");
-                File.WriteAllBytes(path, entry.Value);
+                IKeyEntry keyEntry = kvp.Value;
+
+                if (!keyEntry.HasKeyData)
+                    continue;
+                
+                path = Path.Combine(destinationDirectory, $"{KeyType.XvdSigningKey}", $"{kvp.Key}.rsa");
+                File.WriteAllBytes(path, keyEntry.KeyData);
             }
 
-            foreach(var entry in FoundOdkKeys)
+            /* ODK */
+            foreach(var kvp in DurangoKeys.GetAllODK())
             {
-                var path = Path.Combine(destinationDirectory, $"ODK_{entry.Key}.bin");
-                File.WriteAllBytes(path, entry.Value);
+                IKeyEntry keyEntry = kvp.Value;
+
+                if (!keyEntry.HasKeyData)
+                    continue;
+                
+                path = Path.Combine(destinationDirectory, $"{KeyType.Odk}", $"{kvp.Key}.odk");
+                File.WriteAllBytes(path, keyEntry.KeyData);
             }
 
-            foreach(var entry in FoundXvdSignKeys)
+            /* CIK */
+            foreach(var kvp in DurangoKeys.GetAllCIK())
             {
-                var path = Path.Combine(destinationDirectory, $"XVDSIGN_{entry.Key}.bin");
-                File.WriteAllBytes(path, entry.Value);
+                IKeyEntry keyEntry = kvp.Value;
+
+                if (!keyEntry.HasKeyData)
+                    continue;
+                
+                path = Path.Combine(destinationDirectory, $"{KeyType.Cik}", $"{kvp.Key}.cik");
+
+                byte[] keyData = new byte[0x30];
+                Array.Copy(kvp.Key.ToByteArray(), 0, keyData, 0, 0x10);
+                Array.Copy(keyEntry.KeyData, 0, keyData, 0x10, 0x20);
+
+                File.WriteAllBytes(path, keyData);
             }
 
             return true;

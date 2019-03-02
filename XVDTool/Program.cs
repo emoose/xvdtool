@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using NDesk.Options;
 using LibXboxOne;
+using System.Reflection;
+using LibXboxOne.Keys;
 
 // ReSharper disable LocalizableElement
 
@@ -11,6 +13,17 @@ namespace XVDTool
 {
     class Program
     {
+        static readonly string AppName = "xvdtool";
+        static void EnsureConfigDirectoryStructure(string basePath)
+        {
+            foreach (var keyDirName in Enum.GetNames(typeof(LibXboxOne.Keys.KeyType)))
+            {
+                var keyDirectory = Path.Combine(basePath, keyDirName);
+                if (!Directory.Exists(keyDirectory))
+                    Directory.CreateDirectory(keyDirectory);
+            }
+        }
+
         static void Main(string[] args)
         {
             const string fmt = "    ";
@@ -22,12 +35,21 @@ namespace XVDTool
             var userDataDest = String.Empty;
             var vhdDest = String.Empty;
 
+            var signKeyToUse = String.Empty;
+            var odkToUse = OdkIndex.Invalid;
+            var cikToUse = Guid.Empty;
+
+            var signKeyFilepath = String.Empty;
+            var odkFilepath = String.Empty;
+            var cikFilepath = String.Empty;
+
+            bool listKeys = false;
+
             var mountPackage = false;
             var unmountPackage = false;
 
             var decryptPackage = false;
             var encryptPackage = false;
-            var encryptKeyId = 0;
             var rehashPackage = false;
             var resignPackage = false;
             var addHashTree = false;
@@ -47,6 +69,29 @@ namespace XVDTool
                 { "m|mount", v => mountPackage = v != null },
                 { "um|unmount", v => unmountPackage = v != null },
 
+                { "lk|listkeys", v => listKeys = v != null },
+
+                { "signfile=", v => signKeyFilepath = v },
+                { "odkfile=", v => odkFilepath = v },
+                { "cikfile=", v => cikFilepath = v },
+
+                { "sk|signkey=", v => signKeyToUse = v },
+                { "odk|odkid=", v =>
+                {
+                    if (!DurangoKeys.GetOdkIndexFromString(v, out odkToUse))
+                    {
+                        Console.WriteLine("Error: Invalid Odk Id specified");
+                        return;
+                    }
+                }},
+                { "cik|cikguid=", v =>
+                {
+                    if (!Guid.TryParse(v, out cikToUse))
+                    {
+                        Console.WriteLine("Error: Invalid cikguid (Guid) specified");
+                        return;
+                    }
+                }},
                 { "nd|nodatahash", v => XvdFile.DisableDataHashChecking = v != null },
                 { "ne|noextract", v => disableDataExtract = v != null },
 
@@ -54,16 +99,7 @@ namespace XVDTool
                 { "rs|resign", v => resignPackage = v != null },
 
                 { "eu|decrypt", v => decryptPackage = v != null },
-                { "ee|encrypt", v =>
-                {
-                    encryptPackage = v != null;
-                    if (!int.TryParse(v, out encryptKeyId))
-                    {
-                        Console.WriteLine("Error: invalid keyid specified for -encrypt");
-                        System.Diagnostics.Process.GetCurrentProcess().Kill();
-                    }
-                } },
-
+                { "ee|encrypt", v => encryptPackage = v != null },
                 { "hd|removehash|removehashtree", v => removeHashTree = v != null },
                 { "he|addhash|addhashtree", v => addHashTree = v != null },
 
@@ -78,21 +114,8 @@ namespace XVDTool
 
             Console.WriteLine("xvdtool 0.4: XVD file manipulator");
 
-            XvdFile.LoadKeysFromDisk();
-
-            if(!XvdFile.SignKeyLoaded)
-                Console.WriteLine("Warning: rsa3_key.bin file not found and unable to retrieve key from SDK files, you will be unable to resign packages.");
-            if (!XvdFile.OdkKeyLoaded)
-                Console.WriteLine("Warning: odk_key.bin file not found and unable to retrieve key from SDK files, you will be unable to decrypt XVDs.");
-            if (!XvdFile.CikFileLoaded)
-                Console.WriteLine("Warning: cik_keys.bin file not found and unable to retrieve key from SDK files, you will be unable to decrypt XVCs.");
-
-
-            if (printHelp || (String.IsNullOrEmpty(fileList) && String.IsNullOrEmpty(folder) && extraArgs.Count <= 0))
+            if (printHelp || (String.IsNullOrEmpty(fileList) && String.IsNullOrEmpty(folder) && !listKeys && extraArgs.Count <= 0))
             {
-                if (!XvdFile.CikFileLoaded || !XvdFile.OdkKeyLoaded || !XvdFile.SignKeyLoaded)
-                    Console.WriteLine();
-
                 Console.WriteLine("Usage  : xvdtool.exe [parameters] [filename]");
                 Console.WriteLine();
                 Console.WriteLine("Parameters:");
@@ -104,14 +127,23 @@ namespace XVDTool
                 Console.WriteLine(fmt + "-m (-mount) - mount package");
                 Console.WriteLine(fmt + "-um (-unmount) - unmount package");
                 Console.WriteLine();
+                Console.WriteLine(fmt + "-lk (-listkeys) - List known keys including their hashes / availability");
+                Console.WriteLine();
+                Console.WriteLine(fmt + "-signfile <path-to-file> - Path to xvd sign key (RSA)");
+                Console.WriteLine(fmt + "-odkfile <path-to-file> - Path to Offline Distribution key");
+                Console.WriteLine(fmt + "-cikfile <path-to-file> - Path to Content Instance key");
+                Console.WriteLine();
+                Console.WriteLine(fmt + "-sk (-signkey) <key-name> - Name of xvd sign key to use");
+                Console.WriteLine(fmt + "-odk (-odkid) <id> - Id of Offline Distribution key to use (uint)");
+                Console.WriteLine(fmt + "-cik (-cikguid) <GUID> - Guid of Content Instance key to use");
+                Console.WriteLine();
                 Console.WriteLine(fmt + "-nd (-nodatahash) - disable data hash checking, speeds up -l and -f");
                 Console.WriteLine(fmt + "-ne (-noextract) - disable data (embedded XVD/user data) extraction, speeds up -l and -f");
                 Console.WriteLine();
-                Console.WriteLine(fmt + "-eu (-decrypt) = decrypt output xvd");
-                Console.WriteLine(fmt + "-ee (-encrypt) [keyid] = encrypt output xvd");
-                Console.WriteLine(fmt + fmt + "(optional [keyid] param for XVCs to choose which key inside cik_keys.bin to use)");
+                Console.WriteLine(fmt + "-eu (-decrypt) - decrypt output xvd");
+                Console.WriteLine(fmt + "-ee (-encrypt) - encrypt output xvd");
                 Console.WriteLine(fmt + fmt +
-                                  "XVDs will have a new CIK generated (if CIK in XVD header is empty), which will be encrypted with the odk_key.bin and stored in the XVD header");
+                                  "XVDs will have a new CIK generated (if CIK in XVD header is empty), which will be encrypted with the ODK and stored in the XVD header");
                 Console.WriteLine();
                 Console.WriteLine(fmt + "-hd (-removehash) - remove hash tree/data integrity from package");
                 Console.WriteLine(fmt + "-he (-addhash) - add hash tree/data integrity to package");
@@ -134,6 +166,102 @@ namespace XVDTool
 
             Console.WriteLine();
 
+            var fallbackCik = DurangoKeys.TestCIK;
+            var fallbackSignKey = DurangoKeys.RedXvdPrivateKey;
+            var fallbackOdk = OdkIndex.RedOdk;
+
+            var localConfigDir = AppDirs.GetApplicationConfigDirectory(AppName);
+            var executableDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+
+            /* If necessary, create folders to store keys */
+            EnsureConfigDirectoryStructure(localConfigDir);
+            EnsureConfigDirectoryStructure(executableDir);
+
+            /* Load keys from global and local config directory */
+            DurangoKeys.LoadKeysRecursive(localConfigDir);
+            DurangoKeys.LoadKeysRecursive(executableDir);
+
+            /* Check key parameters */
+            if (signKeyFilepath != String.Empty)
+            {
+                if (!DurangoKeys.LoadKey(KeyType.XvdSigningKey, signKeyFilepath))
+                {
+                    Console.WriteLine($"Failed to load SignKey from {signKeyFilepath}");
+                    return;
+                }
+            }
+            if (odkFilepath != String.Empty)
+            {
+                if (!DurangoKeys.LoadKey(KeyType.Odk, odkFilepath))
+                {
+                    Console.WriteLine($"Failed to load ODK key from {odkFilepath}");
+                    return;
+                }
+            }
+
+            if (cikFilepath != String.Empty)
+            {
+                if (!DurangoKeys.LoadKey(KeyType.Cik, cikFilepath))
+                {
+                    Console.WriteLine($"Failed to load CIK from {cikFilepath}");
+                    return;
+                }
+            }
+
+            if(signKeyToUse == String.Empty)
+            {
+                Console.WriteLine($"No desired signkey provided, falling back to {fallbackSignKey}");
+                signKeyToUse = fallbackSignKey;
+            }
+
+            if(cikToUse == Guid.Empty)
+            {
+                Console.WriteLine($"No desired CIK provided, falling back to {fallbackCik}");
+                cikToUse = fallbackCik;
+            }
+
+            if(odkToUse == OdkIndex.Invalid)
+            {
+                Console.WriteLine($"No desired or invalid ODK provided, falling back to {fallbackOdk}");
+                odkToUse = fallbackOdk;
+            }
+
+            if (!LibXboxOne.Keys.DurangoKeys.IsSignkeyLoaded(signKeyToUse))
+                Console.WriteLine("Warning: Signkey could not be loaded, you will be unable to resign XVD headers!");
+            else
+                Console.WriteLine($"Using Xvd Signkey: {signKeyToUse}");
+
+            if (!LibXboxOne.Keys.DurangoKeys.IsCikLoaded(cikToUse))
+                Console.WriteLine("Warning: CIK could not be loaded!");
+            else
+                Console.WriteLine($"Using CIK: {cikToUse}");
+
+            if (!LibXboxOne.Keys.DurangoKeys.IsOdkLoaded(odkToUse))
+                Console.WriteLine("Warning: ODK could not be loaded!");
+            else
+                Console.WriteLine($"Using ODK: {odkToUse}");
+
+            Console.WriteLine();
+
+            if (listKeys)
+            {
+                void PrintKnownKeys<T>(KeyType type, KeyValuePair<T,DurangoKeyEntry>[] keyCollection)
+                {
+                    Console.WriteLine($"{type}:");
+                    foreach(var keyKvp in keyCollection)
+                    {
+                        Console.WriteLine(fmt + $"{keyKvp.Key}: {keyKvp.Value}");
+                    }
+                }
+
+                Console.WriteLine("Known Durango keys:");
+                PrintKnownKeys(KeyType.XvdSigningKey, DurangoKeys.GetAllXvdSigningKeys());
+                PrintKnownKeys(KeyType.Odk, DurangoKeys.GetAllODK());
+                PrintKnownKeys(KeyType.Cik, DurangoKeys.GetAllCIK());
+                return;
+            }
+
+            /* Write out xvd info / extract data from provided folderpath */
             if (!String.IsNullOrEmpty(folder))
             {
                 IEnumerable<string> files = ScanFolderForXvds(folder, true);
@@ -163,6 +291,7 @@ namespace XVDTool
                 return;
             }
 
+            /* Write out xvd info / extract data from provided filelist */
             if (!String.IsNullOrEmpty(fileList))
             {
                 string[] files = File.ReadAllLines(fileList);
@@ -186,6 +315,7 @@ namespace XVDTool
                 return;
             }
 
+            /* Handle input xvd */
             if (extraArgs.Count > 0)
             {
                 string filePath = extraArgs[0];
@@ -250,14 +380,13 @@ namespace XVDTool
                     string keyToUse = "TestODK";
                     if (file.IsXvcFile)
                     {
-                        byte[] outputKey;
-                        keyToUse = file.GetXvcKey(0, out outputKey);
-                        if (String.IsNullOrEmpty(keyToUse))
+                        if (!file.GetXvcKeyByGuid(cikToUse, out byte[] outputKey))
                         {
                             Console.WriteLine("Error: unable to find key for key GUID " +
                                               new Guid(file.XvcInfo.EncryptionKeyIds[0].KeyId));
                             return;
                         }
+                        keyToUse = $"{cikToUse}: {outputKey.ToHexString()}";
                     }
                     Console.WriteLine("Decrypting package using \"" + keyToUse + "\" key...");
                     bool success = file.Decrypt();
@@ -276,17 +405,17 @@ namespace XVDTool
                     string keyToUse = "ODK";
                     if (file.IsXvcFile)
                     {
-                        var keyGuids = XvdFile.CikKeys.Keys.ToList();
-                        if (encryptKeyId < 0 || encryptKeyId >= keyGuids.Count)
+                        var cikKeys = DurangoKeys.GetAllCIK();
+                        var chosenKey = cikKeys.Single(kvp => kvp.Key == cikToUse).Value;
+                        if (chosenKey == null)
                         {
-                            Console.WriteLine(
-                                "Error: invalid key index \"" + encryptKeyId + "\" specified, make sure the index you provided exists inside cik_keys.bin!");
+                            Console.WriteLine("Error: Invalid CIK key \"{encryptKeyId}\" specified, make sure said key exists!");
                             return;
                         }
-                        keyToUse = keyGuids[encryptKeyId].ToString();
+                        keyToUse = "CIK:" + cikToUse.ToString();
                     }
                     Console.WriteLine("Encrypting package using \"" + keyToUse + "\" key...");
-                    bool success = file.Encrypt(encryptKeyId);
+                    bool success = file.Encrypt(cikToUse);
                     Console.WriteLine(success ? "Package encrypted successfully!" : "Error during encryption!");
                     if (!success)
                         return;
@@ -349,12 +478,8 @@ namespace XVDTool
 
                 if (resignPackage)
                 {
-                    if (!XvdFile.SignKeyLoaded)
-                    {
-                        Console.WriteLine("Error: rsa3_key.bin file was not found, unable to resign package without it.");
-                        return;
-                    }
-                    bool success = file.Header.ResignWithSignKey();
+                    var key = DurangoKeys.GetSignkeyByName(signKeyToUse);
+                    bool success = file.Header.Resign(key.KeyData, "RSAFULLPRIVATEBLOB");
                     Console.WriteLine(success
                         ? "Successfully resigned package."
                         : "Error: there was a problem resigning the package.");

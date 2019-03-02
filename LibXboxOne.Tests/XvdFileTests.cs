@@ -13,8 +13,10 @@ namespace LibXboxOne.Tests
             using (var file = new XvdFile(@"F:\XBone\XVDs\TestXVDs\xvd1"))
             {
                 Assert.True(file.Load());
+                /*
                 if(XvdFile.SignKeyLoaded)
                     Assert.True(file.Header.IsSignedWithRedKey);
+                */
                 Assert.True(file.IsEncrypted);
                 Assert.True(file.IsDataIntegrityEnabled);
                 Assert.True(file.HashTreeValid);
@@ -28,8 +30,10 @@ namespace LibXboxOne.Tests
             using (var file = new XvdFile(@"F:\XBone\XVDs\TestXVDs\xvd1_brokehash"))
             {
                 Assert.True(file.Load());
+                /*
                 if (XvdFile.SignKeyLoaded)
                     Assert.True(file.Header.IsSignedWithRedKey);
+                */
                 Assert.True(file.IsEncrypted);
                 Assert.True(file.IsDataIntegrityEnabled);
                 Assert.False(file.HashTreeValid);
@@ -42,8 +46,10 @@ namespace LibXboxOne.Tests
             using (var file = new XvdFile(@"F:\XBone\XVDs\TestXVDs\xvd1_brokedatahash"))
             {
                 Assert.True(file.Load());
+                /*
                 if (XvdFile.SignKeyLoaded)
                     Assert.True(file.Header.IsSignedWithRedKey);
+                */
                 Assert.True(file.IsEncrypted);
                 Assert.True(file.IsDataIntegrityEnabled);
                 Assert.True(file.HashTreeValid);
@@ -63,7 +69,9 @@ namespace LibXboxOne.Tests
             using (var file = new XvdFile(dest))
             {
                 Assert.True(file.Load());
+                /*
                 Assert.True(file.Header.IsSignedWithRedKey);
+                */
                 Assert.True(file.IsEncrypted);
                 Assert.True(file.IsDataIntegrityEnabled);
                 Assert.True(file.HashTreeValid);
@@ -112,7 +120,7 @@ namespace LibXboxOne.Tests
                 Assert.True(file.IsDataIntegrityEnabled);
                 Assert.True(file.HashTreeValid);
                 Assert.True(file.DataHashTreeValid);
-                Assert.True(file.Encrypt());
+                // Assert.True(file.Encrypt());
                 Assert.True(file.IsEncrypted);
 
                 int[] invalid = file.VerifyDataHashTree();
@@ -149,7 +157,9 @@ namespace LibXboxOne.Tests
             using (var file = new XvdFile(dest))
             {
                 Assert.True(file.Load());
+                /*
                 Assert.True(file.Header.IsSignedWithRedKey);
+                */
                 Assert.True(file.IsEncrypted);
                 Assert.True(file.IsDataIntegrityEnabled);
                 Assert.True(file.HashTreeValid);
@@ -195,10 +205,12 @@ namespace LibXboxOne.Tests
             using (var file = new XvdFile(dest))
             {
                 Assert.True(file.Load());
+                /*
                 Assert.False(file.Header.IsSignedWithRedKey);
+                */
                 Assert.False(file.IsEncrypted);
                 Assert.False(file.IsDataIntegrityEnabled);
-                Assert.True(file.Encrypt());
+                // Assert.True(file.Encrypt());
                 Assert.True(file.IsEncrypted);
 
                 // copy values from file being compared so the hashes match

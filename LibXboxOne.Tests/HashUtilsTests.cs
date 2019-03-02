@@ -67,7 +67,7 @@ namespace LibXboxOne.Tests
             Assert.NotEqual(HashUtilsData.RsaSignature, signature); // Cant be same, due to PSS
 
 
-            result = HashUtils.VerifySignature(rsaBlob, blobType, signature,
+            result = HashUtils.VerifySignature(rsaBlob, signature,
                                                 HashUtilsData.Data);
             Assert.True(result);
         }
@@ -91,7 +91,7 @@ namespace LibXboxOne.Tests
         public void TestVerifySignature(int bits, string blobType)
         {
             var rsaBlob = GetRsaBlob(blobType, bits);
-            bool success = HashUtils.VerifySignature(rsaBlob, blobType, HashUtilsData.RsaSignature,
+            bool success = HashUtils.VerifySignature(rsaBlob, HashUtilsData.RsaSignature,
                                                     HashUtilsData.Data);
 
             Assert.True(success);

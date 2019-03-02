@@ -28,18 +28,21 @@ namespace LibXboxOne
 
     public sealed class BCryptRsaImport
     {
-        public static RSAParameters BlobToParameters(byte[] blobData)
+        public static RSAParameters BlobToParameters(byte[] blobData, out int bitLength, out bool isPrivate)
         {
             var parameters = new RSAParameters();
             var reader = new BinaryReader(new MemoryStream(blobData));
 
             BCRYPT_RSAKEY_BLOB header = reader.ReadStruct<BCRYPT_RSAKEY_BLOB>();
-            if (header.Magic != BCRYPT_RSABLOB_MAGIC.RSAPUBLIC &&
-                header.Magic != BCRYPT_RSABLOB_MAGIC.RSAPRIVATE &&
-                header.Magic != BCRYPT_RSABLOB_MAGIC.RSAFULLPRIVATE)
-            {
+            if (header.Magic == BCRYPT_RSABLOB_MAGIC.RSAPUBLIC)
+                isPrivate = false;
+            else if (header.Magic == BCRYPT_RSABLOB_MAGIC.RSAPRIVATE ||
+                     header.Magic == BCRYPT_RSABLOB_MAGIC.RSAFULLPRIVATE)
+                isPrivate = true;
+            else
                 throw new InvalidDataException("Unexpected RSA keyblob");
-            }
+
+            bitLength = (int)header.BitLength;
 
             parameters.Exponent = reader.ReadBytes((int)header.cbPublicExp);
             parameters.Modulus = reader.ReadBytes((int)header.cbModulus);
