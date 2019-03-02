@@ -219,6 +219,16 @@ namespace LibXboxOne
             return array.Aggregate("", (current, b) => current + "0x" + (b.ToString("X4") + " "));
         }
 
+        public static byte[] ToBytes(this string hexString)
+        {
+            hexString = hexString.Replace(" ", "");
+
+            byte[] retval = new byte[hexString.Length / 2];
+            for (int i = 0; i < hexString.Length; i += 2)
+                retval[i / 2] = Convert.ToByte(hexString.Substring(i, 2), 16);
+            return retval;
+        }
+
         public static bool IsArrayEmpty(this byte[] bytes)
         {
             return bytes.All(b => b == 0);

@@ -233,6 +233,7 @@ namespace LibXboxOne.Tests
             Assert.True(generatedHash.IsEqualTo(expectedHash));
         }
 
+        /*
         [Fact(Skip="Relies on xvd data blob")]
         public void XvdSign_Key_Extract()
         {
@@ -266,5 +267,6 @@ namespace LibXboxOne.Tests
             XvdFile.OdkKeyLoaded = false;
             XvdFile.SignKeyLoaded = false;
         }
+        */
     }
 }
