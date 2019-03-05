@@ -1,58 +1,57 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Xunit;
 
 namespace LibXboxOne.Tests
 {
-    [TestClass]
     public class XvdFileTests
     {
-        [TestMethod]
+        [Fact(Skip="Relies on xvd data blob")]
         public void Dev_Signed_ValidHash_Test()
         {
             using (var file = new XvdFile(@"F:\XBone\XVDs\TestXVDs\xvd1"))
             {
-                Assert.IsTrue(file.Load());
+                Assert.True(file.Load());
                 if(XvdFile.SignKeyLoaded)
-                    Assert.IsTrue(file.Header.IsSignedWithRedKey);
-                Assert.IsTrue(file.IsEncrypted);
-                Assert.IsTrue(file.IsDataIntegrityEnabled);
-                Assert.IsTrue(file.HashTreeValid);
-                Assert.IsTrue(file.DataHashTreeValid);
+                    Assert.True(file.Header.IsSignedWithRedKey);
+                Assert.True(file.IsEncrypted);
+                Assert.True(file.IsDataIntegrityEnabled);
+                Assert.True(file.HashTreeValid);
+                Assert.True(file.DataHashTreeValid);
             }
         }
 
-        [TestMethod]
+        [Fact(Skip="Relies on xvd data blob")]
         public void Dev_Signed_InvalidHashTree_Test()
         {
             using (var file = new XvdFile(@"F:\XBone\XVDs\TestXVDs\xvd1_brokehash"))
             {
-                Assert.IsTrue(file.Load());
+                Assert.True(file.Load());
                 if (XvdFile.SignKeyLoaded)
-                    Assert.IsTrue(file.Header.IsSignedWithRedKey);
-                Assert.IsTrue(file.IsEncrypted);
-                Assert.IsTrue(file.IsDataIntegrityEnabled);
-                Assert.IsFalse(file.HashTreeValid);
+                    Assert.True(file.Header.IsSignedWithRedKey);
+                Assert.True(file.IsEncrypted);
+                Assert.True(file.IsDataIntegrityEnabled);
+                Assert.False(file.HashTreeValid);
             }
         }
 
-        [TestMethod]
+        [Fact(Skip="Relies on xvd data blob")]
         public void Dev_Signed_InvalidDataHashTree_Test()
         {
             using (var file = new XvdFile(@"F:\XBone\XVDs\TestXVDs\xvd1_brokedatahash"))
             {
-                Assert.IsTrue(file.Load());
+                Assert.True(file.Load());
                 if (XvdFile.SignKeyLoaded)
-                    Assert.IsTrue(file.Header.IsSignedWithRedKey);
-                Assert.IsTrue(file.IsEncrypted);
-                Assert.IsTrue(file.IsDataIntegrityEnabled);
-                Assert.IsTrue(file.HashTreeValid);
-                Assert.IsFalse(file.DataHashTreeValid);
+                    Assert.True(file.Header.IsSignedWithRedKey);
+                Assert.True(file.IsEncrypted);
+                Assert.True(file.IsDataIntegrityEnabled);
+                Assert.True(file.HashTreeValid);
+                Assert.False(file.DataHashTreeValid);
             }
         }
 
-        [TestMethod]
+        [Fact(Skip="Relies on xvd data blob")]
         public void Dev_Signed_XVC_Decrypt_Test()
         {
             const string dest = @"F:\XBone\XVDs\TestXVDs\xvd1_decrypted_temp";
@@ -63,21 +62,21 @@ namespace LibXboxOne.Tests
             File.Copy(@"F:\XBone\XVDs\TestXVDs\xvd1", dest);
             using (var file = new XvdFile(dest))
             {
-                Assert.IsTrue(file.Load());
-                Assert.IsTrue(file.Header.IsSignedWithRedKey);
-                Assert.IsTrue(file.IsEncrypted);
-                Assert.IsTrue(file.IsDataIntegrityEnabled);
-                Assert.IsTrue(file.HashTreeValid);
-                Assert.IsTrue(file.DataHashTreeValid);
-                Assert.IsTrue(file.Decrypt());
-                Assert.IsFalse(file.IsEncrypted);
+                Assert.True(file.Load());
+                Assert.True(file.Header.IsSignedWithRedKey);
+                Assert.True(file.IsEncrypted);
+                Assert.True(file.IsDataIntegrityEnabled);
+                Assert.True(file.HashTreeValid);
+                Assert.True(file.DataHashTreeValid);
+                Assert.True(file.Decrypt());
+                Assert.False(file.IsEncrypted);
                 int[] invalid = file.VerifyDataHashTree();
-                Assert.IsTrue(invalid.Length == 0);
-                Assert.IsTrue(file.VerifyHashTree());
+                Assert.True(invalid.Length == 0);
+                Assert.True(file.VerifyHashTree());
 
                 byte[] ntfsString = file.Read(0x87003, 4);
                 byte[] expectedString = { 0x4E, 0x54, 0x46, 0x53 };
-                Assert.IsTrue(ntfsString.IsEqualTo(expectedString));
+                Assert.True(ntfsString.IsEqualTo(expectedString));
             }
 
             byte[] generatedHash;
@@ -94,10 +93,10 @@ namespace LibXboxOne.Tests
                 expectedHash = new SHA256Managed().ComputeHash(stream);
             }
 
-            Assert.IsTrue(generatedHash.IsEqualTo(expectedHash));
+            Assert.True(generatedHash.IsEqualTo(expectedHash));
         }
 
-        [TestMethod]
+        [Fact(Skip="Relies on xvd data blob")]
         public void Dev_Signed_XVC_Encrypt_Test()
         {
             const string dest = @"F:\XBone\XVDs\TestXVDs\xvd1_encrypted_temp";
@@ -108,17 +107,17 @@ namespace LibXboxOne.Tests
             File.Copy(@"F:\XBone\XVDs\TestXVDs\xvd1_decrypted", dest);
             using (var file = new XvdFile(dest))
             {
-                Assert.IsTrue(file.Load());
-                Assert.IsFalse(file.IsEncrypted);
-                Assert.IsTrue(file.IsDataIntegrityEnabled);
-                Assert.IsTrue(file.HashTreeValid);
-                Assert.IsTrue(file.DataHashTreeValid);
-                Assert.IsTrue(file.Encrypt());
-                Assert.IsTrue(file.IsEncrypted);
+                Assert.True(file.Load());
+                Assert.False(file.IsEncrypted);
+                Assert.True(file.IsDataIntegrityEnabled);
+                Assert.True(file.HashTreeValid);
+                Assert.True(file.DataHashTreeValid);
+                Assert.True(file.Encrypt());
+                Assert.True(file.IsEncrypted);
 
                 int[] invalid = file.VerifyDataHashTree();
-                Assert.IsTrue(invalid.Length == 0);
-                Assert.IsTrue(file.VerifyHashTree());
+                Assert.True(invalid.Length == 0);
+                Assert.True(file.VerifyHashTree());
             }
 
             byte[] generatedHash;
@@ -135,10 +134,10 @@ namespace LibXboxOne.Tests
                 expectedHash = new SHA256Managed().ComputeHash(stream);
             }
 
-            Assert.IsTrue(generatedHash.IsEqualTo(expectedHash));
+            Assert.True(generatedHash.IsEqualTo(expectedHash));
         }
 
-        [TestMethod]
+        [Fact(Skip="Relies on xvd data blob")]
         public void Unsigned_XVD_Decrypt_Test()
         {
             const string dest = @"F:\XBone\XVDs\TestXVDs\xvd2_decrypted_temp";
@@ -149,22 +148,22 @@ namespace LibXboxOne.Tests
             File.Copy(@"F:\XBone\XVDs\TestXVDs\xvd2", dest);
             using (var file = new XvdFile(dest))
             {
-                Assert.IsTrue(file.Load());
-                Assert.IsTrue(file.Header.IsSignedWithRedKey);
-                Assert.IsTrue(file.IsEncrypted);
-                Assert.IsTrue(file.IsDataIntegrityEnabled);
-                Assert.IsTrue(file.HashTreeValid);
-                Assert.IsTrue(file.DataHashTreeValid);
-                Assert.IsTrue(file.Decrypt());
-                Assert.IsFalse(file.IsEncrypted);
+                Assert.True(file.Load());
+                Assert.True(file.Header.IsSignedWithRedKey);
+                Assert.True(file.IsEncrypted);
+                Assert.True(file.IsDataIntegrityEnabled);
+                Assert.True(file.HashTreeValid);
+                Assert.True(file.DataHashTreeValid);
+                Assert.True(file.Decrypt());
+                Assert.False(file.IsEncrypted);
 
                 int[] invalid = file.VerifyDataHashTree();
-                Assert.IsTrue(invalid.Length == 0);
-                Assert.IsTrue(file.VerifyHashTree());
+                Assert.True(invalid.Length == 0);
+                Assert.True(file.VerifyHashTree());
 
                 byte[] ntfsString = file.Read(0x75003, 4);
                 byte[] expectedString = { 0x4E, 0x54, 0x46, 0x53 };
-                Assert.IsTrue(ntfsString.IsEqualTo(expectedString));
+                Assert.True(ntfsString.IsEqualTo(expectedString));
             }
 
             byte[] generatedHash;
@@ -181,10 +180,10 @@ namespace LibXboxOne.Tests
                 expectedHash = new SHA256Managed().ComputeHash(stream);
             }
 
-            Assert.IsTrue(generatedHash.IsEqualTo(expectedHash));
+            Assert.True(generatedHash.IsEqualTo(expectedHash));
         }
 
-        [TestMethod]
+        [Fact(Skip="Relies on xvd data blob")]
         public void Unsigned_XVD_Encrypt_Test()
         {
             const string dest = @"F:\XBone\XVDs\TestXVDs\xvd2_encrypted_temp";
@@ -195,12 +194,12 @@ namespace LibXboxOne.Tests
             File.Copy(@"F:\XBone\XVDs\TestXVDs\xvd2_decrypted_orig_mod", dest); // modded with CIK used in xvd2
             using (var file = new XvdFile(dest))
             {
-                Assert.IsTrue(file.Load());
-                Assert.IsFalse(file.Header.IsSignedWithRedKey);
-                Assert.IsFalse(file.IsEncrypted);
-                Assert.IsFalse(file.IsDataIntegrityEnabled);
-                Assert.IsTrue(file.Encrypt());
-                Assert.IsTrue(file.IsEncrypted);
+                Assert.True(file.Load());
+                Assert.False(file.Header.IsSignedWithRedKey);
+                Assert.False(file.IsEncrypted);
+                Assert.False(file.IsDataIntegrityEnabled);
+                Assert.True(file.Encrypt());
+                Assert.True(file.IsEncrypted);
 
                 // copy values from file being compared so the hashes match
                 file.Header.PDUID = new byte[] {0xEA, 0xC8, 0xE2, 0x82, 0x2F, 0x58, 0x32, 0x4F, 0x92, 0x29, 0xE1, 0xAB, 0x6E, 0x8F, 0x91, 0x63};
@@ -210,11 +209,11 @@ namespace LibXboxOne.Tests
                     stream.Read(file.Header.Signature, 0, 0x200);
                 }
 
-                Assert.IsTrue(file.AddHashTree());
+                Assert.True(file.AddHashTree());
 
                 int[] invalid = file.VerifyDataHashTree();
-                Assert.IsTrue(invalid.Length == 0);
-                Assert.IsTrue(file.VerifyHashTree());
+                Assert.True(invalid.Length == 0);
+                Assert.True(file.VerifyHashTree());
             }
 
             byte[] generatedHash;
@@ -231,10 +230,10 @@ namespace LibXboxOne.Tests
                 expectedHash = new SHA256Managed().ComputeHash(stream);
             }
 
-            Assert.IsTrue(generatedHash.IsEqualTo(expectedHash));
+            Assert.True(generatedHash.IsEqualTo(expectedHash));
         }
 
-        [TestMethod]
+        [Fact(Skip="Relies on xvd data blob")]
         public void XvdSign_Key_Extract()
         {
             var sdkVersions = new List<string> { "XDK_11785" };
@@ -260,7 +259,7 @@ namespace LibXboxOne.Tests
                 XvdFile.OdkKeyLoaded = false;
                 XvdFile.SignKeyLoaded = false;
                 XvdFile.LoadKeysFromSdk(path);
-                Assert.IsTrue(XvdFile.CikFileLoaded && XvdFile.OdkKeyLoaded && XvdFile.SignKeyLoaded);
+                Assert.True(XvdFile.CikFileLoaded && XvdFile.OdkKeyLoaded && XvdFile.SignKeyLoaded);
             }
 
             XvdFile.CikFileLoaded = false;
