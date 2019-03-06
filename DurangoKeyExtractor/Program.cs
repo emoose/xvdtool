@@ -16,7 +16,7 @@ namespace DurangoKeyExtractor
 
             var p = new OptionSet {
                 { "h|?|help", v => printHelp = v != null },
-                { "o|output", v => outputFolder = v}
+                { "o|output=", v => outputFolder = v}
             };
 
             var extraArgs = p.Parse(args);
