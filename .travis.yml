@@ -22,6 +22,7 @@ script:
 - dotnet build -c $BUILD_CONFIG
 # - dotnet publish -c $BUILD_CONFIG -r $PUBLISH_TARGET -o publish XVDTool
 # - dotnet publish -c $BUILD_CONFIG -r $PUBLISH_TARGET -o publish XBFSTool
+# - dotnet publish -c $BUILD_CONFIG -r $PUBLISH_TARGET -o publish DurangoKeyExtractor
 
 # before_deploy:
 # - cd XVDTool/publish
@@ -31,6 +32,10 @@ script:
 # - cd XBFSTool/publish
 # - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then zip -r $TRAVIS_BUILD_DIR/XBFSTool-$PACKAGE_SUFFIX.zip .; fi
 # - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then tar czvf $TRAVIS_BUILD_DIR/XBFSTool-$PACKAGE_SUFFIX.tar.gz *; fi
+# - cd ../..
+# - cd DurangoKeyExtractor/publish
+# - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then zip -r $TRAVIS_BUILD_DIR/DurangoKeyExtractor-$PACKAGE_SUFFIX.zip .; fi
+# - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then tar czvf $TRAVIS_BUILD_DIR/DurangoKeyExtractor-$PACKAGE_SUFFIX.tar.gz *; fi
 # - cd $TRAVIS_BUILD_DIR
 #
 #deploy:
