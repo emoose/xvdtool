@@ -12,6 +12,10 @@
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
+# macOS
+.DS_Store
+._.DS_Store
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
@@ -342,3 +346,8 @@ healthchecksdb
 
 # Backup folder for Package Reference Convert tool in Visual Studio 2017
 MigrationBackup/
+
+# Application specific
+*.rsa
+*.odk
+*.cik
