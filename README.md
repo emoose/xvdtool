@@ -8,6 +8,7 @@ However **no encryption keys are provided with this tool**, you'll have to find 
 If you have an Xbox One development kit or GamingServices framework (Windows10-exclusive) installed, you can use DurangoKeyExtractor to extract the keys from there.
 
 Also included is a tool for extracting files from the XBFS (Xbox Boot File System) inside the Xbox One NAND, based on tuxuser's original [NANDOne](https://github.com/tuxuser/NANDOne) work with a few small additions.
+Thanks Kebob for providing [OpenXvd](https://github.com/Kebob/OpenXvd).
 
 ### Usage
 ```
