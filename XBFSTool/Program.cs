@@ -12,31 +12,42 @@ namespace XBFSTool
     {
         static void Main(string[] args)
         {
-            const string fmt = "    ";
-
             var printHelp = false;
             var printInfo = false;
             var outputFolder = String.Empty;
 
             var p = new OptionSet {
-                { "h|?|help", v => printHelp = v != null },
-                { "i|info", v => printInfo = v != null },
-                { "x|extract=", v => outputFolder = v }
+                { "h|?|help", "Show this help and exit", v => printHelp = v != null },
+                { "i|info", "Print info about nand dump", v => printInfo = v != null },
+                { "x|extract=", "Specify {OUTPUT DIRECTORY} for extracted files", v => outputFolder = v }
             };
 
-            var extraArgs = p.Parse(args);
+            List<string> extraArgs;
+            try
+            {
+                extraArgs = p.Parse(args);
+            }
+            catch (OptionException e)
+            {
+                Console.WriteLine($"Failed parsing parameter \'{e.OptionName}\': {e.Message}");
+                Console.WriteLine("Try 'xbfstool --help' for more information");
+                return;
+            }
+
+            if(extraArgs.Count <= 0)
+            {
+                Console.WriteLine("ERROR: Missing filepath!");
+                Console.WriteLine();
+            }
 
             Console.WriteLine("xbfstool 0.1: Xbox boot filesystem tool");
-
             if (printHelp || extraArgs.Count <= 0)
             {
-                Console.WriteLine("Usage  : xbfstool.exe [parameters] [filename]");
+                Console.WriteLine("Usage  : xbfstool.exe [parameters] [filepath]");
+                Console.WriteLine("Parse Xbox boot filesystem");
                 Console.WriteLine();
                 Console.WriteLine("Parameters:");
-                Console.WriteLine(fmt + "-h (-help) - print xbfstool usage");
-                Console.WriteLine(fmt + "-i (-info) - print info about nand dump");
-                Console.WriteLine(fmt + "-x (-extract) <output-path> - specify output filepath");
-                Console.WriteLine();
+                p.WriteOptionDescriptions(Console.Out);
                 return;
             }
 

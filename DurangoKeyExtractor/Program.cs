@@ -1,7 +1,8 @@
 ﻿using System;
+using System.IO;
+using System.Collections.Generic;
 using NDesk.Options;
 using LibXboxOne;
-using System.IO;
 
 namespace DurangoKeyExtractor
 {
@@ -9,28 +10,40 @@ namespace DurangoKeyExtractor
     {
         static void Main(string[] args)
         {
-            const string fmt = "    ";
-
             var printHelp = false;
             var outputFolder = String.Empty;
 
             var p = new OptionSet {
-                { "h|?|help", v => printHelp = v != null },
-                { "o|output=", v => outputFolder = v}
+                { "h|?|help", "Show this help and exit", v => printHelp = v != null },
+                { "o|output=", "Specify {OUTPUT DIRECTORY} for extracted keys",
+                    v => outputFolder = v}
             };
 
-            var extraArgs = p.Parse(args);
+            List<string> extraArgs;
+            try
+            {
+                extraArgs = p.Parse(args);
+            }
+            catch (OptionException e)
+            {
+                Console.WriteLine($"Failed parsing parameter \'{e.OptionName}\': {e.Message}");
+                Console.WriteLine("Try 'durangokeyextractor --help' for more information");
+                return;
+            }
+
+            if(extraArgs.Count <= 0)
+            {
+                Console.WriteLine("ERROR: Missing filepath!");
+                Console.WriteLine();
+            }
 
             Console.WriteLine("durangokeyextractor 0.1: Durango key extractor");
-
             if (printHelp || extraArgs.Count <= 0)
             {
-                Console.WriteLine("Usage  : durangokeyextractor.exe [file path]");
+                Console.WriteLine("Usage  : durangokeyextractor.exe [parameters] [filepath]");
                 Console.WriteLine();
                 Console.WriteLine("Parameters:");
-                Console.WriteLine(fmt + "-h (-help) - print program usage");
-                Console.WriteLine(fmt + "-o (-output) - Output folder to store extracted keys");
-                Console.WriteLine();
+                p.WriteOptionDescriptions(Console.Out);
                 return;
             }
 

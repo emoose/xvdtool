@@ -79,18 +79,12 @@ namespace XVDTool
                 { "odk|odkid=", v =>
                 {
                     if (!DurangoKeys.GetOdkIndexFromString(v, out odkToUse))
-                    {
-                        Console.WriteLine("Error: Invalid Odk Id specified");
-                        return;
-                    }
+                        throw new OptionException("Invalid Odk Id", "odkid");
                 }},
                 { "cik|cikguid=", v =>
                 {
                     if (!Guid.TryParse(v, out cikToUse))
-                    {
-                        Console.WriteLine("Error: Invalid cikguid (Guid) specified");
-                        return;
-                    }
+                        throw new OptionException("Invalid CIK GUID", "cikguid");
                 }},
                 { "nd|nodatahash", v => XvdFile.DisableDataHashChecking = v != null },
                 { "ne|noextract", v => disableDataExtract = v != null },
@@ -110,7 +104,18 @@ namespace XVDTool
                 { "l|filelist=", v => fileList = v },
                 { "f|folder=", v => folder = v },
             };
-            var extraArgs = p.Parse(args);
+
+            List<string> extraArgs;
+            try
+            {
+                extraArgs = p.Parse(args);
+            }
+            catch (OptionException e)
+            {
+                Console.WriteLine($"Failed parsing parameter \'{e.OptionName}\': {e.Message}");
+                Console.WriteLine("Try 'xvdtool --help' for more information");
+                return;
+            }
 
             Console.WriteLine("xvdtool 0.4: XVD file manipulator");
 
