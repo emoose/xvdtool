@@ -45,6 +45,7 @@ namespace LibXboxOne
         public ulong HashTreeLevels;
         public ulong UserDataOffset;
         public ulong DynamicHeaderOffset;
+        public ulong DriveDataOffset;
         public ulong DataOffset;
 
         public bool HashTreeValid = false;
@@ -394,16 +395,12 @@ namespace LibXboxOne
             if (!IsDataIntegrityEnabled)
                 UserDataOffset = HashTreeOffset;
 
+            DynamicHeaderOffset = 0;
+            DataOffset = UserDataOffset + PageNumberToOffset(Header.UserDataPageCount);
+            DriveDataOffset = DataOffset + PageNumberToOffset(Header.DynamicHeaderPageCount);
+            
             if (Header.Type == XvdType.Dynamic)
-            {
-                DynamicHeaderOffset = UserDataOffset + PageNumberToOffset(Header.UserDataPageCount);
-                DataOffset = DynamicHeaderOffset + PageNumberToOffset(Header.DynamicHeaderPageCount);
-            }
-            else
-            {
-                DynamicHeaderOffset = 0;
-                DataOffset = UserDataOffset + PageNumberToOffset(Header.UserDataPageCount);
-            }
+                DynamicHeaderOffset = DataOffset;
         }
 
         public bool Decrypt()
@@ -1178,6 +1175,7 @@ namespace LibXboxOne
                 b.AppendLineSpace(fmt + "Dynamic Header Offset: 0x" + DynamicHeaderOffset.ToString("X"));
 
             b.AppendLineSpace(fmt + "XVD Data Offset: 0x" + DataOffset.ToString("X"));
+            b.AppendLineSpace(fmt + "Drive Data Offset: 0x" + DriveDataOffset.ToString("X"));
 
             if (IsDataIntegrityEnabled)
             {
