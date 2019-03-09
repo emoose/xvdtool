@@ -34,6 +34,7 @@ namespace LibXboxOne
         public static bool DisableDataHashChecking = false;
 
         public XvdHeader Header;
+        public uint[] DynamicHeader;
         public XvcInfo XvcInfo;
 
         public List<XvcRegionHeader> RegionHeaders;
@@ -43,6 +44,7 @@ namespace LibXboxOne
         public ulong HashTreePageCount;
         public ulong HashTreeLevels;
         public ulong UserDataOffset;
+        public ulong DynamicHeaderOffset;
         public ulong DataOffset;
 
         public bool HashTreeValid = false;
@@ -387,7 +389,16 @@ namespace LibXboxOne
             if (!IsDataIntegrityEnabled)
                 UserDataOffset = HashTreeOffset;
 
-            DataOffset = UserDataOffset + PageNumberToOffset(Header.UserDataPageCount);
+            if (Header.Type == XvdType.Dynamic)
+            {
+                DynamicHeaderOffset = UserDataOffset + PageNumberToOffset(Header.UserDataPageCount);
+                DataOffset = DynamicHeaderOffset + PageNumberToOffset(Header.DynamicHeaderPageCount);
+            }
+            else
+            {
+                DynamicHeaderOffset = 0;
+                DataOffset = UserDataOffset + PageNumberToOffset(Header.UserDataPageCount);
+            }
         }
 
         public bool Decrypt()
@@ -541,11 +552,20 @@ namespace LibXboxOne
 
             CikIsDecrypted = !IsEncrypted;
 
-
             CalculateDataOffsets();
 
             if (DataOffset >= (ulong)_io.Stream.Length)
                 return false;
+
+            if (Header.Type == XvdType.Dynamic)
+            {
+                _io.Stream.Position = (long)DynamicHeaderOffset;
+                DynamicHeader = new uint[Header.DynamicHeaderLength / sizeof(uint)];
+                for (int entry = 0; entry < DynamicHeader.Length; entry++)
+                {
+                    DynamicHeader[entry] = _io.Reader.ReadUInt32();
+                }
+            }
 
             if (Header.XvcDataLength > 0 && IsXvcFile)
             {
@@ -1148,6 +1168,9 @@ namespace LibXboxOne
 
             if(Header.UserDataLength > 0)
                 b.AppendLineSpace(fmt + "User Data Offset: 0x" + UserDataOffset.ToString("X"));
+            
+            if(Header.Type == XvdType.Dynamic)
+                b.AppendLineSpace(fmt + "Dynamic Header Offset: 0x" + DynamicHeaderOffset.ToString("X"));
 
             b.AppendLineSpace(fmt + "XVD Data Offset: 0x" + DataOffset.ToString("X"));
 
