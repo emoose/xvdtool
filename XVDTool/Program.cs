@@ -173,7 +173,6 @@ namespace XVDTool
 
             var fallbackCik = DurangoKeys.TestCIK;
             var fallbackSignKey = DurangoKeys.RedXvdPrivateKey;
-            var fallbackOdk = OdkIndex.RedOdk;
 
             var localConfigDir = AppDirs.GetApplicationConfigDirectory(AppName);
             var executableDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
@@ -226,10 +225,11 @@ namespace XVDTool
             }
 
             if(odkToUse == OdkIndex.Invalid)
-            {
-                Console.WriteLine($"No desired or invalid ODK provided, falling back to {fallbackOdk}");
-                odkToUse = fallbackOdk;
-            }
+                Console.WriteLine($"No desired or invalid ODK provided, will try to use ODK indicated by XVD header");
+            else if (!LibXboxOne.Keys.DurangoKeys.IsOdkLoaded(odkToUse))
+                Console.WriteLine($"Warning: ODK {odkToUse} could not be loaded!");
+            else
+                Console.WriteLine($"Using ODK: {odkToUse}");
 
             if (!LibXboxOne.Keys.DurangoKeys.IsSignkeyLoaded(signKeyToUse))
                 Console.WriteLine("Warning: Signkey could not be loaded, you will be unable to resign XVD headers!");
@@ -240,11 +240,6 @@ namespace XVDTool
                 Console.WriteLine("Warning: CIK could not be loaded!");
             else
                 Console.WriteLine($"Using CIK: {cikToUse}");
-
-            if (!LibXboxOne.Keys.DurangoKeys.IsOdkLoaded(odkToUse))
-                Console.WriteLine("Warning: ODK could not be loaded!");
-            else
-                Console.WriteLine($"Using ODK: {odkToUse}");
 
             Console.WriteLine();
 
@@ -361,6 +356,8 @@ namespace XVDTool
                 }
 
                 var file = new XvdFile(filePath);
+                file.OverrideOdk = odkToUse;
+
                 file.Load();
                 if (printInfo || writeInfo)
                 {
@@ -382,7 +379,7 @@ namespace XVDTool
                         Console.WriteLine(@"Error: package already decrypted");
                         return;
                     }
-                    string keyToUse = "TestODK";
+                    string keyToUse = odkToUse != OdkIndex.Invalid ? odkToUse.ToString() : "<ODK indicated by XVD header>";
                     if (file.IsXvcFile)
                     {
                         if (!file.GetXvcKeyByGuid(cikToUse, out byte[] outputKey))
@@ -393,6 +390,7 @@ namespace XVDTool
                         }
                         keyToUse = $"{cikToUse}: {outputKey.ToHexString()}";
                     }
+
                     Console.WriteLine("Decrypting package using \"" + keyToUse + "\" key...");
                     bool success = file.Decrypt();
                     Console.WriteLine(success ? "Package decrypted successfully!" : "Error during decryption!");

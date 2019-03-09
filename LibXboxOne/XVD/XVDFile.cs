@@ -65,6 +65,8 @@ namespace LibXboxOne
             XvdContentType.UniversalDlc
         };
 
+        public OdkIndex OverrideOdk { get; set; }
+
         private readonly IO _io;
         private readonly string _filePath;
 
@@ -107,6 +109,7 @@ namespace LibXboxOne
         {
             _filePath = path;
             _io = new IO(path);
+            OverrideOdk = OdkIndex.Invalid;
         }
 
         public static bool PagesAligned(ulong page)
@@ -201,7 +204,9 @@ namespace LibXboxOne
                 return;
             }
 
-            var odkKey = Keys.DurangoKeys.GetOdkById(Header.ODKKeyslotID);
+            var odkToUse = OverrideOdk == OdkIndex.Invalid ? Header.ODKKeyslotID : OverrideOdk;
+
+            var odkKey = Keys.DurangoKeys.GetOdkById(odkToUse);
             if (odkKey == null)
             {
                 throw new InvalidOperationException(
