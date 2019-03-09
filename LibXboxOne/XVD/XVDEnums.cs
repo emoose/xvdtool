@@ -38,7 +38,15 @@ namespace LibXboxOne
         TitleDlc = 0x19,
         UniversalDlc = 0x1A,
         SystemData = 0x1B,
-        Test = 0x1C
+        Test = 0x1C,
+        Unknown1D = 0x1D,
+        Kiosk = 0x1E,
+        Unknown20 = 0x20,
+        Uwa = 0x21,
+        Unknown22 = 0x22,
+        Unknown23 = 0x23,
+        Unknown24 = 0x24,
+        ServerAgent = 0x25
     }
 
     [Flags]

@@ -87,9 +87,16 @@ namespace LibXboxOne
         /* 0x264 */ public uint WriteableExpirationDate;
         /* 0x268 */ public uint WriteablePolicyFlags;
         /* 0x26C */ public uint PersistentLocalStorageSize;
+        
+        // NEW FIELDS: only seen in SoDTest windows-XVC!
+        /* 0x270 */ public byte NumMDUPages;
+        /* 0x271 */ public byte Unknown271;
 
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x1C)]
-        /* 0x270 */ public byte[] Reserved1;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
+        /* 0x272 */ public byte[] Unknown272;
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xF)]
+        /* 0x282 */ public byte[] Reserved1;
         /* 0x28C */ public long SequenceNumber;
         /* 0x294 */ public ushort RequiredSystemVersion1;
         /* 0x296 */ public ushort RequiredSystemVersion2;
@@ -102,6 +109,16 @@ namespace LibXboxOne
         /* 0x2A0 */ public byte[] Reserved2;
 
         /* 0xE00 = END */
+
+        public ulong UserDataPageCount => XvdFile.BytesToPages(UserDataLength);
+        public ulong XvcInfoPageCount => XvdFile.BytesToPages(XvcDataLength);
+        public ulong EmbeddedXvdPageCount => XvdFile.BytesToPages(EmbeddedXVDLength);
+        public ulong DynamicHeaderPageCount => XvdFile.BytesToPages(DynamicHeaderLength);
+        public ulong DrivePageCount => XvdFile.BytesToPages(DriveSize);
+        public ulong NumberOfHashedPages => (DrivePageCount + UserDataPageCount + XvcInfoPageCount + DynamicHeaderPageCount);
+        public ulong SectorSize => VolumeFlags.HasFlag(XvdVolumeFlags.LegacySectorSize) ?
+                                        XvdFile.LEGACY_SECTOR_SIZE :
+                                        XvdFile.SECTOR_SIZE;
 
         public bool IsSigned => !Signature.IsArrayEmpty();
 
@@ -225,6 +242,7 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + "Writeable Expiration Date: 0x" + WriteableExpirationDate.ToString("X"));
             b.AppendLineSpace(fmt + "Writeable Policy flags: 0x" + WriteablePolicyFlags.ToString("X"));
             b.AppendLineSpace(fmt + "Persistent Local storage length: 0x" + PersistentLocalStorageSize.ToString("X"));
+            b.AppendLineSpace(fmt + "Number of MDU pages: 0x" + NumMDUPages.ToString("X"));
 
             b.AppendLineSpace(fmt + "Sandbox Id: " + new string(SandboxId).Replace("\0", ""));
             b.AppendLineSpace(fmt + "Product Id: " + new Guid(ProductId));
@@ -234,6 +252,9 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + String.Format("Required System Version: {3}.{2}.{1}.{0}", RequiredSystemVersion1, RequiredSystemVersion2, RequiredSystemVersion3, RequiredSystemVersion4));
             b.AppendLineSpace(fmt + "ODK Keyslot ID: " + ODKKeyslotID.ToString());
             b.AppendLineSpace(fmt + "KeyMaterial:" + Environment.NewLine + fmt + KeyMaterial.ToHexString());
+
+            b.AppendLineSpace(fmt + "Unknown271: " + Unknown271.ToString("X"));
+            b.AppendLineSpace(fmt + "Unknown272: " + Unknown272.ToHexString());
 
             if (!Reserved0.IsArrayEmpty())
                 b.AppendLineSpace(fmt + "Reserved0: " + Environment.NewLine + fmt + Reserved0.ToHexString());

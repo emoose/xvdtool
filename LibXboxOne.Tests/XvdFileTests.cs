@@ -78,7 +78,7 @@ namespace LibXboxOne.Tests
                 Assert.True(file.DataHashTreeValid);
                 Assert.True(file.Decrypt());
                 Assert.False(file.IsEncrypted);
-                int[] invalid = file.VerifyDataHashTree();
+                ulong[] invalid = file.VerifyDataHashTree();
                 Assert.True(invalid.Length == 0);
                 Assert.True(file.VerifyHashTree());
 
@@ -123,7 +123,7 @@ namespace LibXboxOne.Tests
                 // Assert.True(file.Encrypt());
                 Assert.True(file.IsEncrypted);
 
-                int[] invalid = file.VerifyDataHashTree();
+                ulong[] invalid = file.VerifyDataHashTree();
                 Assert.True(invalid.Length == 0);
                 Assert.True(file.VerifyHashTree());
             }
@@ -167,7 +167,7 @@ namespace LibXboxOne.Tests
                 Assert.True(file.Decrypt());
                 Assert.False(file.IsEncrypted);
 
-                int[] invalid = file.VerifyDataHashTree();
+                ulong[] invalid = file.VerifyDataHashTree();
                 Assert.True(invalid.Length == 0);
                 Assert.True(file.VerifyHashTree());
 
@@ -223,7 +223,7 @@ namespace LibXboxOne.Tests
 
                 Assert.True(file.AddHashTree());
 
-                int[] invalid = file.VerifyDataHashTree();
+                ulong[] invalid = file.VerifyDataHashTree();
                 Assert.True(invalid.Length == 0);
                 Assert.True(file.VerifyHashTree());
             }

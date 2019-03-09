@@ -11,6 +11,26 @@ namespace LibXboxOne
 {
     public class XvdFile : IDisposable
     {
+        #region Constants
+
+        public static readonly uint PAGE_SIZE = 0x1000;
+        public static readonly uint BLOCK_SIZE = 0xAA000;
+        public static readonly uint SECTOR_SIZE = 4096;
+        public static readonly uint LEGACY_SECTOR_SIZE = 512;
+        public static readonly uint INVALID_SECTOR = 0xFFFFFFFF;
+
+        public static readonly uint HASH_ENTRY_LENGTH = 0x18;
+
+        public static readonly uint HASH_ENTRIES_IN_PAGE = PAGE_SIZE / HASH_ENTRY_LENGTH; // 0xAA
+        public static readonly uint PAGES_PER_BLOCK = BLOCK_SIZE / PAGE_SIZE; // 0xAA
+
+        public static readonly uint DATA_BLOCKS_IN_LEVEL0_HASHTREE = HASH_ENTRIES_IN_PAGE; // 0xAA
+        public static readonly uint DATA_BLOCKS_IN_LEVEL1_HASHTREE = HASH_ENTRIES_IN_PAGE * DATA_BLOCKS_IN_LEVEL0_HASHTREE; // 0x70E4
+        public static readonly uint DATA_BLOCKS_IN_LEVEL2_HASHTREE = HASH_ENTRIES_IN_PAGE * DATA_BLOCKS_IN_LEVEL1_HASHTREE; // 0x4AF768
+        public static readonly uint DATA_BLOCKS_IN_LEVEL3_HASHTREE = HASH_ENTRIES_IN_PAGE * DATA_BLOCKS_IN_LEVEL2_HASHTREE; // 0x31C84B10
+
+        #endregion
+
         public static bool DisableDataHashChecking = false;
 
         public XvdHeader Header;
@@ -20,12 +40,10 @@ namespace LibXboxOne
         public List<XvcUpdateSegmentInfo> UpdateSegments;
 
         public ulong HashTreeOffset;
-        public ulong HashTreeBlockCount;
+        public ulong HashTreePageCount;
         public ulong HashTreeLevels;
         public ulong UserDataOffset;
         public ulong DataOffset;
-        public ulong XvdDataBlockCount;
-        public int SectorSize;
 
         public bool HashTreeValid = false;
         public bool DataHashTreeValid = false;
@@ -73,6 +91,11 @@ namespace LibXboxOne
             get { return !Header.VolumeFlags.HasFlag(XvdVolumeFlags.DataIntegrityDisabled); }
         }
 
+        public bool IsResiliencyEnabled
+        {
+            get { return Header.VolumeFlags.HasFlag(XvdVolumeFlags.ResiliencyEnabled); }
+        }
+
         public bool UsesLegacySectorSize
         {
             get { return Header.VolumeFlags.HasFlag(XvdVolumeFlags.LegacySectorSize); }
@@ -82,6 +105,90 @@ namespace LibXboxOne
         {
             _filePath = path;
             _io = new IO(path);
+        }
+
+        public static bool PagesAligned(ulong page)
+        {
+            return (page & (PAGE_SIZE - 1)) == 0;
+        }
+
+        public static ulong PageAlign(ulong offset)
+        {
+            return offset & 0xFFFFFFFFFFFFF000;
+        }
+
+        public static ulong InBlockOffset(ulong offset)
+        {
+            return offset & (BLOCK_SIZE - 1);
+        }
+
+        public static ulong InPageOffset(ulong offset)
+        {
+            return offset & (PAGE_SIZE - 1);
+        }
+
+        public static ulong BlockNumberToOffset(ulong blockNumber)
+        {
+            return blockNumber * BLOCK_SIZE;
+        }
+
+        public static ulong PageNumberToOffset(ulong pageNumber)
+        {
+            return pageNumber * PAGE_SIZE;
+        }
+
+        public static ulong BytesToBlocks(ulong bytes)
+        {
+            return (bytes + BLOCK_SIZE - 1) / BLOCK_SIZE;
+        }
+
+        public static ulong PagesToBlocks(ulong pages)
+        {
+            return (pages + PAGES_PER_BLOCK - 1) / PAGES_PER_BLOCK;
+        }
+
+        public static ulong BytesToPages(ulong bytes)
+        {
+            return (bytes + PAGE_SIZE - 1) / PAGE_SIZE;
+        }
+
+        public static ulong OffsetToBlockNumber(ulong offset)
+        {
+            return offset / BLOCK_SIZE;
+        }
+
+        public static ulong OffsetToPageNumber(ulong offset)
+        {
+            return offset / PAGE_SIZE;
+        }
+
+        public static ulong SectorsToBytes(ulong sectors)
+        {
+            return sectors * SECTOR_SIZE; 
+        }
+
+        public static ulong LegacySectorsToBytes(ulong sectors)
+        {
+            return sectors * LEGACY_SECTOR_SIZE;
+        }
+
+        public static ulong ComputePagesSpanned(ulong startOffset, ulong lengthBytes)
+        {
+            return OffsetToPageNumber(startOffset + lengthBytes - 1) -
+                   OffsetToPageNumber(lengthBytes) + 1;
+        }
+
+        static ulong QueryFirstDynamicPage(ulong metaDataPagesCount)
+        {
+            return (ulong)PAGES_PER_BLOCK * PagesToBlocks(metaDataPagesCount);
+        }
+
+        ulong ComputeDataBackingPageNumber(XvdType type, ulong numHashLevels, ulong hashPageCount, ulong dataPageNumber)
+        {
+            if (type > XvdType.Dynamic) // Invalid Xvd Type!
+                return dataPageNumber;
+
+            return dataPageNumber + hashPageCount;    
         }
 
         private void CryptHeaderCik(bool encrypt)
@@ -141,7 +248,7 @@ namespace LibXboxOne
 
         internal bool CryptSectionXts(bool encrypt, byte[] key, uint headerId, ulong offset, ulong length)
         {
-            ulong numDataUnits = (length + 0xFFF) / 0x1000;
+            ulong numDataUnits = BytesToPages(length);
             var headerIdBytes = BitConverter.GetBytes(headerId);
 
             var tweakAesKey = new byte[0x10];
@@ -162,9 +269,9 @@ namespace LibXboxOne
             _io.Stream.Position = (long)offset;
             for (ulong dataUnit = 0; dataUnit < numDataUnits; dataUnit++)
             {
-                var transformedData = new byte[0x1000];
-                var origData = _io.Reader.ReadBytes(0x1000);
-                _io.Stream.Position -= 0x1000;
+                var transformedData = new byte[PAGE_SIZE];
+                var origData = _io.Reader.ReadBytes((int)PAGE_SIZE);
+                _io.Stream.Position -= PAGE_SIZE;
 
                 cipher.TransformDataUnit(origData, 0, origData.Length, transformedData, 0, dataUnit);
 
@@ -173,7 +280,7 @@ namespace LibXboxOne
             return true;
         }
 
-        internal static ulong CalculateHashBlockNumForBlockNum(XvdType type, ulong hashTreeLevels, ulong xvdDataBlockCount,
+        internal static ulong CalculateHashBlockNumForBlockNum(XvdType type, ulong hashTreeLevels, ulong numberOfHashedPages,
                                                                 ulong blockNum, uint index, out ulong entryNumInBlock)
         {
             ulong HashBlockExponent(ulong blockCount)
@@ -201,36 +308,41 @@ namespace LibXboxOne
 
             if (index == 0 && hashTreeLevels > 0)
             {
-                result += (xvdDataBlockCount + HashBlockExponent(2) - 1) / HashBlockExponent(2);
+                result += (numberOfHashedPages + HashBlockExponent(2) - 1) / HashBlockExponent(2);
                 hashTreeLevels--;
             }
             
             if ((index == 0 || index == 1) && hashTreeLevels > 0)
             {
-                result += (xvdDataBlockCount + HashBlockExponent(3) - 1) / HashBlockExponent(3);
+                result += (numberOfHashedPages + HashBlockExponent(3) - 1) / HashBlockExponent(3);
                 hashTreeLevels--;
             }
 
             if (hashTreeLevels > 0 )
-                result += (xvdDataBlockCount + HashBlockExponent(4) - 1) / HashBlockExponent(4);
+                result += (numberOfHashedPages + HashBlockExponent(4) - 1) / HashBlockExponent(4);
 
             return result;
         }
 
-        internal static ulong CalculateNumHashBlocksInLevel(ulong size, ulong idx)
+        internal static ulong CalculateNumHashBlocksInLevel(ulong size, ulong idx, bool resilient)
         {
             if (idx > 3)
                 return 0;
 
             ulong blockSz = (ulong)Math.Pow(0xAA, idx + 1);
-            return (size + blockSz - 1) / blockSz;
+            blockSz = (size + blockSz - 1) / blockSz;
+
+            if (resilient)
+                blockSz *= 2;
+
+            return blockSz;
         }
 
         public byte[] ExtractEmbeddedXvd()
         {
             if (Header.EmbeddedXVDLength == 0)
                 return null;
-            _io.Stream.Position = 3 * 0x1000; // end of XVD header
+            _io.Stream.Position = (long)PageNumberToOffset(3); // end of XVD header
             return _io.Reader.ReadBytes((int)Header.EmbeddedXVDLength);
         }
 
@@ -242,40 +354,40 @@ namespace LibXboxOne
             return _io.Reader.ReadBytes((int) Header.UserDataLength);
         }
 
-        internal static ulong CalculateHashTreeBlockCount(ulong xvdDataBlockCount)
+        static ulong CalculateNumberHashPages(out ulong hashTreeLevels, ulong hashedPagesCount, bool resilient)
         {
-            return (xvdDataBlockCount + 0xa9) / 0xAA;
+            ulong hashTreeBlockCount = PagesToBlocks(hashedPagesCount);
+            hashTreeLevels = 1;
+            
+            if (hashTreeBlockCount > 1)
+            {
+                ulong result = 2;
+                while (result > 1)
+                {
+                    result = CalculateNumHashBlocksInLevel(hashedPagesCount, hashTreeLevels, false);
+                    hashTreeLevels += 1;
+                    hashTreeBlockCount += result;
+                }
+            }
+
+            if (resilient)
+                hashTreeBlockCount *= 2;
+
+            return hashTreeBlockCount;
         }
 
         private void CalculateDataOffsets()
         {
-            ulong[] longs = { Header.UserDataLength, Header.XvcDataLength, Header.DynamicHeaderLength, Header.DriveSize };
-            // count up how many blocks each of the sections lengths in the header take up
-            XvdDataBlockCount = longs.Select(addLong => (addLong + 0xFFF) / 0x1000).Aggregate<ulong, ulong>(0, (current, newLong) => current + newLong);
-            HashTreeBlockCount = CalculateHashTreeBlockCount(XvdDataBlockCount);
+            HashTreePageCount = CalculateNumberHashPages(out HashTreeLevels, Header.NumberOfHashedPages, IsResiliencyEnabled);
 
-            if (HashTreeBlockCount > 1)
-            {
-                HashTreeLevels = 1;
-                ulong result = 2;
-                while (result > 1)
-                {
-                    result = CalculateNumHashBlocksInLevel(XvdDataBlockCount, HashTreeLevels);
-                    HashTreeLevels += 1;
-                    HashTreeBlockCount += result;
-                }
-            }
-
-            var userDataBlocks = (Header.UserDataLength + 0xFFF) / 0x1000;
-            var exvdBlocks = (Header.EmbeddedXVDLength + 0xFFF) / 0x1000;
-            var totalBlocks = 3 + exvdBlocks;
-            HashTreeOffset = totalBlocks * 0x1000;
-            UserDataOffset = (totalBlocks + HashTreeBlockCount) * 0x1000;
+            var totalPages = 3 + Header.EmbeddedXvdPageCount;
+            HashTreeOffset = PageNumberToOffset(totalPages);
+            UserDataOffset = PageNumberToOffset(totalPages + HashTreePageCount);
 
             if (!IsDataIntegrityEnabled)
                 UserDataOffset = HashTreeOffset;
 
-            DataOffset = UserDataOffset + (userDataBlocks * 0x1000);
+            DataOffset = UserDataOffset + PageNumberToOffset(Header.UserDataPageCount);
         }
 
         public bool Decrypt()
@@ -411,7 +523,7 @@ namespace LibXboxOne
             if (IsDataIntegrityEnabled)
             {
 // ReSharper disable once UnusedVariable
-                int[] invalidBlocks = VerifyDataHashTree(true);
+                ulong[] invalidBlocks = VerifyDataHashTree(true);
 // ReSharper disable once UnusedVariable
                 bool hashTreeValid = CalculateHashTree();
             }
@@ -429,10 +541,6 @@ namespace LibXboxOne
 
             CikIsDecrypted = !IsEncrypted;
 
-            if (UsesLegacySectorSize)
-                SectorSize = 512;
-            else
-                SectorSize = 4096;
 
             CalculateDataOffsets();
 
@@ -464,7 +572,7 @@ namespace LibXboxOne
             {
                 if (!DisableDataHashChecking)
                 {
-                    int[] invalidBlocks = VerifyDataHashTree();
+                    ulong[] invalidBlocks = VerifyDataHashTree();
                     DataHashTreeValid = invalidBlocks.Length <= 0;
                 }
                 HashTreeValid = VerifyHashTree();
@@ -479,7 +587,7 @@ namespace LibXboxOne
             if (!IsXvcFile)
                 return true;
 
-            ulong hashTreeSize = HashTreeBlockCount * 0x1000;
+            ulong hashTreeSize = HashTreePageCount * PAGE_SIZE;
 
             var ms = new MemoryStream();
             var msIo = new IO(ms);
@@ -547,7 +655,7 @@ namespace LibXboxOne
             if (IsDataIntegrityEnabled)
                 return true;
 
-            var hashTreeSize = (long) (HashTreeBlockCount * 0x1000);
+            var hashTreeSize = (long) (HashTreePageCount * PAGE_SIZE);
 
             _io.Stream.Position = (long)HashTreeOffset;
             if (!_io.AddBytes(hashTreeSize))
@@ -593,7 +701,7 @@ namespace LibXboxOne
             if (!IsDataIntegrityEnabled)
                 return true;
 
-            var hashTreeSize = (long)(HashTreeBlockCount * 0x1000);
+            var hashTreeSize = (long)(HashTreePageCount * PAGE_SIZE);
 
             _io.Stream.Position = (long)HashTreeOffset;
             if (!_io.DeleteBytes(hashTreeSize))
@@ -634,33 +742,33 @@ namespace LibXboxOne
             return true;
         }
 
-        public int[] VerifyDataHashTree(bool rehash = false)
+        public ulong[] VerifyDataHashTree(bool rehash = false)
         {
-            int dataBlockCount = (int)((ulong)_io.Stream.Length - UserDataOffset)/0x1000;
-            var invalidBlocks = new List<int>();
+            ulong dataBlockCount = ((ulong)_io.Stream.Length - UserDataOffset) / PAGE_SIZE;
+            var invalidBlocks = new List<ulong>();
 
-            for (int i = 0; i < dataBlockCount; i++)
+            for (ulong i = 0; i < dataBlockCount; i++)
             {
                 ulong stackNum;
                 var blockNum = CalculateHashBlockNumForBlockNum(Header.Type,
-                                                                HashTreeLevels, XvdDataBlockCount,
+                                                                HashTreeLevels, Header.NumberOfHashedPages,
                                                                 (ulong)i, 0, out stackNum);
 
-                var hashEntryOffset = (blockNum*0x1000) + HashTreeOffset;
-                hashEntryOffset += stackNum*0x18;
+                var hashEntryOffset = PageNumberToOffset(blockNum) + HashTreeOffset;
+                hashEntryOffset += stackNum * HASH_ENTRY_LENGTH;
 
                 _io.Stream.Position = (long)hashEntryOffset;
-                byte[] oldhash = _io.Reader.ReadBytes(0x18);
+                byte[] oldhash = _io.Reader.ReadBytes((int)HASH_ENTRY_LENGTH);
 
-                var dataToHashOffset = (((uint)i*0x1000) + UserDataOffset);
+                var dataToHashOffset = (PageNumberToOffset(i) + UserDataOffset);
 
                 _io.Stream.Position = (long)dataToHashOffset;
-                byte[] data = _io.Reader.ReadBytes(0x1000);
+                byte[] data = _io.Reader.ReadBytes((int)PAGE_SIZE);
                 byte[] hash = HashUtils.ComputeSha256(data);
-                Array.Resize(ref hash, 0x18);
+                Array.Resize(ref hash, (int)HASH_ENTRY_LENGTH);
 
-                bool writeIdx = false; // encrypted data uses 0x14 hashes with a block IDX added to the end to make the 0x18 hash
-                var idxToWrite = (uint)i;
+                bool writeIdx = false; // encrypted data uses 0x14 hashes with a block IDX added to the end to make the HASH_ENTRY_LENGTH hash
+                uint idxToWrite = (uint)i;
                 if (IsEncrypted)
                 {
                     if (IsXvcFile)
@@ -681,7 +789,7 @@ namespace LibXboxOne
                         if (hdr.Id != 0)
                         {
                             var regionOffset = dataToHashOffset - hdr.Offset;
-                            var regionBlockNo = (regionOffset + 0xFFF)/0x1000;
+                            var regionBlockNo = BytesToPages(regionOffset);
                             idxToWrite = (uint) regionBlockNo;
                         }
                     }
@@ -718,28 +826,28 @@ namespace LibXboxOne
             while (hashTreeLevel < HashTreeLevels)
             {
                 uint dataBlockNum = 0;
-                if (XvdDataBlockCount != 0)
+                if (Header.NumberOfHashedPages != 0)
                 {
-                    while (dataBlockNum < XvdDataBlockCount)
+                    while (dataBlockNum < Header.NumberOfHashedPages)
                     {
                         ulong entryNum;
                         var blockNum = CalculateHashBlockNumForBlockNum(Header.Type,
-                                                                        HashTreeLevels, XvdDataBlockCount,
+                                                                        HashTreeLevels, Header.NumberOfHashedPages,
                                                                         dataBlockNum, hashTreeLevel - 1, out entryNum);
-                        _io.Stream.Position = (long)(HashTreeOffset + (blockNum * 0x1000));
-                        byte[] blockHash = HashUtils.ComputeSha256(_io.Reader.ReadBytes(0x1000));
-                        Array.Resize(ref blockHash, 0x18);
+                        _io.Stream.Position = (long)(HashTreeOffset + PageNumberToOffset(blockNum));
+                        byte[] blockHash = HashUtils.ComputeSha256(_io.Reader.ReadBytes((int)PAGE_SIZE));
+                        Array.Resize(ref blockHash, (int)HASH_ENTRY_LENGTH);
 
                         ulong entryNum2;
                         var secondBlockNum = CalculateHashBlockNumForBlockNum(Header.Type,
-                                                                                HashTreeLevels, XvdDataBlockCount,
+                                                                                HashTreeLevels, Header.NumberOfHashedPages,
                                                                                 dataBlockNum, hashTreeLevel, out entryNum2);
                         
-                        var hashEntryOffset = HashTreeOffset + (secondBlockNum*0x1000);
+                        var hashEntryOffset = HashTreeOffset + PageNumberToOffset(secondBlockNum);
                         hashEntryOffset += (entryNum2 + (entryNum2 * 2)) << 3;
                         _io.Stream.Position = (long)hashEntryOffset;
 
-                        byte[] oldHash = _io.Reader.ReadBytes(0x18);
+                        byte[] oldHash = _io.Reader.ReadBytes((int)HASH_ENTRY_LENGTH);
                         if (!blockHash.IsEqualTo(oldHash))
                         {
                             _io.Stream.Position = (long)hashEntryOffset; // todo: maybe return a list of blocks that needed rehashing
@@ -753,7 +861,7 @@ namespace LibXboxOne
                 blocksPerLevel = blocksPerLevel * 0xAA;
             }
             _io.Stream.Position = (long)HashTreeOffset;
-            byte[] hash = HashUtils.ComputeSha256(_io.Reader.ReadBytes(0x1000));
+            byte[] hash = HashUtils.ComputeSha256(_io.Reader.ReadBytes((int)PAGE_SIZE));
             Header.TopHashBlockHash = hash;
 
             return true;
@@ -765,7 +873,7 @@ namespace LibXboxOne
                 return true;
 
             _io.Stream.Position = (long)HashTreeOffset;
-            byte[] hash = HashUtils.ComputeSha256(_io.Reader.ReadBytes(0x1000));
+            byte[] hash = HashUtils.ComputeSha256(_io.Reader.ReadBytes((int)PAGE_SIZE));
             if (!Header.TopHashBlockHash.IsEqualTo(hash))
                 return false;
 
@@ -778,30 +886,30 @@ namespace LibXboxOne
             while (hashTreeLevel < HashTreeLevels)
             {
                 uint dataBlockNum = 0;
-                if (XvdDataBlockCount != 0)
+                if (Header.NumberOfHashedPages != 0)
                 {
-                    while (dataBlockNum < XvdDataBlockCount)
+                    while (dataBlockNum < Header.NumberOfHashedPages)
                     {
                         ulong entryNum;
                         var blockNum = CalculateHashBlockNumForBlockNum(Header.Type,
-                                                                        HashTreeLevels, XvdDataBlockCount,
+                                                                        HashTreeLevels, Header.NumberOfHashedPages,
                                                                         dataBlockNum, hashTreeLevel - 1, out entryNum);
 
-                        _io.Stream.Position = (long) (HashTreeOffset + (blockNum*0x1000));
-                        byte[] blockHash = HashUtils.ComputeSha256(_io.Reader.ReadBytes(0x1000));
-                        Array.Resize(ref blockHash, 0x18);
+                        _io.Stream.Position = (long) (HashTreeOffset + PageNumberToOffset(blockNum));
+                        byte[] blockHash = HashUtils.ComputeSha256(_io.Reader.ReadBytes((int)PAGE_SIZE));
+                        Array.Resize(ref blockHash, (int)HASH_ENTRY_LENGTH);
 
                         ulong entryNum2;
                         var secondBlockNum = CalculateHashBlockNumForBlockNum(Header.Type,
-                                                                              HashTreeLevels, XvdDataBlockCount,
+                                                                              HashTreeLevels, Header.NumberOfHashedPages,
                                                                               dataBlockNum, hashTreeLevel, out entryNum2);
                         topHashTreeBlock = secondBlockNum;
 
-                        var hashEntryOffset = HashTreeOffset + (secondBlockNum * 0x1000);
+                        var hashEntryOffset = HashTreeOffset + PageNumberToOffset(secondBlockNum);
                         hashEntryOffset += (entryNum2 + (entryNum2 * 2)) << 3;
                         _io.Stream.Position = (long)hashEntryOffset;
 
-                        byte[] expectedHash = _io.Reader.ReadBytes(0x18);
+                        byte[] expectedHash = _io.Reader.ReadBytes((int)HASH_ENTRY_LENGTH);
                         if (!expectedHash.IsEqualTo(blockHash))
                         {
                             // wrong hash
@@ -1033,7 +1141,7 @@ namespace LibXboxOne
             string fmt = formatted ? "    " : "";
 
             b.AppendLine("XvdMiscInfo:");
-            b.AppendLineSpace(fmt + "Block Count: 0x" + XvdDataBlockCount.ToString("X"));
+            b.AppendLineSpace(fmt + "Page Count: 0x" + Header.NumberOfHashedPages.ToString("X"));
 
             if (Header.EmbeddedXVDLength > 0)
                 b.AppendLineSpace(fmt + "Embedded XVD Offset: 0x3000");
@@ -1045,7 +1153,7 @@ namespace LibXboxOne
 
             if (IsDataIntegrityEnabled)
             {
-                b.AppendLineSpace(fmt + "Hash Tree Block Count: 0x" + HashTreeBlockCount.ToString("X"));
+                b.AppendLineSpace(fmt + "Hash Tree Page Count: 0x" + HashTreePageCount.ToString("X"));
                 b.AppendLineSpace(fmt + "Hash Tree Levels: 0x" + HashTreeLevels.ToString("X"));
                 b.AppendLineSpace(fmt + "Hash Tree Valid: " + (HashTreeValid ? "true" : "false"));
 

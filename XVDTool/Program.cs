@@ -466,7 +466,7 @@ namespace XVDTool
                     }
                     Console.WriteLine("Old top hash block hash: " + file.Header.TopHashBlockHash.ToHexString());
                     Console.WriteLine("Rehashing package...");
-                    int[] fixedHashes = file.VerifyDataHashTree(true);
+                    ulong[] fixedHashes = file.VerifyDataHashTree(true);
                     bool success = file.CalculateHashTree();
                     if (success)
                     {
