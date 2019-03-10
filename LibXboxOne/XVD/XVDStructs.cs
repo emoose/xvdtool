@@ -116,6 +116,7 @@ namespace LibXboxOne
         public ulong DynamicHeaderPageCount => XvdFile.BytesToPages(DynamicHeaderLength);
         public ulong DrivePageCount => XvdFile.BytesToPages(DriveSize);
         public ulong NumberOfHashedPages => (DrivePageCount + UserDataPageCount + XvcInfoPageCount + DynamicHeaderPageCount);
+        public ulong NumberOfMetadataPages => (UserDataPageCount + XvcInfoPageCount + DynamicHeaderPageCount);
         public ulong SectorSize => VolumeFlags.HasFlag(XvdVolumeFlags.LegacySectorSize) ?
                                         XvdFile.LEGACY_SECTOR_SIZE :
                                         XvdFile.SECTOR_SIZE;

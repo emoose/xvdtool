@@ -170,7 +170,7 @@ namespace LibXboxOne
 
         public static ulong SectorsToBytes(ulong sectors)
         {
-            return sectors * SECTOR_SIZE; 
+            return sectors * SECTOR_SIZE;
         }
 
         public static ulong LegacySectorsToBytes(ulong sectors)
@@ -195,6 +195,63 @@ namespace LibXboxOne
                 return dataPageNumber;
 
             return dataPageNumber + hashPageCount;    
+        }
+
+        bool ReadBat(out ulong targetBlock, ulong requestedBlock)
+        {
+            if ((int)requestedBlock > DynamicHeader.Length)
+            {
+                targetBlock = INVALID_SECTOR;
+                return false;
+            }
+
+            targetBlock = DynamicHeader[requestedBlock];
+            return true;
+        }
+
+        bool VirtualToLogicalDriveOffset(ulong virtualOffset, out ulong logicalOffset)
+        {
+            logicalOffset = 0;
+
+            if (virtualOffset >= Header.DriveSize)
+                return false;
+            else if (Header.Type == XvdType.Fixed)
+            {
+                // No address translation needed for fixed xvds
+                logicalOffset = virtualOffset;
+                return true;
+            }
+            else if (Header.Type != XvdType.Dynamic)
+                throw new NotSupportedException($"Xvd type {Header.Type} is unhandled");
+
+            var numMetadataPages = Header.NumberOfMetadataPages;
+            var tmpOffset = virtualOffset + SectorsToBytes(numMetadataPages);
+            var pageNumber = OffsetToPageNumber(tmpOffset);
+            var inBlockOffset = InBlockOffset(tmpOffset);
+            var firstDynamicPage = QueryFirstDynamicPage(Header.NumberOfMetadataPages);
+
+            if (pageNumber >= firstDynamicPage)
+            {
+                var firstDynamicPageBytes = SectorsToBytes(firstDynamicPage);
+                var blockNumber = OffsetToBlockNumber(tmpOffset - firstDynamicPageBytes);
+                var success = ReadBat(out ulong allocatedBlock, blockNumber);
+                if (!success || allocatedBlock == INVALID_SECTOR)
+                    return false;
+
+                tmpOffset = SectorsToBytes(allocatedBlock) + inBlockOffset;
+                pageNumber = OffsetToPageNumber(tmpOffset);
+            }
+
+            var dataBackingBlockNum = ComputeDataBackingPageNumber(Header.Type,
+                                                                    HashTreeLevels,
+                                                                    HashTreePageCount,
+                                                                    pageNumber);
+            logicalOffset = SectorsToBytes(dataBackingBlockNum);
+            logicalOffset += InPageOffset(tmpOffset) + 0x2E00;
+            logicalOffset += SectorsToBytes(Header.EmbeddedXvdPageCount);
+            logicalOffset += (ulong)Header.Signature.Length + PAGE_SIZE;
+
+            return true;
         }
 
         private void CryptHeaderCik(bool encrypt)
