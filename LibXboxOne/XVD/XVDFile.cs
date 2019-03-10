@@ -260,6 +260,11 @@ namespace LibXboxOne
             return true;
         }
 
+        public bool ExtractFilesystem(string targetFile)
+        {
+            return false;
+        }
+
         private void CryptHeaderCik(bool encrypt)
         {
             if ((!encrypt && CikIsDecrypted) || IsXvcFile)
