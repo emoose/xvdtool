@@ -197,16 +197,15 @@ namespace LibXboxOne
             return dataPageNumber + hashPageCount;    
         }
 
-        bool ReadBat(out ulong targetBlock, ulong requestedBlock)
+        ulong ReadBat(ulong requestedBlock)
         {
             if ((int)requestedBlock > DynamicHeader.Length)
             {
-                targetBlock = INVALID_SECTOR;
-                return false;
+                throw new InvalidDataException(
+                    $"Out-of-bounds block 0x{requestedBlock:X} requested, Max: 0x{DynamicHeader.Length:X}");
             }
 
-            targetBlock = DynamicHeader[requestedBlock];
-            return true;
+            return DynamicHeader[requestedBlock];
         }
 
         public bool VirtualToLogicalDriveOffset(ulong virtualOffset, out ulong logicalOffset)
@@ -214,7 +213,8 @@ namespace LibXboxOne
             logicalOffset = 0;
 
             if (virtualOffset >= Header.DriveSize)
-                return false;
+                throw new InvalidOperationException(
+                    $"Virtual offset 0x{virtualOffset:X} is outside drivedata length 0x{Header.DriveSize:X}");
             else if (Header.Type > XvdType.Dynamic)
                 throw new NotSupportedException($"Xvd type {Header.Type} is unhandled");
 
@@ -230,8 +230,8 @@ namespace LibXboxOne
                 {
                     var firstDynamicPageBytes = PageNumberToOffset(firstDynamicPage);
                     var blockNumber = OffsetToBlockNumber(dataStartOffset - firstDynamicPageBytes);
-                    var success = ReadBat(out ulong allocatedBlock, blockNumber);
-                    if (!success || allocatedBlock == INVALID_SECTOR)
+                    ulong allocatedBlock = ReadBat(blockNumber);
+                    if (allocatedBlock == INVALID_SECTOR)
                         return false;
 
                     dataStartOffset = PageNumberToOffset(allocatedBlock) + inBlockOffset;
@@ -258,11 +258,6 @@ namespace LibXboxOne
             }
 
             return true;
-        }
-
-        public bool ExtractFilesystem(string targetFile)
-        {
-            return false;
         }
 
         private void CryptHeaderCik(bool encrypt)
@@ -402,16 +397,28 @@ namespace LibXboxOne
 
         internal static ulong CalculateNumHashBlocksInLevel(ulong size, ulong idx, bool resilient)
         {
-            if (idx > 3)
-                return 0;
+            ulong hashBlocks = 0;
 
-            ulong blockSz = (ulong)Math.Pow(0xAA, idx + 1);
-            blockSz = (size + blockSz - 1) / blockSz;
+            switch(idx)
+            {
+                case 0:
+                    hashBlocks = (size + DATA_BLOCKS_IN_LEVEL0_HASHTREE - 1) / DATA_BLOCKS_IN_LEVEL0_HASHTREE;
+                    break;
+                case 1:
+                    hashBlocks = (size + DATA_BLOCKS_IN_LEVEL1_HASHTREE - 1) / DATA_BLOCKS_IN_LEVEL1_HASHTREE;
+                    break;
+                case 2:
+                    hashBlocks = (size + DATA_BLOCKS_IN_LEVEL2_HASHTREE - 1) / DATA_BLOCKS_IN_LEVEL2_HASHTREE;
+                    break;
+                case 3:
+                    hashBlocks = (size + DATA_BLOCKS_IN_LEVEL3_HASHTREE - 1) / DATA_BLOCKS_IN_LEVEL3_HASHTREE;
+                    break;
+            }
 
             if (resilient)
-                blockSz *= 2;
+                hashBlocks *= 2;
 
-            return blockSz;
+            return hashBlocks;
         }
 
         public byte[] ExtractEmbeddedXvd()
@@ -432,24 +439,25 @@ namespace LibXboxOne
 
         static ulong CalculateNumberHashPages(out ulong hashTreeLevels, ulong hashedPagesCount, bool resilient)
         {
-            ulong hashTreeBlockCount = PagesToBlocks(hashedPagesCount);
+            
+            ulong hashTreePageCount = (hashedPagesCount + HASH_ENTRIES_IN_PAGE - 1) / HASH_ENTRIES_IN_PAGE;
             hashTreeLevels = 1;
             
-            if (hashTreeBlockCount > 1)
+            if (hashTreePageCount > 1)
             {
                 ulong result = 2;
                 while (result > 1)
                 {
                     result = CalculateNumHashBlocksInLevel(hashedPagesCount, hashTreeLevels, false);
                     hashTreeLevels += 1;
-                    hashTreeBlockCount += result;
+                    hashTreePageCount += result;
                 }
             }
 
             if (resilient)
-                hashTreeBlockCount *= 2;
+                hashTreePageCount *= 2;
 
-            return hashTreeBlockCount;
+            return hashTreePageCount;
         }
 
         private void CalculateDataOffsets()
@@ -1097,6 +1105,51 @@ namespace LibXboxOne
                     ref lpBytesReturned, IntPtr.Zero);
             }
 
+            return true;
+        }
+
+        public bool ExtractFilesystem(string targetFile)
+        {
+            using (var fs = File.Open(targetFile, FileMode.Create))
+            {
+                if (Header.Type == XvdType.Fixed)
+                {
+                    for (ulong offset = DriveDataOffset; offset < Header.DriveSize; offset += PAGE_SIZE)
+                    {
+                        _io.Stream.Seek((int)offset, SeekOrigin.Begin);
+                        var pageBytes = _io.Reader.ReadBytes((int)PAGE_SIZE);
+                        fs.Write(pageBytes, 0, pageBytes.Length);
+                    }
+                }
+                else if (Header.Type == XvdType.Dynamic)
+                {
+                    var chunkSize = BLOCK_SIZE;
+                    byte[] emptyChunk = new byte[chunkSize];
+
+                    // FIXME: Write out first block explicitly?
+                    _io.Stream.Seek((int)DriveDataOffset, SeekOrigin.Begin);
+                    // TODO: Why chunkSize - PAGE_SIZE ?
+                    var ptBytes = _io.Reader.ReadBytes((int)(chunkSize - PAGE_SIZE));
+                    fs.Write(ptBytes, 0, ptBytes.Length);
+
+                    foreach (ulong batEntry in DynamicHeader)
+                    {
+                        if (batEntry != INVALID_SECTOR)
+                        {
+                            var targetOffset = PageNumberToOffset(batEntry);
+                            _io.Stream.Seek((long)(targetOffset + DataOffset), SeekOrigin.Begin);
+                            var data = _io.Reader.ReadBytes((int)chunkSize);
+                            fs.Write(data, 0, data.Length);
+                        }
+                        else
+                        {
+                            fs.Write(emptyChunk, 0, emptyChunk.Length);
+                        }
+                    }
+                }
+                else
+                    throw new NotSupportedException($"Invalid xvd type: {Header.Type}");
+            }
             return true;
         }
 
