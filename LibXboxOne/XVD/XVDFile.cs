@@ -209,47 +209,53 @@ namespace LibXboxOne
             return true;
         }
 
-        bool VirtualToLogicalDriveOffset(ulong virtualOffset, out ulong logicalOffset)
+        public bool VirtualToLogicalDriveOffset(ulong virtualOffset, out ulong logicalOffset)
         {
             logicalOffset = 0;
 
             if (virtualOffset >= Header.DriveSize)
                 return false;
-            else if (Header.Type == XvdType.Fixed)
-            {
-                // No address translation needed for fixed xvds
-                logicalOffset = virtualOffset;
-                return true;
-            }
-            else if (Header.Type != XvdType.Dynamic)
+            else if (Header.Type > XvdType.Dynamic)
                 throw new NotSupportedException($"Xvd type {Header.Type} is unhandled");
 
-            var numMetadataPages = Header.NumberOfMetadataPages;
-            var tmpOffset = virtualOffset + SectorsToBytes(numMetadataPages);
-            var pageNumber = OffsetToPageNumber(tmpOffset);
-            var inBlockOffset = InBlockOffset(tmpOffset);
-            var firstDynamicPage = QueryFirstDynamicPage(Header.NumberOfMetadataPages);
 
-            if (pageNumber >= firstDynamicPage)
+            if (Header.Type == XvdType.Dynamic)
             {
-                var firstDynamicPageBytes = SectorsToBytes(firstDynamicPage);
-                var blockNumber = OffsetToBlockNumber(tmpOffset - firstDynamicPageBytes);
-                var success = ReadBat(out ulong allocatedBlock, blockNumber);
-                if (!success || allocatedBlock == INVALID_SECTOR)
-                    return false;
+                var dataStartOffset = virtualOffset + PageNumberToOffset(Header.NumberOfMetadataPages);
+                var pageNumber = OffsetToPageNumber(dataStartOffset);
+                var inBlockOffset = InBlockOffset(dataStartOffset);
+                var firstDynamicPage = QueryFirstDynamicPage(Header.NumberOfMetadataPages);
 
-                tmpOffset = SectorsToBytes(allocatedBlock) + inBlockOffset;
-                pageNumber = OffsetToPageNumber(tmpOffset);
+                if (pageNumber >= firstDynamicPage)
+                {
+                    var firstDynamicPageBytes = PageNumberToOffset(firstDynamicPage);
+                    var blockNumber = OffsetToBlockNumber(dataStartOffset - firstDynamicPageBytes);
+                    var success = ReadBat(out ulong allocatedBlock, blockNumber);
+                    if (!success || allocatedBlock == INVALID_SECTOR)
+                        return false;
+
+                    dataStartOffset = PageNumberToOffset(allocatedBlock) + inBlockOffset;
+                    pageNumber = OffsetToPageNumber(dataStartOffset);
+                }
+
+                var dataBackingBlockNum = ComputeDataBackingPageNumber(Header.Type,
+                                                                        HashTreeLevels,
+                                                                        HashTreePageCount,
+                                                                        pageNumber);
+                logicalOffset = PageNumberToOffset(dataBackingBlockNum);
+                logicalOffset += InPageOffset(dataStartOffset) + 0x2E00;
+                logicalOffset += PageNumberToOffset(Header.EmbeddedXvdPageCount);
+                logicalOffset += PageNumberToOffset(Header.NumMDUPages);
+                logicalOffset += (ulong)Header.Signature.Length + PAGE_SIZE;
             }
-
-            var dataBackingBlockNum = ComputeDataBackingPageNumber(Header.Type,
-                                                                    HashTreeLevels,
-                                                                    HashTreePageCount,
-                                                                    pageNumber);
-            logicalOffset = SectorsToBytes(dataBackingBlockNum);
-            logicalOffset += InPageOffset(tmpOffset) + 0x2E00;
-            logicalOffset += SectorsToBytes(Header.EmbeddedXvdPageCount);
-            logicalOffset += (ulong)Header.Signature.Length + PAGE_SIZE;
+            else
+            { // Xvd type fixed
+                logicalOffset = virtualOffset + 0x2E00;
+                logicalOffset += PageNumberToOffset(Header.EmbeddedXvdPageCount);
+                logicalOffset += PageNumberToOffset(Header.NumMDUPages);
+                logicalOffset += PageNumberToOffset(Header.NumberOfMetadataPages);
+                logicalOffset += (ulong)Header.Signature.Length + PAGE_SIZE;
+            }
 
             return true;
         }
