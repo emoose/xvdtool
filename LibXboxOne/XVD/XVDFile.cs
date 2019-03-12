@@ -104,8 +104,11 @@ namespace LibXboxOne
 
         public ulong EmbeddedXvdOffset => XVD_HEADER_INCL_SIGNATURE_SIZE;
 
-        public ulong HashTreeOffset => PageNumberToOffset(Header.EmbeddedXvdPageCount) +
-                                       EmbeddedXvdOffset;
+        public ulong MduOffset => PageNumberToOffset(Header.EmbeddedXvdPageCount) +
+                                  EmbeddedXvdOffset;
+
+        public ulong HashTreeOffset => PageNumberToOffset(Header.NumMDUPages) +
+                                       MduOffset;
 
         public ulong HashTreePageCount {
             get
@@ -682,7 +685,7 @@ namespace LibXboxOne
 
                 XvcInfo = _io.Reader.ReadStruct<XvcInfo>();
 
-                if (XvcInfo.Version == 1)
+                if (XvcInfo.Version >= 1)
                 {
                     RegionHeaders = new List<XvcRegionHeader>();
                     for (int i = 0; i < XvcInfo.RegionCount; i++)
@@ -1315,16 +1318,12 @@ namespace LibXboxOne
 
             b.AppendLine("XvdMiscInfo:");
             b.AppendLineSpace(fmt + "Page Count: 0x" + Header.NumberOfHashedPages.ToString("X"));
-
-            if (Header.EmbeddedXVDLength > 0)
-                b.AppendLineSpace(fmt + "Embedded XVD Offset: 0x" + EmbeddedXvdOffset.ToString("X"));
-
-            if(Header.UserDataLength > 0)
-                b.AppendLineSpace(fmt + "User Data Offset: 0x" + UserDataOffset.ToString("X"));
-            
-            if(Header.Type == XvdType.Dynamic)
-                b.AppendLineSpace(fmt + "Dynamic Header Offset: 0x" + DynamicHeaderOffset.ToString("X"));
-
+            b.AppendLineSpace(fmt + "Embedded XVD Offset: 0x" + EmbeddedXvdOffset.ToString("X"));
+            b.AppendLineSpace(fmt + "MDU Offset: 0x" + MduOffset.ToString("X"));
+            b.AppendLineSpace(fmt + "HashTree Offset: 0x" + HashTreeOffset.ToString("X"));
+            b.AppendLineSpace(fmt + "User Data Offset: 0x" + UserDataOffset.ToString("X"));
+            b.AppendLineSpace(fmt + "XVC Data Offset: 0x" + XvcInfoOffset.ToString("X"));
+            b.AppendLineSpace(fmt + "Dynamic Header Offset: 0x" + DynamicHeaderOffset.ToString("X"));
             b.AppendLineSpace(fmt + "Drive Data Offset: 0x" + DriveDataOffset.ToString("X"));
 
             if (IsDataIntegrityEnabled)
