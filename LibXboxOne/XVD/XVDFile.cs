@@ -1159,18 +1159,21 @@ namespace LibXboxOne
                     var chunkSize = BLOCK_SIZE;
                     byte[] emptyChunk = new byte[chunkSize];
 
-                    // FIXME: Write out first block explicitly?
+                    /* Temporary solution to support XVD and XVC */
+                    ulong diffInitialWrite = IsXvcFile ? (3 * PAGE_SIZE) : PAGE_SIZE;
+
                     _io.Stream.Seek((int)DriveDataOffset, SeekOrigin.Begin);
-                    // TODO: Why chunkSize - PAGE_SIZE ?
-                    var ptBytes = _io.Reader.ReadBytes((int)(chunkSize - PAGE_SIZE));
+                    // TODO: Why not a whole chunk?
+                    var ptBytes = _io.Reader.ReadBytes((int)(chunkSize - diffInitialWrite));
                     fs.Write(ptBytes, 0, ptBytes.Length);
 
+                    ulong batBaseAddress = UserDataOffset + PageNumberToOffset(Header.UserDataPageCount);
                     foreach (ulong batEntry in DynamicHeader)
                     {
                         if (batEntry != INVALID_SECTOR)
                         {
                             var targetOffset = PageNumberToOffset(batEntry);
-                            _io.Stream.Seek((long)(targetOffset + DynamicHeaderOffset), SeekOrigin.Begin);
+                            _io.Stream.Seek((long)(batBaseAddress + targetOffset), SeekOrigin.Begin);
                             var data = _io.Reader.ReadBytes((int)chunkSize);
                             fs.Write(data, 0, data.Length);
                         }
