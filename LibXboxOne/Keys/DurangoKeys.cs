@@ -122,7 +122,7 @@ namespace LibXboxOne.Keys
                     bool hashMatches = KnowsCikSHA256(sha256Hash, out Guid verifyGuid);
                     var hashString = sha256Hash.ToHexString(false);
 
-                    if (verifyGuid != guid)
+                    if (hashMatches && verifyGuid != guid)
                     {
                         Console.WriteLine($"CIK {guid} with hash {hashString} is known as {verifyGuid}");
                         continue;
@@ -150,7 +150,7 @@ namespace LibXboxOne.Keys
             if (existingKey != null)
             {
                 bool hashMatches = KnowsOdkSHA256(sha256Hash, out OdkIndex verifyKeyId);
-                if (verifyKeyId != keyId)
+                if (hashMatches && verifyKeyId != keyId)
                 {
                     var hashString = sha256Hash.ToHexString(false);
                     Console.WriteLine($"ODK {keyId} with hash {hashString} is known as ODK {verifyKeyId}");
