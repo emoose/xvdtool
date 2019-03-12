@@ -95,7 +95,7 @@ namespace LibXboxOne
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
         /* 0x272 */ public byte[] Unknown272;
 
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xF)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xA)]
         /* 0x282 */ public byte[] Reserved1;
         /* 0x28C */ public long SequenceNumber;
         /* 0x294 */ public ushort RequiredSystemVersion1;
