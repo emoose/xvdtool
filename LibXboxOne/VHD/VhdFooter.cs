@@ -9,7 +9,7 @@ namespace LibXboxOne.Vhd
     {
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x8)]
         /* 0x0  */ public char[] Cookie;
-        /* 0x8  */ public VhdDiskFeatures Features;
+        /* 0x8  */ public uint Features;
         /* 0xC  */ public uint FileFormatVersion;
         /* 0x10 */ public ulong DataOffset;
         /* 0x18 */ public uint TimeStamp;
@@ -20,8 +20,8 @@ namespace LibXboxOne.Vhd
         /* 0x24 */ public byte[] CreatorHostOS;
         /* 0x28 */ public ulong OriginalSize;
         /* 0x30 */ public ulong CurrentSize;
-        /* 0x38 */ public uint DiskGeometry;
-        /* 0x3C */ public VhdDiskType DiskType;
+        /* 0x38 */ public VhdDiskGeometry DiskGeometry;
+        /* 0x3C */ public uint DiskType;
         /* 0x40 */ public uint Checksum;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
@@ -35,26 +35,6 @@ namespace LibXboxOne.Vhd
         public static char[] GetHeaderCookie()
         {
             return new char[]{'c','o','n','e','c','t','i','x'};
-        }
-
-        public void InitDefaults()
-        {
-            Cookie = GetHeaderCookie(); // conectix
-            Features = VhdDiskFeatures.None;
-            FileFormatVersion = 0x00010000;
-            DataOffset = 0xffffffffffffffff; // Fixed disk: 0xffffffffffffffff, Others: Real value
-            TimeStamp = 0x0;
-            CreatorApp = VhdCreatorApplication.WindowsDiskMngmt;
-            CreatorVersion = 0x03000600;
-            CreatorHostOS = VhdCreatorHostOs.Windows;
-            OriginalSize = 0x40000000;
-            CurrentSize = 0x40000000;
-            DiskGeometry = 0x2008;
-            DiskType = VhdDiskType.None;
-            Checksum = 0x0;
-            UniqueId = new byte[0x10];
-            SavedState = 0;
-            Reserved = new byte[0x1AB];
         }
 
         internal static uint CalculateChecksum(VhdFooter data)

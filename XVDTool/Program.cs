@@ -540,7 +540,7 @@ namespace XVDTool
                     if (!file.IsEncrypted)
                     {
                         Console.WriteLine("Extracting XVD filesystem to VHD file \"" + vhdDest + "\"...");
-                        bool success = file.ConvertToVhd(vhdDest);
+                        bool success = file.ExtractFilesystem(vhdDest, true);
                         Console.WriteLine(success
                             ? "Wrote VHD successfully."
                             : "Error: there was a problem extracting the filesystem from the XVD.");
@@ -558,7 +558,7 @@ namespace XVDTool
                     if (!file.IsEncrypted)
                     {
                         Console.WriteLine("Extracting XVD filesystem to raw file \""+ fsDest + "\"...");
-                        bool success = file.ExtractFilesystem(fsDest);
+                        bool success = file.ExtractFilesystem(fsDest, false);
                         Console.WriteLine(success
                             ? "Wrote raw filesystem image successfully."
                             : "Error: there was a problem extracting the filesystem from the XVD.");

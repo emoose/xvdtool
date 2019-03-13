@@ -33,6 +33,7 @@ namespace LibXboxOne
         public static readonly uint DATA_BLOCKS_IN_LEVEL2_HASHTREE = HASH_ENTRIES_IN_PAGE * DATA_BLOCKS_IN_LEVEL1_HASHTREE; // 0x4AF768
         public static readonly uint DATA_BLOCKS_IN_LEVEL3_HASHTREE = HASH_ENTRIES_IN_PAGE * DATA_BLOCKS_IN_LEVEL2_HASHTREE; // 0x31C84B10
 
+        public static readonly uint VHD_BLOCK_SIZE = 2 * 1024 * 1024; // 2 MB
         #endregion
 
         public static bool DisableDataHashChecking = false;
@@ -1060,88 +1061,38 @@ namespace LibXboxOne
         }
 
 
-        public bool ConvertToVhd(string destFile)
+        public byte[] CreateVhdFooter()
         {
-            if (IsEncrypted)
-                return false;
-
-            // xvd -> vhd conversion just needs the FS data extracted with a vhd footer put at the end
-            // seems to work for older OS XVDs, newer XVCs use a 4k sector size though and windows VHD driver doesn't like it, not sure what new OS XVDs use
-            // todo: look into converting 4k sectors to 512
-
-            using(var vhdFile = new IO(destFile, FileMode.Create))
+            var footer = new Vhd.VhdFooter()
             {
-                _io.Stream.Position = (long)DriveDataOffset;
-
-                if (IsXvcFile) // if it's an XVC file then find the correct XVC data offset
+                Cookie = Vhd.VhdFooter.GetHeaderCookie(), // conectix
+                Features = ((uint)Vhd.VhdDiskFeatures.None).EndianSwap(),
+                FileFormatVersion = 0x00010000,
+                DataOffset = 0xffffffffffffffff, // Fixed disk: 0xffffffffffffffff, Others: Real value
+                TimeStamp = Vhd.VhdFile.GetTimestamp(DateTime.UtcNow),
+                CreatorApp = Vhd.VhdCreatorApplication.WindowsDiskMngmt,
+                CreatorVersion = 0x03000600,
+                CreatorHostOS = Vhd.VhdCreatorHostOs.Windows,
+                OriginalSize = ((ulong)Header.DriveSize).EndianSwap(),
+                CurrentSize = ((ulong)Header.DriveSize).EndianSwap(),
+                DiskGeometry = new Vhd.VhdDiskGeometry()
                 {
-                    bool foundFs = false;
-                    foreach (var hdr in RegionHeaders)
-                    {
-                        if (hdr.Description == "FS-MD" || hdr.Id == 0x40000002)
-                        {
-                            foundFs = true;
-                            _io.Stream.Position = (long)hdr.Offset;
-                            break;
-                        }
-                    }
-                    if (!foundFs)
-                    { // no FS-MD in the file, older XVCs seem to use the last region for it
-                        _io.Stream.Position = (long)RegionHeaders[RegionHeaders.Count - 1].Offset;
-                    }
-                }
+                    Cylinder = 0,
+                    Heads = 0,
+                    SectorsPerCylinder = 0
+                },
+                DiskType = ((uint)Vhd.VhdDiskType.Fixed).EndianSwap(),
+                Checksum = 0x0,
+                UniqueId = Header.VDUID,
+                SavedState = 0,
+                Reserved = new byte[0x1AB]
+            };
 
-                vhdFile.Stream.Position = 0;
-                var driveSize = (long)Header.DriveSize;
-
-                while (_io.Stream.Length > _io.Stream.Position)
-                {
-                    long toRead = 0x4000;
-                    if (_io.Stream.Position + toRead > _io.Stream.Length)
-                        toRead = _io.Stream.Length - _io.Stream.Position;
-
-                    byte[] data = _io.Reader.ReadBytes((int) toRead);
-                    vhdFile.Writer.Write(data);
-                }
-
-                vhdFile.Stream.Position = driveSize;
-
-                var footer = new Vhd.VhdFooter();
-                footer.InitDefaults();
-                footer.OriginalSize = ((ulong) driveSize).EndianSwap();
-                footer.CurrentSize = footer.OriginalSize;
-                footer.UniqueId = Header.VDUID;
-
-                // don't need to calculate these
-                footer.DiskGeometry = 0;
-                footer.TimeStamp = 0;
-
-                footer.FixChecksum();
-
-                vhdFile.Writer.WriteStruct(footer);
-            }
-
-            // make sure NTFS compression is disabled on the vhd
-
-            int lpBytesReturned = 0;
-// ReSharper disable InconsistentNaming
-            const int FSCTL_SET_COMPRESSION = 0x9C040;
-            short COMPRESSION_FORMAT_NONE = 0;
-// ReSharper restore InconsistentNaming
-
-            using (FileStream f = File.Open(destFile, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
-            {
-#pragma warning disable 618
-                Natives.DeviceIoControl(f.Handle, FSCTL_SET_COMPRESSION,
-#pragma warning restore 618
-                    ref COMPRESSION_FORMAT_NONE, 2 /*sizeof(short)*/, IntPtr.Zero, 0,
-                    ref lpBytesReturned, IntPtr.Zero);
-            }
-
-            return true;
+            footer.FixChecksum();
+            return Shared.StructToBytes<Vhd.VhdFooter>(footer);
         }
 
-        public bool ExtractFilesystem(string targetFile)
+        public bool ExtractFilesystem(string targetFile, bool createVhd)
         {
             using (var fs = File.Open(targetFile, FileMode.Create))
             {
@@ -1183,6 +1134,20 @@ namespace LibXboxOne
                 }
                 else
                     throw new NotSupportedException($"Invalid xvd type: {Header.Type}");
+
+                if (createVhd)
+                {
+                    // Align to 2MB blocks
+                    ulong alignmentBytes = ((ulong)fs.Length % VHD_BLOCK_SIZE);
+                    if (alignmentBytes > 0)
+                    {
+                        ulong alignmentPadding = VHD_BLOCK_SIZE - alignmentBytes;
+                        fs.Write(new byte[alignmentPadding], 0, (int)alignmentPadding);
+                    }
+
+                    var footer = CreateVhdFooter();
+                    fs.Write(footer, 0, footer.Length);
+                }
             }
             return true;
         }
