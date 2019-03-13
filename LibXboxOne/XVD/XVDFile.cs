@@ -39,7 +39,6 @@ namespace LibXboxOne
         public static bool DisableDataHashChecking = false;
 
         public XvdHeader Header;
-        public uint[] DynamicHeader;
         public XvcInfo XvcInfo;
 
         public List<XvcRegionHeader> RegionHeaders;
@@ -255,13 +254,16 @@ namespace LibXboxOne
 
         ulong ReadBat(ulong requestedBlock)
         {
-            if ((int)requestedBlock > DynamicHeader.Length)
+            ulong absoluteAddress = DynamicHeaderOffset + (requestedBlock * sizeof(uint));
+            if (absoluteAddress > (DynamicHeaderOffset + Header.DynamicHeaderLength - sizeof(uint)))
             {
                 throw new InvalidDataException(
-                    $"Out-of-bounds block 0x{requestedBlock:X} requested, Max: 0x{DynamicHeader.Length:X}");
+                    $"Out-of-bounds block 0x{requestedBlock:X} requested, addr: 0x{absoluteAddress:X}. " +
+                    $"Dynamic header range: 0x{DynamicHeaderOffset:X}-0x{DynamicHeaderOffset+Header.DynamicHeaderLength:X}");
             }
 
-            return DynamicHeader[requestedBlock];
+            _io.Stream.Position = (long)absoluteAddress;
+            return _io.Reader.ReadUInt32();
         }
 
         public bool VirtualToLogicalDriveOffset(ulong virtualOffset, out ulong logicalOffset)
@@ -669,16 +671,6 @@ namespace LibXboxOne
 
             if (DriveDataOffset >= (ulong)_io.Stream.Length)
                 return false;
-
-            if (Header.Type == XvdType.Dynamic)
-            {
-                _io.Stream.Position = (long)DynamicHeaderOffset;
-                DynamicHeader = new uint[Header.DynamicHeaderLength / sizeof(uint)];
-                for (int entry = 0; entry < DynamicHeader.Length; entry++)
-                {
-                    DynamicHeader[entry] = _io.Reader.ReadUInt32();
-                }
-            }
 
             if (Header.XvcDataLength > 0 && IsXvcFile)
             {
@@ -1117,8 +1109,9 @@ namespace LibXboxOne
                     var ptBytes = _io.Reader.ReadBytes((int)(chunkSize - diffInitialWrite));
                     fs.Write(ptBytes, 0, ptBytes.Length);
 
-                    foreach (ulong batEntry in DynamicHeader)
+                    for (ulong block = 0; block < BytesToBlocks(Header.DriveSize); block++)
                     {
+                        ulong batEntry = ReadBat(block);
                         if (batEntry != INVALID_SECTOR)
                         {
                             var targetOffset = PageNumberToOffset(batEntry);
