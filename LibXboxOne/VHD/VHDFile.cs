@@ -9,17 +9,11 @@ namespace LibXboxOne.Vhd
 
     class VhdFile : IDisposable
     {
-        private static readonly DateTime VhdEpoch = new DateTime(2000, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
         public VhdFooter Header;
         public VhdDynamicDiskHeader DynamicDiskHeader;
         public uint[] BlockAllocationTable;
 
         private readonly IO _io;
-
-        public static uint GetTimestamp(DateTime dateTime)
-        {
-            return (uint)dateTime.Subtract(VhdEpoch).TotalSeconds;
-        }
 
         public VhdFile(string fileName)
         {

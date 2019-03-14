@@ -37,6 +37,35 @@ namespace LibXboxOne.Vhd
             return new char[]{'c','o','n','e','c','t','i','x'};
         }
 
+        public static VhdFooter CreateForFixedDisk(ulong driveSize, byte[] uniqueId)
+        {
+            if (uniqueId.Length != 0x10)
+                throw new InvalidDataException();
+
+            var footer = new VhdFooter()
+            {
+                Cookie = GetHeaderCookie(), // conectix
+                Features = ((uint)VhdDiskFeatures.Reserved).EndianSwap(),
+                FileFormatVersion = ((uint)0x10000).EndianSwap(),
+                DataOffset = 0xffffffffffffffff, // Fixed disk: 0xffffffffffffffff, Others: Real value
+                TimeStamp = VhdUtils.GetTimestamp(DateTime.UtcNow).EndianSwap(),
+                CreatorApp = VhdCreatorApplication.WindowsDiskMngmt,
+                CreatorVersion = ((uint)0xA0000).EndianSwap(),
+                CreatorHostOS = VhdCreatorHostOs.Windows,
+                OriginalSize = driveSize.EndianSwap(),
+                CurrentSize = driveSize.EndianSwap(),
+                DiskGeometry = VhdUtils.CalculateDiskGeometry(driveSize),
+                DiskType = ((uint)VhdDiskType.Fixed).EndianSwap(),
+                Checksum = 0x0,
+                UniqueId = uniqueId,
+                SavedState = 0,
+                Reserved = new byte[0x1AB]
+            };
+
+            footer.FixChecksum();
+            return footer;
+        }
+
         internal static uint CalculateChecksum(VhdFooter data)
         {
             uint checksum = 0;

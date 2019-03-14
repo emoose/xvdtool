@@ -1052,38 +1052,6 @@ namespace LibXboxOne
             return true;
         }
 
-
-        public byte[] CreateVhdFooter()
-        {
-            var footer = new Vhd.VhdFooter()
-            {
-                Cookie = Vhd.VhdFooter.GetHeaderCookie(), // conectix
-                Features = ((uint)Vhd.VhdDiskFeatures.None).EndianSwap(),
-                FileFormatVersion = 0x00010000,
-                DataOffset = 0xffffffffffffffff, // Fixed disk: 0xffffffffffffffff, Others: Real value
-                TimeStamp = Vhd.VhdFile.GetTimestamp(DateTime.UtcNow),
-                CreatorApp = Vhd.VhdCreatorApplication.WindowsDiskMngmt,
-                CreatorVersion = 0x03000600,
-                CreatorHostOS = Vhd.VhdCreatorHostOs.Windows,
-                OriginalSize = ((ulong)Header.DriveSize).EndianSwap(),
-                CurrentSize = ((ulong)Header.DriveSize).EndianSwap(),
-                DiskGeometry = new Vhd.VhdDiskGeometry()
-                {
-                    Cylinder = 0,
-                    Heads = 0,
-                    SectorsPerCylinder = 0
-                },
-                DiskType = ((uint)Vhd.VhdDiskType.Fixed).EndianSwap(),
-                Checksum = 0x0,
-                UniqueId = Header.VDUID,
-                SavedState = 0,
-                Reserved = new byte[0x1AB]
-            };
-
-            footer.FixChecksum();
-            return Shared.StructToBytes<Vhd.VhdFooter>(footer);
-        }
-
         public bool ExtractFilesystem(string targetFile, bool createVhd)
         {
             using (var fs = File.Open(targetFile, FileMode.Create))
@@ -1138,8 +1106,9 @@ namespace LibXboxOne
                         fs.Write(new byte[alignmentPadding], 0, (int)alignmentPadding);
                     }
 
-                    var footer = CreateVhdFooter();
-                    fs.Write(footer, 0, footer.Length);
+                    var footer = Vhd.VhdFooter.CreateForFixedDisk(Header.DriveSize, Header.VDUID);
+                    var footerBytes = Shared.StructToBytes<Vhd.VhdFooter>(footer);
+                    fs.Write(footerBytes, 0, footerBytes.Length);
                 }
             }
             return true;
