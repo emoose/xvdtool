@@ -1070,6 +1070,7 @@ namespace LibXboxOne
                     var chunkSize = BLOCK_SIZE;
                     byte[] emptyChunk = new byte[chunkSize];
 
+                    /* Write first block, which includes partition table */
                     ulong batBaseAddress = UserDataOffset + PageNumberToOffset(Header.UserDataPageCount);
                     ulong diffInitialWrite = DriveDataOffset - batBaseAddress;
 
@@ -1077,13 +1078,15 @@ namespace LibXboxOne
                     var ptBytes = _io.Reader.ReadBytes((int)(chunkSize - diffInitialWrite));
                     fs.Write(ptBytes, 0, ptBytes.Length);
 
-                    for (ulong block = 0; block < BytesToBlocks(Header.DriveSize); block++)
+                    ulong blockCount = BytesToBlocks(Header.DriveSize);
+                    /* Write rest of data, according to block allocation table */
+                    for (ulong block = 0; block < blockCount; block++)
                     {
                         ulong batEntry = ReadBat(block);
                         if (batEntry != INVALID_SECTOR)
                         {
-                            var targetOffset = PageNumberToOffset(batEntry);
-                            _io.Stream.Seek((long)(batBaseAddress + targetOffset), SeekOrigin.Begin);
+                            long targetOffset = (long)(batBaseAddress + PageNumberToOffset(batEntry));
+                            _io.Stream.Seek(targetOffset, SeekOrigin.Begin);
                             var data = _io.Reader.ReadBytes((int)chunkSize);
                             fs.Write(data, 0, data.Length);
                         }
@@ -1092,20 +1095,20 @@ namespace LibXboxOne
                             fs.Write(emptyChunk, 0, emptyChunk.Length);
                         }
                     }
+
+                    if (ReadBat(blockCount - 1) != INVALID_SECTOR)
+                    {
+                        Console.WriteLine("Last BAT block is not empty, truncation might introduce data loss");
+                    }
+
+                    // Truncate file to match DriveSize
+                    fs.SetLength((long)Header.DriveSize);
                 }
                 else
                     throw new NotSupportedException($"Invalid xvd type: {Header.Type}");
 
                 if (createVhd)
                 {
-                    // Align to 2MB blocks
-                    ulong alignmentBytes = ((ulong)fs.Length % VHD_BLOCK_SIZE);
-                    if (alignmentBytes > 0)
-                    {
-                        ulong alignmentPadding = VHD_BLOCK_SIZE - alignmentBytes;
-                        fs.Write(new byte[alignmentPadding], 0, (int)alignmentPadding);
-                    }
-
                     var footer = Vhd.VhdFooter.CreateForFixedDisk(Header.DriveSize, Header.VDUID);
                     var footerBytes = Shared.StructToBytes<Vhd.VhdFooter>(footer);
                     fs.Write(footerBytes, 0, footerBytes.Length);
