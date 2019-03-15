@@ -32,35 +32,50 @@ namespace LibXboxOne.Vhd
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x1AB)]
         /* 0x55 */ public byte[] Reserved;
 
+    	static uint VHD_FILEFORMAT_VERSION => 0x00010000;
+        static uint VHD_CREATOR_VERSION => 0x000A0000;
+
         public static char[] GetHeaderCookie()
         {
             return new char[]{'c','o','n','e','c','t','i','x'};
         }
 
-        public static VhdFooter CreateForFixedDisk(ulong driveSize, byte[] uniqueId)
+        static VhdFooter CreateWithDefaultValues(ulong driveSize, byte[] uniqueId)
         {
-            if (uniqueId.Length != 0x10)
-                throw new InvalidDataException();
-
-            var footer = new VhdFooter()
+            return new VhdFooter()
             {
                 Cookie = GetHeaderCookie(), // conectix
                 Features = ((uint)VhdDiskFeatures.Reserved).EndianSwap(),
-                FileFormatVersion = ((uint)0x10000).EndianSwap(),
-                DataOffset = 0xffffffffffffffff, // Fixed disk: 0xffffffffffffffff, Others: Real value
+                FileFormatVersion = VHD_FILEFORMAT_VERSION.EndianSwap(),
                 TimeStamp = VhdUtils.GetTimestamp(DateTime.UtcNow).EndianSwap(),
                 CreatorApp = VhdCreatorApplication.WindowsDiskMngmt,
-                CreatorVersion = ((uint)0xA0000).EndianSwap(),
+                CreatorVersion = VHD_CREATOR_VERSION.EndianSwap(),
                 CreatorHostOS = VhdCreatorHostOs.Windows,
                 OriginalSize = driveSize.EndianSwap(),
                 CurrentSize = driveSize.EndianSwap(),
                 DiskGeometry = VhdUtils.CalculateDiskGeometry(driveSize),
-                DiskType = ((uint)VhdDiskType.Fixed).EndianSwap(),
                 Checksum = 0x0,
                 UniqueId = uniqueId,
                 SavedState = 0,
                 Reserved = new byte[0x1AB]
             };
+        }
+
+        public static VhdFooter CreateForFixedDisk(ulong driveSize, byte[] uniqueId)
+        {
+            var footer = CreateWithDefaultValues(driveSize, uniqueId);
+            footer.DiskType = ((uint)VhdDiskType.Fixed).EndianSwap();
+            footer.DataOffset = 0xffffffffffffffff;
+
+            footer.FixChecksum();
+            return footer;
+        }
+
+        public static VhdFooter CreateForDynamicDisk(ulong driveSize, byte[] uniqueId)
+        {
+            var footer = CreateWithDefaultValues(driveSize, uniqueId);
+            footer.DiskType = ((uint)VhdDiskType.Dynamic).EndianSwap();
+            footer.DataOffset = ((ulong)0x200).EndianSwap(); // Offset of dynamic disk header (size of footer)
 
             footer.FixChecksum();
             return footer;
