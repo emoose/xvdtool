@@ -1095,21 +1095,13 @@ namespace LibXboxOne
                             fs.Write(emptyChunk, 0, emptyChunk.Length);
                         }
                     }
-
-                    if (ReadBat(blockCount - 1) != INVALID_SECTOR)
-                    {
-                        Console.WriteLine("Last BAT block is not empty, truncation might introduce data loss");
-                    }
-
-                    // Truncate file to match DriveSize
-                    fs.SetLength((long)Header.DriveSize);
                 }
                 else
                     throw new NotSupportedException($"Invalid xvd type: {Header.Type}");
 
                 if (createVhd)
                 {
-                    var footer = Vhd.VhdFooter.CreateForFixedDisk(Header.DriveSize, Header.VDUID);
+                    var footer = Vhd.VhdFooter.CreateForFixedDisk((ulong)fs.Length, Header.VDUID);
                     var footerBytes = Shared.StructToBytes<Vhd.VhdFooter>(footer);
                     fs.Write(footerBytes, 0, footerBytes.Length);
                 }
