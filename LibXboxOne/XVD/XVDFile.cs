@@ -374,7 +374,7 @@ namespace LibXboxOne
             if (key == null)
                 return false;
 
-            return CryptSectionXts(encrypt, key, header.Id, header.Offset, header.Length);
+            return CryptSectionXts(encrypt, key, (uint)header.Id, header.Offset, header.Length);
         }
 
         internal bool CryptSectionXts(bool encrypt, byte[] key, uint headerId, ulong offset, ulong length)
@@ -603,7 +603,9 @@ namespace LibXboxOne
                     if (header.Length <= 0 || header.Offset <= 0 || ((header.KeyId + 1) > XvcInfo.KeyCount && header.KeyId != 0xFFFF))
                         continue;
 
-                    if (header.Id == 0x40000005 || header.Id == 0x40000004 || header.Id == 0x40000001)
+                    if (header.Id == XvcRegionId.Header ||
+                        header.Id == XvcRegionId.EmbeddedXvd ||
+                        header.Id == XvcRegionId.MetadataXvc)
                         continue; // skip XVD header / EXVD / XVC info
 
                     if (!CryptXvcRegion(i, true))
