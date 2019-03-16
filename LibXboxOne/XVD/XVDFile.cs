@@ -362,10 +362,10 @@ namespace LibXboxOne
                 return false;
 
             XvcRegionHeader header = RegionHeaders[regionIdx];
-            if (encrypt && header.KeyId == 0xFFFF)
+            if (encrypt && header.KeyId == XvcConstants.XVC_KEY_NONE)
                 header.KeyId = 0;
 
-            if (header.Length <= 0 || header.Offset <= 0 || header.KeyId == 0xFFFF || (header.KeyId+1) > XvcInfo.KeyCount)
+            if (header.Length <= 0 || header.Offset <= 0 || header.KeyId == XvcConstants.XVC_KEY_NONE || (header.KeyId+1) > XvcInfo.KeyCount)
                 return false;
 
             byte[] key;
@@ -536,7 +536,7 @@ namespace LibXboxOne
                 for (int i = 0; i < RegionHeaders.Count; i++)
                 {
                     XvcRegionHeader header = RegionHeaders[i];
-                    if (header.Length <= 0 || header.Offset <= 0 || header.KeyId == 0xFFFF || (header.KeyId + 1) > XvcInfo.KeyCount)
+                    if (header.Length <= 0 || header.Offset <= 0 || header.KeyId == XvcConstants.XVC_KEY_NONE || (header.KeyId + 1) > XvcInfo.KeyCount)
                         continue;
                     if (!CryptXvcRegion(i, false))
                         return false;
@@ -600,7 +600,7 @@ namespace LibXboxOne
                 for (int i = 0; i < RegionHeaders.Count; i++)
                 {
                     XvcRegionHeader header = RegionHeaders[i];
-                    if (header.Length <= 0 || header.Offset <= 0 || ((header.KeyId + 1) > XvcInfo.KeyCount && header.KeyId != 0xFFFF))
+                    if (header.Length <= 0 || header.Offset <= 0 || ((header.KeyId + 1) > XvcInfo.KeyCount && header.KeyId != XvcConstants.XVC_KEY_NONE))
                         continue;
 
                     if (header.Id == XvcRegionId.Header ||
@@ -902,7 +902,7 @@ namespace LibXboxOne
                         var hdr = new XvcRegionHeader();
                         foreach (var region in RegionHeaders)
                         {
-                            if (region.KeyId == 0xFFFF)
+                            if (region.KeyId == XvcConstants.XVC_KEY_NONE)
                                 continue; // skip unencrypted regions
 
                             if (dataToHashOffset >= region.Offset && dataToHashOffset < (region.Offset + region.Length))
