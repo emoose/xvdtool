@@ -4,7 +4,7 @@ namespace LibXboxOne
 {
     public class XvdMount
     {
-        public static ulong MountXvd(string filepath)
+        public static bool MountXvd(string filepath)
         {
             // Setup Xvd handle
             IntPtr pHandle = IntPtr.Zero;
@@ -13,18 +13,14 @@ namespace LibXboxOne
             if (result != 0x10000000)
             {
                 Console.WriteLine("XvdOpenAdapter failed. Result: 0x{0:X}", result);
-                return result;
+                return false;
             }
             
             int diskNum = 0;
             result = Natives.XvdMount(IntPtr.Zero, out diskNum, pHandle, filepath, 0, 0, 0);
 
-            // Check Success or known errors
-            if (result == 0)
-            {
-                Console.WriteLine("Successfully mounted Xvd! DiskNum: {0}", diskNum);
-            }
-            else if (result == 0x80070002)
+            // Check for errors
+            if (result == 0x80070002)
             {
                 Console.WriteLine("Failed to find XVD file!");
             }
@@ -32,17 +28,20 @@ namespace LibXboxOne
             {
                 Console.WriteLine("Xvd file is already mounted or being used by another process!");
             }
+            else if (result != 0)
+            {
+                Console.WriteLine("XvdMount error: 0x{0:X}", result);
+            }
             else
             {
-                Console.WriteLine("XvdMount result: 0x{0:X}", result);
-                Console.WriteLine("Failed to mount xvd!");
+                Console.WriteLine($"Package {filepath} attached as disk number {diskNum}");
             }
 
-            result = Natives.XvdCloseAdapter(pHandle);
-            return result;
+            Natives.XvdCloseAdapter(pHandle);
+            return (result == 0);
         }
 
-        public static ulong UnmountXvd(string filepath)
+        public static bool UnmountXvd(string filepath)
         {
             // Setup XVD Handle
             IntPtr pHandle = IntPtr.Zero;
@@ -51,29 +50,24 @@ namespace LibXboxOne
             if (result != 0x10000000)
             {
                 Console.WriteLine("XvdOpenAdapter failed. Result: 0x{0:X}", result);
-                return result;
+                return false;
             }
 
             // UnMount XVD file
             result = Natives.XvdUnmountFile(pHandle, filepath);
 
-            //Check for Success or known errors
-            if (result == 0)
-            {
-                Console.WriteLine("Successfully unmounted Xvd!");
-            }
-            else if (result == 0x80070002)
+            //Check for errors
+            if (result == 0x80070002)
             {
                 Console.WriteLine("Failed to find XVD file!");
             }
-            else
+            else if (result != 0)
             {
-                Console.WriteLine("XvdUnmount result: 0x{0:X}", result);
-                Console.WriteLine("Failed to unmount xvd!");
+                Console.WriteLine("XvdMount error: 0x{0:X}", result);
             }
 
-            result = Natives.XvdCloseAdapter(pHandle);
-            return result;
+            Natives.XvdCloseAdapter(pHandle);
+            return (result == 0);
         }
     }
 }
