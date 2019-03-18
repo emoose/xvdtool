@@ -9,13 +9,32 @@ namespace LibXboxOne
     public class Natives
     {
         [DllImport("xsapi.dll", SetLastError = true)]
-        public static extern uint XvdMount(IntPtr unk1,
+        public static extern uint XvdMount(out IntPtr hDiskHandle,
                                            out int mountedDiskNum, 
                                            IntPtr hXvdHandle,
                                            [MarshalAs(UnmanagedType.LPWStr)] string pszXvdPath,
-                                           long unk2,
-                                           long unk3,
-                                           int unk4);
+                                           long unknown,
+                                           [MarshalAs(UnmanagedType.LPWStr)] string pszMountPoint,
+                                           int mountFlags);
+
+        [DllImport("xsapi.dll", SetLastError = true)]
+        public static extern uint XvdMountContentType(out IntPtr hDiskHandle,
+                                           out int mountedDiskNum,
+                                           IntPtr hXvdHandle,
+                                           [MarshalAs(UnmanagedType.LPWStr)] string pszXvdPath,
+                                           long xvdContentType,
+                                           long unknown,
+                                           [MarshalAs(UnmanagedType.LPWStr)] string pszMountPoint,
+                                           int mountFlags);
+
+        [DllImport("xsapi.dll", SetLastError = true)]
+        public static extern uint XvdVmMount(out IntPtr hDiskHandle,
+                                           IntPtr hXvdHandle,
+                                           long vmNumber,
+                                           [MarshalAs(UnmanagedType.LPWStr)] string pszXvdPath,
+                                           long unknown,
+                                           [MarshalAs(UnmanagedType.LPWStr)] string pszMountPoint,
+                                           int mountFlags);
 
         [DllImport("xsapi.dll", SetLastError = true)]
         public static extern uint XvdUnmountDiskNumber(IntPtr hXvdHandle, 
@@ -23,6 +42,11 @@ namespace LibXboxOne
 
         [DllImport("xsapi.dll", SetLastError = true)]
         public static extern uint XvdUnmountFile(IntPtr hXvdHandle, 
+                                                 [MarshalAs(UnmanagedType.LPWStr)] string pszXvdPath);
+
+        [DllImport("xsapi.dll", SetLastError = true)]
+        public static extern uint XvdVmUnmountFile(IntPtr hXvdHandle,
+                                                 long vmId,
                                                  [MarshalAs(UnmanagedType.LPWStr)] string pszXvdPath);
 
         [DllImport("xsapi.dll", SetLastError = true)]
