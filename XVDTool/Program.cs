@@ -339,19 +339,21 @@ namespace XVDTool
 
                 if (mountPackage)
                 {
-                    ulong result = XvdMount.MountXvd(filePath);
-                    Console.WriteLine("Mounting {0} {1}", filePath, result == 0 ?
+                    bool success = XvdMount.MountXvd(filePath);
+                    Console.WriteLine("Mounting {0} {1}", filePath, success ?
                         "completed successfully" :
-                        String.Format("with errors, Code: 0x{0:X}", result));
+                        "failed with error"
+                    );
                     return;
                 }
 
                 if (unmountPackage)
                 {
-                    ulong result = XvdMount.UnmountXvd(filePath);
-                    Console.WriteLine("Unmounting {0} {1}", filePath, result == 0 ?
+                    bool success = XvdMount.UnmountXvd(filePath);
+                    Console.WriteLine("Unmounting {0} {1}", filePath, success ?
                         "completed successfully" :
-                        String.Format("with errors, Code: 0x{0:X}", result));
+                        "failed with error"
+                    );
                     return;
                 }
 
