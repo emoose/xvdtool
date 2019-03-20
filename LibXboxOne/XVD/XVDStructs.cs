@@ -116,6 +116,7 @@ namespace LibXboxOne
         public ulong DynamicHeaderPageCount => XvdFile.BytesToPages(DynamicHeaderLength);
         public ulong DrivePageCount => XvdFile.BytesToPages(DriveSize);
         public ulong NumberOfHashedPages => (DrivePageCount + UserDataPageCount + XvcInfoPageCount + DynamicHeaderPageCount);
+        public ulong NumberOfMetadataPages => (UserDataPageCount + XvcInfoPageCount + DynamicHeaderPageCount);
         public ulong SectorSize => VolumeFlags.HasFlag(XvdVolumeFlags.LegacySectorSize) ?
                                         XvdFile.LEGACY_SECTOR_SIZE :
                                         XvdFile.SECTOR_SIZE;
@@ -322,7 +323,7 @@ namespace LibXboxOne
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode, Pack = 1)]
     public struct XvcRegionHeader
     {
-        /* 0x0 */ public uint Id;
+        /* 0x0 */ public XvcRegionId Id;
         /* 0x4 */ public ushort KeyId;
         /* 0x6 */ public ushort Unknown1;
         /* 0x8 */ public uint Flags;
@@ -366,7 +367,7 @@ namespace LibXboxOne
         public string ToString(bool formatted)
         {
             var b = new StringBuilder();
-            b.AppendLine("XvcRegionHeader (ID/EncryptionIV: 0x" + Id.ToString("X8") + "):");
+            b.AppendLine($"XvcRegionHeader (ID/EncryptionIV: 0x{((uint)Id):X} {Id}):");
 
             string fmt = formatted ? "    " : "";
 
@@ -382,8 +383,9 @@ namespace LibXboxOne
                 b.AppendLineSpace(fmt + "Unknown5 != 0");
 
             string keyid = KeyId.ToString("X");
-            if (KeyId == 0xFFFF)
+            if (KeyId == XvcConstants.XVC_KEY_NONE)
                 keyid += " (not encrypted)";
+
             b.AppendLineSpace(fmt + "Description: " + Description.Replace("\0", ""));
             b.AppendLineSpace(fmt + "Key ID: 0x" + keyid);
             b.AppendLineSpace(fmt + "Flags: 0x" + Flags.ToString("X"));

@@ -2,6 +2,16 @@ using System;
 
 namespace LibXboxOne
 {
+    [Flags]
+    public enum XvdMountFlags : int
+    {
+        None = 0x0,
+        ReadOnly = 0x1,
+        Boot = 0x2, // Used with XvdVmMount
+        MountEmbeddedXvd = 0x8,
+        AsRemovable = 0x20
+    }
+
     public class XvdMount
     {
         public static bool MountXvd(string filepath)
@@ -16,8 +26,9 @@ namespace LibXboxOne
                 return false;
             }
             
+            IntPtr pDiskHandle = IntPtr.Zero;
             int diskNum = 0;
-            result = Natives.XvdMount(IntPtr.Zero, out diskNum, pHandle, filepath, 0, 0, 0);
+            result = Natives.XvdMount(out pDiskHandle, out diskNum, pHandle, filepath, 0, null, (int)XvdMountFlags.None);
 
             // Check for errors
             if (result == 0x80070002)

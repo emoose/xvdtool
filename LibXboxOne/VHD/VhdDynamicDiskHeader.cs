@@ -33,25 +33,40 @@ namespace LibXboxOne.Vhd
 
         /* END = 0x400 */
 
+        static uint VHD_DYN_HEADER_VERSION => 0x00010000;
+        static uint VHD_STANDARD_BLOCK_SIZE => 0x00200000;
+
         public static char[] GetHeaderCookie()
         {
             return new char[]{'c','x','s','p','a','r','s','e'};
         }
 
-        public void InitDefaults()
+        static VhdDynamicDiskHeader CreateWithDefaultValues()
         {
-            Cookie = GetHeaderCookie(); // cxsparse
-            DataOffset = 0xFFFFFFFFFFFFFFFF; // Currently unused, 0xFFFFFFFFFFFFFFFF
-            TableOffset = ((ulong) 0x600).EndianSwap();
-            HeaderVersion = 0x100;
-            MaxTableEntries = 0;
-            BlockSize = 0x00200000;
-            Checksum = 0x6FF4FFFF;
-            ParentUuid = new byte[0x10];
-            ParentTimeStamp = 0x0;
-            ParentUnicodeName = new byte[0x200];
-            ParentLocatorEntries = new VhdParentLocatorEntry[8];
-            Reserved2 = new byte[0x100];
+            return new VhdDynamicDiskHeader()
+            {
+                Cookie = GetHeaderCookie(), // cxsparse
+                DataOffset = 0xFFFFFFFFFFFFFFFF, // Currently unused, 0xFFFFFFFFFFFFFFFF
+                TableOffset = ((ulong)0x600).EndianSwap(), // Vhd footer + dynamic disk header length
+                HeaderVersion = VHD_DYN_HEADER_VERSION.EndianSwap(),
+                MaxTableEntries = 0,
+                BlockSize = VHD_STANDARD_BLOCK_SIZE.EndianSwap(),
+                ParentUuid = new byte[0x10],
+                ParentTimeStamp = 0x0,
+                ParentUnicodeName = new byte[0x200],
+                ParentLocatorEntries = new VhdParentLocatorEntry[8],
+                Checksum = 0,
+                Reserved2 = new byte[0x100]
+            };
+        }
+
+        public static VhdDynamicDiskHeader Create(ulong driveSize)
+        {
+            uint tableEntries = (uint)((driveSize + VHD_STANDARD_BLOCK_SIZE - 1) / VHD_STANDARD_BLOCK_SIZE);
+
+            var dynHeader = CreateWithDefaultValues();
+            dynHeader.MaxTableEntries = tableEntries.EndianSwap();
+            return dynHeader;
         }
 
         internal static uint CalculateChecksum(VhdDynamicDiskHeader data)

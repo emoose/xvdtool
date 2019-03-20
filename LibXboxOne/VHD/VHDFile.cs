@@ -23,19 +23,16 @@ namespace LibXboxOne.Vhd
         public void Create(VhdDiskType diskType, ulong driveSize)
         {
             Header = new VhdFooter();
-            Header.InitDefaults();
             Header.OriginalSize = driveSize.EndianSwap();
             Header.CurrentSize = driveSize.EndianSwap();
 
-            DynamicDiskHeader = new VhdDynamicDiskHeader();
-            DynamicDiskHeader.InitDefaults();
+            DynamicDiskHeader = VhdDynamicDiskHeader.Create(driveSize);
 
-            var batEntryCount = (uint)(driveSize/DynamicDiskHeader.BlockSize.EndianSwap());
+            uint batEntryCount = DynamicDiskHeader.MaxTableEntries.EndianSwap();
             BlockAllocationTable = new uint[(int) batEntryCount];
+
             for (uint i = 0; i < batEntryCount; i++)
                 BlockAllocationTable[i] = 0xFFFFFFFF;
-
-            DynamicDiskHeader.MaxTableEntries = batEntryCount.EndianSwap();
 
             Header.FixChecksum();
             DynamicDiskHeader.FixChecksum();

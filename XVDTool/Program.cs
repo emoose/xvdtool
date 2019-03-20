@@ -34,6 +34,7 @@ namespace XVDTool
             var exvdDest = String.Empty;
             var userDataDest = String.Empty;
             var vhdDest = String.Empty;
+            var fsDest = String.Empty;
 
             var signKeyToUse = String.Empty;
             var odkToUse = OdkIndex.Invalid;
@@ -100,6 +101,7 @@ namespace XVDTool
                 { "xe|extractembedded=", v => exvdDest = v },
                 { "xu|extractuserdata=", v => userDataDest = v },
                 { "xv|extractvhd=", v => vhdDest = v },
+                { "xf|extractfilesystem=", v => fsDest = v},
 
                 { "l|filelist=", v => fileList = v },
                 { "f|folder=", v => folder = v },
@@ -159,6 +161,7 @@ namespace XVDTool
                 Console.WriteLine(fmt + "-xe (-extractembedded) <output-file> - extract embedded XVD from package");
                 Console.WriteLine(fmt + "-xu (-extractuserdata) <output-file> - extract user data from package");
                 Console.WriteLine(fmt + "-xv (-extractvhd) <output-vhd> - extracts filesystem from XVD into a VHD file, doesn't seem to work properly with XVC packages yet (also removes NTFS compression from output VHD so Windows can mount it)");
+                Console.WriteLine(fmt + "-xf (-extractfilesystem) <output-file> - extract filesystem (raw)");
                 Console.WriteLine();
                 Console.WriteLine(fmt + "The next two commands will write info about each package found to [filename].txt");
                 Console.WriteLine(fmt + "also extracts embedded XVD and user data to [filename].exvd.bin / [filename].userdata.bin");
@@ -539,7 +542,7 @@ namespace XVDTool
                     if (!file.IsEncrypted)
                     {
                         Console.WriteLine("Extracting XVD filesystem to VHD file \"" + vhdDest + "\"...");
-                        bool success = file.ConvertToVhd(vhdDest);
+                        bool success = file.ExtractFilesystem(vhdDest, true);
                         Console.WriteLine(success
                             ? "Wrote VHD successfully."
                             : "Error: there was a problem extracting the filesystem from the XVD.");
@@ -549,6 +552,24 @@ namespace XVDTool
                     else
                     {
                         Console.WriteLine("Error: can't convert encrypted package to VHD.");
+                    }
+                }
+
+                if (!String.IsNullOrEmpty(fsDest))
+                {
+                    if (!file.IsEncrypted)
+                    {
+                        Console.WriteLine("Extracting XVD filesystem to raw file \""+ fsDest + "\"...");
+                        bool success = file.ExtractFilesystem(fsDest, false);
+                        Console.WriteLine(success
+                            ? "Wrote raw filesystem image successfully."
+                            : "Error: there was a problem extracting the filesystem from the XVD.");
+                        if (!success)
+                            return;
+                    }
+                    else
+                    {
+                        Console.WriteLine("Error: Can't extract filesystem from encrypted package.");
                     }
                 }
 
