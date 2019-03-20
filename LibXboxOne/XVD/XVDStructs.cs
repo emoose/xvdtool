@@ -54,7 +54,7 @@ namespace LibXboxOne
         /* 0x12C */ public byte[] EmbeddedXVD_PDUID;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
-        /* 0x13C */ public byte[] Reserved0;
+        /* 0x13C */ public byte[] Reserved13C;
 
         // encrypted CIK is only used in non-XVC XVDs, field is decrypted with ODK and then used as the CIK to decrypt data blocks
         
@@ -96,7 +96,7 @@ namespace LibXboxOne
         /* 0x272 */ public byte[] Unknown272;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xA)]
-        /* 0x282 */ public byte[] Reserved1;
+        /* 0x282 */ public byte[] Reserved282;
         /* 0x28C */ public long SequenceNumber;
         /* 0x294 */ public ushort RequiredSystemVersion1;
         /* 0x296 */ public ushort RequiredSystemVersion2;
@@ -106,7 +106,7 @@ namespace LibXboxOne
         /* 0x29C */ public Keys.OdkIndex ODKKeyslotID; // 0x2 for test ODK, 0x0 for retail ODK? (makepkg doesn't set this for test ODK crypted packages?)
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xB60)]
-        /* 0x2A0 */ public byte[] Reserved2;
+        /* 0x2A0 */ public byte[] Reserved2A0;
 
         /* 0xE00 = END */
 
@@ -254,15 +254,18 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + "ODK Keyslot ID: " + ODKKeyslotID.ToString());
             b.AppendLineSpace(fmt + "KeyMaterial:" + Environment.NewLine + fmt + KeyMaterial.ToHexString());
 
-            b.AppendLineSpace(fmt + "Unknown271: " + Unknown271.ToString("X"));
+            if (Unknown271 != 0)
+                b.AppendLineSpace(fmt + "Unknown271: " + Unknown271.ToString("X"));
+
+            if (!Unknown272.IsArrayEmpty())
             b.AppendLineSpace(fmt + "Unknown272: " + Unknown272.ToHexString());
 
-            if (!Reserved0.IsArrayEmpty())
-                b.AppendLineSpace(fmt + "Reserved0: " + Environment.NewLine + fmt + Reserved0.ToHexString());
-            if (!Reserved1.IsArrayEmpty())
-                b.AppendLineSpace(fmt + "Reserved1: " + Environment.NewLine + fmt + Reserved1.ToHexString());
-            if (!Reserved2.IsArrayEmpty())
-                b.AppendLineSpace(fmt + "Reserved2: " + Environment.NewLine + fmt + Reserved2.ToHexString());
+            if (!Reserved13C.IsArrayEmpty())
+                b.AppendLineSpace(fmt + "Reserved13C: " + Environment.NewLine + fmt + Reserved13C.ToHexString());
+            if (!Reserved13C.IsArrayEmpty())
+                b.AppendLineSpace(fmt + "Reserved13C: " + Environment.NewLine + fmt + Reserved13C.ToHexString());
+            if (!Reserved2A0.IsArrayEmpty())
+                b.AppendLineSpace(fmt + "Reserved2A0: " + Environment.NewLine + fmt + Reserved2A0.ToHexString());
 
             return b.ToString();
         }
@@ -289,17 +292,16 @@ namespace LibXboxOne
             string fmt = formatted ? "    " : "";
             return fmt + $"XvdExtEntry: Code: {Code:X}, Length: {Length:X}, Offset: {Offset:X}, DataLength: {DataLength:X}";
         }
-    } 
+    }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct XvcUpdateSegmentInfo
+    public struct XvcUpdateSegment
     {
-        /* 0x0 */ public uint Unknown1;
-        /* 0x4 */ public uint Unknown2;
-        /* 0x8 */ public uint Unknown3;
+        /* 0x0 */ public uint PageNum;
+        /* 0x4 */ public ulong Hash;
 
         /* 0xC = END */
-        
+
         public override string ToString()
         {
             return ToString(false);
@@ -307,14 +309,50 @@ namespace LibXboxOne
         public string ToString(bool formatted)
         {
             var b = new StringBuilder();
-            b.AppendLine("XvcUpdateSegmentInfo");
+            b.AppendLine("XvcUpdateSegment");
             b.AppendLine();
 
             string fmt = formatted ? "    " : "";
 
-            b.AppendLineSpace(fmt + "Unknown1: 0x" + Unknown1.ToString("X"));
-            b.AppendLineSpace(fmt + "Unknown2: 0x" + Unknown2.ToString("X"));
-            b.AppendLineSpace(fmt + "Unknown3: 0x" + Unknown3.ToString("X"));
+            b.AppendLineSpace(fmt + $"PageNum: 0x{PageNum:X} (@ 0x{XvdFile.PageNumberToOffset(PageNum)})");
+            b.AppendLineSpace(fmt + $"Hash: 0x{Hash:X}");
+
+            return b.ToString();
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct XvcRegionSpecifier
+    {
+        /* 0x0 */ public XvcRegionId RegionId;
+        /* 0x4 */ public uint Padding4;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 0x40)]
+        /* 0x8 */ public string Key;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 0x80)]
+        /* 0x88 */ public string Value;
+
+        /* 0x188 = END */
+
+        public override string ToString()
+        {
+            return ToString(false);
+        }
+        public string ToString(bool formatted)
+        {
+            var b = new StringBuilder();
+            b.AppendLine("XvcRegionSpecifier");
+            b.AppendLine();
+
+            string fmt = formatted ? "    " : "";
+
+            b.AppendLineSpace(fmt + $"Region ID: 0x{((uint)RegionId):X} {RegionId})");
+            b.AppendLineSpace(fmt + $"Key: {Key}");
+            b.AppendLineSpace(fmt + $"Value: {Key}");
+
+            if (Padding4 != 0)
+                b.AppendLineSpace(fmt + $"Padding4: 0x{Padding4:X}");
 
             return b.ToString();
         }
@@ -325,19 +363,20 @@ namespace LibXboxOne
     {
         /* 0x0 */ public XvcRegionId Id;
         /* 0x4 */ public ushort KeyId;
-        /* 0x6 */ public ushort Unknown1;
+        /* 0x6 */ public ushort Padding6;
         /* 0x8 */ public uint Flags;
-        /* 0xC */ public uint Unknown2;
+        /* 0xC */ public uint FirstSegmentIndex;
 
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 0x20)] 
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 0x20)]
         /* 0x10 */ public string Description; // XVC-HD = Header, XVC-EXVD = Embedded XVD, XVC-MD = XVC metadata, FS-MD = FileSystem metadata
 
         /* 0x50 */ public ulong Offset;
         /* 0x58 */ public ulong Length;
-        /* 0x60 */ public ulong RegionPDUID; // set at UpdateXVCMetadata+22B
-        /* 0x68 */ public ulong Unknown3;
-        /* 0x70 */ public ulong Unknown4;
-        /* 0x78 */ public ulong Unknown5;
+        /* 0x60 */ public ulong Hash; // aka RegionPDUID
+
+        /* 0x68 */ public ulong Unknown68;
+        /* 0x70 */ public ulong Unknown70;
+        /* 0x78 */ public ulong Unknown78;
 
         /* 0x80 = END */
 
@@ -345,20 +384,18 @@ namespace LibXboxOne
         {
             Id = src.Id;
             KeyId = src.KeyId;
-            Unknown1 = src.Unknown1;
+            Padding6 = src.Padding6;
             Flags = src.Flags;
-            Unknown2 = src.Unknown2;
+            FirstSegmentIndex = src.FirstSegmentIndex;
             Description = src.Description;
 
             Offset = src.Offset;
             Length = src.Length;
-            RegionPDUID = src.RegionPDUID;
-            Unknown3 = src.Unknown3;
-            Unknown4 = src.Unknown4;
-            Unknown5 = src.Unknown5;
+            Hash = src.Hash;
+            Unknown68 = src.Unknown68;
+            Unknown70 = src.Unknown70;
+            Unknown78 = src.Unknown78;
         }
-
-
 
         public override string ToString()
         {
@@ -371,33 +408,35 @@ namespace LibXboxOne
 
             string fmt = formatted ? "    " : "";
 
-            if(Unknown1 != 0)
-                b.AppendLineSpace(fmt + "Unknown1 != 0");
-            if (Unknown2 != 0)
-                b.AppendLineSpace(fmt + "Unknown2 != 0");
-            if (Unknown3 != 0)
-                b.AppendLineSpace(fmt + "Unknown3 != 0");
-            if (Unknown4 != 0)
-                b.AppendLineSpace(fmt + "Unknown4 != 0");
-            if (Unknown5 != 0)
-                b.AppendLineSpace(fmt + "Unknown5 != 0");
+            if (Padding6 != 0)
+                b.AppendLineSpace(fmt + "Padding6 != 0");
+            if (Unknown68 != 0)
+                b.AppendLineSpace(fmt + "Unknown68 != 0");
+            if (Unknown70 != 0)
+                b.AppendLineSpace(fmt + "Unknown70 != 0");
+            if (Unknown78 != 0)
+                b.AppendLineSpace(fmt + "Unknown78 != 0");
 
             string keyid = KeyId.ToString("X");
-            if (KeyId == XvcConstants.XVC_KEY_NONE)
+            if (KeyId == 0xFFFF)
                 keyid += " (not encrypted)";
-
             b.AppendLineSpace(fmt + "Description: " + Description.Replace("\0", ""));
             b.AppendLineSpace(fmt + "Key ID: 0x" + keyid);
             b.AppendLineSpace(fmt + "Flags: 0x" + Flags.ToString("X"));
             b.AppendLineSpace(fmt + "Offset: 0x" + Offset.ToString("X"));
             b.AppendLineSpace(fmt + "Length: 0x" + Length.ToString("X"));
-            b.AppendLineSpace(fmt + "Region PDUID: 0x" + RegionPDUID.ToString("X"));
+            b.AppendLineSpace(fmt + "Hash: 0x" + Hash.ToString("X"));
+            b.AppendLineSpace(fmt + "First Segment Index: " + FirstSegmentIndex.ToString());
             b.AppendLine();
-            b.AppendLineSpace(fmt + "Unknown1: 0x" + Unknown1.ToString("X"));
-            b.AppendLineSpace(fmt + "Unknown2: 0x" + Unknown2.ToString("X"));
-            b.AppendLineSpace(fmt + "Unknown3: 0x" + Unknown3.ToString("X"));
-            b.AppendLineSpace(fmt + "Unknown4: 0x" + Unknown4.ToString("X"));
-            b.AppendLineSpace(fmt + "Unknown5: 0x" + Unknown5.ToString("X"));
+
+            if (Unknown68 != 0)
+                b.AppendLineSpace(fmt + "Unknown68: 0x" + Unknown68.ToString("X"));
+            if (Unknown70 != 0)
+                b.AppendLineSpace(fmt + "Unknown70: 0x" + Unknown70.ToString("X"));
+            if (Unknown78 != 0)
+                b.AppendLineSpace(fmt + "Unknown78: 0x" + Unknown78.ToString("X"));
+            if (Padding6 != 0)
+                b.AppendLineSpace(fmt + "Padding6: 0x" + Padding6.ToString("X"));
 
             return b.ToString();
         }
@@ -430,9 +469,9 @@ namespace LibXboxOne
         /* 0xD10 */ public uint Version;
         /* 0xD14 */ public uint RegionCount;
         /* 0xD18 */ public uint Flags;
-        /* 0xD1C */ public ushort Unknown1;
+        /* 0xD1C */ public ushort PaddingD1C;
         /* 0xD1E */ public ushort KeyCount;
-        /* 0xD20 */ public uint Unknown2;
+        /* 0xD20 */ public uint UnknownD20;
         /* 0xD24 */ public uint InitialPlayRegionId;
         /* 0xD28 */ public ulong InitialPlayOffset;
         /* 0xD30 */ public long FileTimeCreated;
@@ -440,9 +479,10 @@ namespace LibXboxOne
         /* 0xD3C */ public uint UpdateSegmentCount;
         /* 0xD40 */ public ulong PreviewOffset;
         /* 0xD48 */ public ulong UnusedSpace;
+        /* 0xD50 */ public uint RegionSpecifierCount;
 
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x58)]
-        /* 0xD50 */ public byte[] Reserved;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x54)]
+        /* 0xD54 */ public byte[] ReservedD54;
 
         /* 0xDA8 = END (actually 0x2000 but rest is read in XVDFile class) */
 
@@ -477,17 +517,17 @@ namespace LibXboxOne
 
             if (Flags != 0)
                 b.AppendLineSpace(fmt + "Flags != 0");
-            if (Unknown1 != 0)
-                b.AppendLineSpace(fmt + "Unknown1 != 0");
-            if (Unknown2 != 0)
-                b.AppendLineSpace(fmt + "Unknown2 != 0");
+            if (PaddingD1C != 0)
+                b.AppendLineSpace(fmt + "PaddingD1C != 0");
+            if (UnknownD20 != 0)
+                b.AppendLineSpace(fmt + "UnknownD20 != 0");
             if (PreviewRegionId != 0)
                 b.AppendLineSpace(fmt + "PreviewRegionId != 0");
             if (PreviewOffset != 0)
                 b.AppendLineSpace(fmt + "PreviewOffset != 0");
             if (UnusedSpace != 0)
                 b.AppendLineSpace(fmt + "UnusedSpace != 0");
-            if (!Reserved.IsArrayEmpty())
+            if (!ReservedD54.IsArrayEmpty())
                 b.AppendLineSpace(fmt + "Reserved != null");
 
             var signType = "Unsigned/not crypted (/LU)";
@@ -524,11 +564,15 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + "Preview Offset: 0x" + PreviewOffset.ToString("X"));
             b.AppendLineSpace(fmt + "Unused Space: 0x" + UnusedSpace.ToString("X"));
             b.AppendLine();
-            b.AppendLineSpace(fmt + "Unknown1: 0x" + Unknown1.ToString("X"));
-            b.AppendLineSpace(fmt + "Unknown2: 0x" + Unknown2.ToString("X"));
 
-            if (!Reserved.IsArrayEmpty())
-                b.AppendLineSpace(fmt + "Reserved: " + Environment.NewLine + fmt + Reserved.ToHexString());
+            if (PaddingD1C != 0)
+                b.AppendLineSpace(fmt + "PaddingD1C: 0x" + PaddingD1C.ToString("X"));
+
+            if (UnknownD20 != 0)
+                b.AppendLineSpace(fmt + "UnknownD20: 0x" + UnknownD20.ToString("X"));
+
+            if (!ReservedD54.IsArrayEmpty())
+                b.AppendLineSpace(fmt + "ReservedD54: " + Environment.NewLine + fmt + ReservedD54.ToHexString());
 
             return b.ToString();
         }

@@ -42,7 +42,9 @@ namespace LibXboxOne
         public XvcInfo XvcInfo;
 
         public List<XvcRegionHeader> RegionHeaders;
-        public List<XvcUpdateSegmentInfo> UpdateSegments;
+        public List<XvcUpdateSegment> UpdateSegments;
+        public List<XvcRegionSpecifier> RegionSpecifiers;
+        public List<XvcRegionPresenceInfo> RegionPresenceInfo;
 
         public bool HashTreeValid = false;
         public bool DataHashTreeValid = false;
@@ -640,6 +642,8 @@ namespace LibXboxOne
 
                 XvcInfo.RegionCount = (uint)RegionHeaders.Count;
                 XvcInfo.UpdateSegmentCount = (uint)UpdateSegments.Count;
+                if (RegionSpecifiers != null)
+                    XvcInfo.RegionSpecifierCount = (uint)RegionSpecifiers.Count;
 
                 _io.Writer.WriteStruct(XvcInfo);
 
@@ -648,6 +652,10 @@ namespace LibXboxOne
 
                 for (int i = 0; i < XvcInfo.UpdateSegmentCount; i++)
                     _io.Writer.WriteStruct(UpdateSegments[i]);
+
+                if (RegionSpecifiers != null)
+                    for (int i = 0; i < XvcInfo.RegionSpecifierCount; i++)
+                        _io.Writer.WriteStruct(RegionSpecifiers[i]);
             }
 
             if (IsDataIntegrityEnabled)
@@ -686,9 +694,24 @@ namespace LibXboxOne
                     for (int i = 0; i < XvcInfo.RegionCount; i++)
                         RegionHeaders.Add(_io.Reader.ReadStruct<XvcRegionHeader>());
 
-                    UpdateSegments = new List<XvcUpdateSegmentInfo>();
+                    UpdateSegments = new List<XvcUpdateSegment>();
                     for (int i = 0; i < XvcInfo.UpdateSegmentCount; i++)
-                        UpdateSegments.Add(_io.Reader.ReadStruct<XvcUpdateSegmentInfo>());
+                        UpdateSegments.Add(_io.Reader.ReadStruct<XvcUpdateSegment>());
+
+                    if(XvcInfo.Version >= 2) // RegionSpecifiers / RegionPresenseInfo only seems to be used on XvcInfo v2
+                    {
+                        RegionSpecifiers = new List<XvcRegionSpecifier>();
+                        for (int i = 0; i < XvcInfo.RegionSpecifierCount; i++)
+                            RegionSpecifiers.Add(_io.Reader.ReadStruct<XvcRegionSpecifier>());
+
+                        if(Header.NumMDUPages > 0)
+                        {
+                            RegionPresenceInfo = new List<XvcRegionPresenceInfo>();
+                            _io.Stream.Position = (long)MduOffset;
+                            for (int i = 0; i < XvcInfo.RegionCount; i++)
+                                RegionPresenceInfo.Add((XvcRegionPresenceInfo)_io.Reader.ReadByte());
+                        }
+                    }
                 }
             }
 
@@ -724,6 +747,10 @@ namespace LibXboxOne
 
             for (int i = 0; i < XvcInfo.UpdateSegmentCount; i++)
                 msIo.Writer.WriteStruct(UpdateSegments[i]);
+
+            if (RegionSpecifiers != null)
+                for (int i = 0; i < XvcInfo.RegionSpecifierCount; i++)
+                    msIo.Writer.WriteStruct(RegionSpecifiers[i]);
 
             msIo.Stream.SetLength(Header.XvcDataLength);
 
@@ -810,7 +837,7 @@ namespace LibXboxOne
                     else if (header.Offset > HashTreeOffset)
                         header.Offset += (ulong) hashTreeSize;
 
-                    header.RegionPDUID = 0;
+                    header.Hash = 0;
                 }
             }
 
@@ -857,7 +884,7 @@ namespace LibXboxOne
                     else if (newHdr.Offset > HashTreeOffset)
                         newHdr.Offset -= (ulong)hashTreeSize;
 
-                    newHdr.RegionPDUID = 0;
+                    newHdr.Hash = 0;
 
                     RegionHeaders[i] = newHdr;
                 }
@@ -1288,18 +1315,39 @@ namespace LibXboxOne
                 for (int i = 0; i < RegionHeaders.Count; i++)
                 {
                     b.AppendLine();
-                    b.AppendLine("Region " + i);
+                    string presenceInfo = "";
+                    if (RegionPresenceInfo != null)
+                    {
+                        var presenceFlags = RegionPresenceInfo[i];
+                        presenceInfo = " (";
+                        presenceInfo += (presenceFlags.HasFlag(XvcRegionPresenceInfo.IsPresent) ? "present" : "not present") + ", ";
+                        presenceInfo += presenceFlags.HasFlag(XvcRegionPresenceInfo.IsAvailable) ? "available" : "unavailable";
+                        if (((int)presenceFlags & 0xF0) != 0)
+                        {
+                            presenceInfo += $", on disc {(int)presenceFlags >> 4}";
+                        }
+                        presenceInfo += ")";
+                    }
+                    b.AppendLine($"Region {i}{presenceInfo}");
                     b.Append(RegionHeaders[i].ToString(formatted));
                 }
 
             if (UpdateSegments != null)
                 for (int i = 0; i < UpdateSegments.Count; i++)
                 {
-                    if (UpdateSegments[i].Unknown1 == 0)
+                    if (UpdateSegments[i].Hash == 0)
                         break;
                     b.AppendLine();
                     b.AppendLine("Update Segment " + i);
                     b.Append(UpdateSegments[i].ToString(formatted));
+                }
+
+            if (RegionSpecifiers != null)
+                for (int i = 0; i < RegionSpecifiers.Count; i++)
+                {
+                    b.AppendLine();
+                    b.AppendLine("RegionSpecifier " + i);
+                    b.Append(RegionSpecifiers[i].ToString(formatted));
                 }
 
             return b.ToString();

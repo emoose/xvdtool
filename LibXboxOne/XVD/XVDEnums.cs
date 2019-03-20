@@ -31,17 +31,17 @@ namespace LibXboxOne
         EraTools = 0x12,
         SystemTools = 0x13,
         SystemAux = 0x14,
-        SomethingSomething = 0x15,
-        Codec = 0x16,
-        Qaslt = 0x17,
+        AcousticModel = 0x15,
+        SystemCodecsVolume = 0x16,
+        QasltPackage = 0x17,
         AppDlc = 0x18,
         TitleDlc = 0x19,
         UniversalDlc = 0x1A,
-        SystemData = 0x1B,
-        Test = 0x1C,
-        Unknown1D = 0x1D,
-        Kiosk = 0x1E,
-        Unknown20 = 0x20,
+        SystemDataVolume = 0x1B,
+        TestVolume = 0x1C,
+        HardwareTestVolume = 0x1D,
+        KioskContent = 0x1E,
+        HostProfiler = 0x20,
         Uwa = 0x21,
         Unknown22 = 0x22,
         Unknown23 = 0x23,
@@ -53,9 +53,12 @@ namespace LibXboxOne
     public enum XvcRegionFlags : uint
     {
         Resident = 1,
-        InitialPlay = 2, // might be 4, or maybe InitialPlay stuff in XvcInfo struct should be swapped with Preview
+        InitialPlay = 2,
         Preview = 4,
-        FileSystemMetadata = 8
+        FileSystemMetadata = 8,
+        Present = 0x10,
+        OnDemand = 0x20,
+        Available = 0x40,
     }
 
     [Flags]
@@ -69,5 +72,29 @@ namespace LibXboxOne
         SraReadOnly = 0x20,
         RegionIdInXts = 0x40,
         EraSpecific = 0x80
+    }
+
+    [Flags]
+    public enum XvcRegionPresenceInfo : byte
+    {
+        IsPresent = 1, // not set = "not present"
+        IsAvailable = 2, // not set = "unavailable"
+
+        //value >> 4 = discnum
+        Disc1 = 0x10,
+        Disc2 = 0x20,
+        Disc3 = 0x30,
+        Disc4 = 0x40,
+        Disc5 = 0x50,
+        Disc6 = 0x60,
+        Disc7 = 0x70,
+        Disc8 = 0x80,
+        Disc9 = 0x90,
+        Disc10 = 0xA0,
+        Disc11 = 0xB0,
+        Disc12 = 0xC0,
+        Disc13 = 0xD0,
+        Disc14 = 0xE0,
+        Disc15 = 0xF0
     }
 }
