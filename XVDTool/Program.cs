@@ -119,7 +119,7 @@ namespace XVDTool
                 return;
             }
 
-            Console.WriteLine("xvdtool 0.4: XVD file manipulator");
+            Console.WriteLine("xvdtool 0.5: XVD file manipulator");
 
             if (printHelp || (String.IsNullOrEmpty(fileList) && String.IsNullOrEmpty(folder) && !listKeys && extraArgs.Count <= 0))
             {
