@@ -418,7 +418,7 @@ namespace LibXboxOne
                 b.AppendLineSpace(fmt + "Unknown78 != 0");
 
             string keyid = KeyId.ToString("X");
-            if (KeyId == 0xFFFF)
+            if (KeyId == XvcConstants.XVC_KEY_NONE)
                 keyid += " (not encrypted)";
             b.AppendLineSpace(fmt + "Description: " + Description.Replace("\0", ""));
             b.AppendLineSpace(fmt + "Key ID: 0x" + keyid);
