@@ -142,7 +142,7 @@ namespace LibXboxOne
                 var headerData = GetHeaderWithoutSignature();
                 foreach(var signKey in DurangoKeys.GetAllXvdSigningKeys())
                 {
-                    if(HashUtils.VerifySignature(signKey.Value.KeyData, Signature, headerData))
+                    if(signKey.Value.KeyData != null && HashUtils.VerifySignature(signKey.Value.KeyData, Signature, headerData))
                         return signKey.Key;
                 }
                 return "<UNKNOWN>";
@@ -364,7 +364,7 @@ namespace LibXboxOne
         /* 0x0 */ public XvcRegionId Id;
         /* 0x4 */ public ushort KeyId;
         /* 0x6 */ public ushort Padding6;
-        /* 0x8 */ public uint Flags;
+        /* 0x8 */ public XvcRegionFlags Flags;
         /* 0xC */ public uint FirstSegmentIndex;
 
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 0x20)]
@@ -422,7 +422,22 @@ namespace LibXboxOne
                 keyid += " (not encrypted)";
             b.AppendLineSpace(fmt + "Description: " + Description.Replace("\0", ""));
             b.AppendLineSpace(fmt + "Key ID: 0x" + keyid);
-            b.AppendLineSpace(fmt + "Flags: 0x" + Flags.ToString("X"));
+            b.AppendLineSpace(fmt + "Flags: 0x" + ((uint)Flags).ToString("X"));
+            if (Flags.HasFlag(XvcRegionFlags.Resident))
+                b.AppendLineSpace(fmt + "    - Resident");
+            if (Flags.HasFlag(XvcRegionFlags.InitialPlay))
+                b.AppendLineSpace(fmt + "    - InitialPlay");
+            if (Flags.HasFlag(XvcRegionFlags.Preview))
+                b.AppendLineSpace(fmt + "    - Preview");
+            if (Flags.HasFlag(XvcRegionFlags.FileSystemMetadata))
+                b.AppendLineSpace(fmt + "    - FileSystemMetadata");
+            if (Flags.HasFlag(XvcRegionFlags.Present))
+                b.AppendLineSpace(fmt + "    - Present");
+            if (Flags.HasFlag(XvcRegionFlags.OnDemand))
+                b.AppendLineSpace(fmt + "    - OnDemand");
+            if (Flags.HasFlag(XvcRegionFlags.Available))
+                b.AppendLineSpace(fmt + "    - Available");
+            
             b.AppendLineSpace(fmt + "Offset: 0x" + Offset.ToString("X"));
             b.AppendLineSpace(fmt + "Length: 0x" + Length.ToString("X"));
             b.AppendLineSpace(fmt + "Hash: 0x" + Hash.ToString("X"));

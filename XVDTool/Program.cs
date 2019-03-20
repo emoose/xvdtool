@@ -389,8 +389,7 @@ namespace XVDTool
                     {
                         if (!file.GetXvcKeyByGuid(cikToUse, out byte[] outputKey))
                         {
-                            Console.WriteLine("Error: unable to find key for key GUID " +
-                                              new Guid(file.XvcInfo.EncryptionKeyIds[0].KeyId));
+                            Console.WriteLine("Error: unable to find key for key GUID " + cikToUse);
                             return;
                         }
                         keyToUse = $"{cikToUse}: {outputKey.ToHexString()}";
