@@ -1316,7 +1316,7 @@ namespace LibXboxOne
                 {
                     b.AppendLine();
                     string presenceInfo = "";
-                    if (RegionPresenceInfo != null)
+                    if (RegionPresenceInfo != null && RegionPresenceInfo.Count > i)
                     {
                         var presenceFlags = RegionPresenceInfo[i];
                         presenceInfo = " (";

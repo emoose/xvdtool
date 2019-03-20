@@ -19,7 +19,7 @@ namespace LibXboxOne.Nand
             "certkeys.bin", // 4
             "smcerr.log", // 5
             "system.xvd", // 6
-            "$sosrst.xvd", // 7
+            "$sospf.xvd", // 7, formerly $sosrst.xvd
             "download.xvd", // 8
             "smc_s.cfg", // 9
             "sp_s.cfg", // 10, keyvault? has serial/partnum/osig, handled by psp.sys (/Device/psp)
@@ -32,16 +32,20 @@ namespace LibXboxOne.Nand
             "host.xvd", // 17
             "settings.xvd", // 18
             "1smcbl_b.bin", // 19
-            "bootanim.bin", // 20, this entry and ones below it are only in retail 97xx and above?
-            "sostmpl.xvd", // 21
+            "bootanim.dat", // 20, this entry and ones below it are only in retail 97xx and above?
+            "obsolete.001", // 21, formerly sostmpl.xvd
             "update.cfg", // 22
-            "sosinit.xvd", // 23
+            "obsolete.002", // 23, formerly sosinit.xvd
             "hwinit.cfg", // 24
             "qaslt.xvd", // 25
-            "keyvault.bin", // 26, keyvault backup? has serial/partnum/osig
-            "unknown2.bin", // 27
-            "unknown3.bin", // 28
-            "unknownBlank2.bin" // 29
+            "sp_s.bak", // 26, keyvault backup? has serial/partnum/osig
+            "update2.cfg", // 27
+            "obsolete.003", // 28
+            "dump.lng", // 29
+            "os_d_dev.cfg", // 30
+            "os_glob.cfg", // 31
+            "sp_s.alt", // 32
+            "sysauxf.xvd", // 33
         };
 
         private readonly IO _io;
@@ -203,7 +207,6 @@ namespace LibXboxOne.Nand
                 }
             }
         }
-
 
         public override string ToString()
         {
