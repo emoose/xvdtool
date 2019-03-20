@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using LibXboxOne;
+using LibXboxOne.Nand;
+using NDesk.Options;
 
 namespace XBFSTool
 {
@@ -11,11 +12,60 @@ namespace XBFSTool
     {
         static void Main(string[] args)
         {
-            var xbfs = new XbfsFile(@"F:\XBone\stuff\nands\DUMP1.bin");
+            var printHelp = false;
+            var printInfo = false;
+            var outputFolder = String.Empty;
+
+            var p = new OptionSet {
+                { "h|?|help", "Show this help and exit", v => printHelp = v != null },
+                { "i|info", "Print info about nand dump", v => printInfo = v != null },
+                { "x|extract=", "Specify {OUTPUT DIRECTORY} for extracted files", v => outputFolder = v }
+            };
+
+            List<string> extraArgs;
+            try
+            {
+                extraArgs = p.Parse(args);
+            }
+            catch (OptionException e)
+            {
+                Console.WriteLine($"Failed parsing parameter \'{e.OptionName}\': {e.Message}");
+                Console.WriteLine("Try 'xbfstool --help' for more information");
+                return;
+            }
+
+            if(extraArgs.Count <= 0)
+            {
+                Console.WriteLine("ERROR: Missing filepath!");
+                Console.WriteLine();
+            }
+
+            Console.WriteLine("xbfstool 0.1: Xbox boot filesystem tool");
+            if (printHelp || extraArgs.Count <= 0)
+            {
+                Console.WriteLine("Usage  : xbfstool.exe [parameters] [filepath]");
+                Console.WriteLine("Parse Xbox boot filesystem");
+                Console.WriteLine();
+                Console.WriteLine("Parameters:");
+                p.WriteOptionDescriptions(Console.Out);
+                return;
+            }
+
+            var filePath = extraArgs[0];
+            var xbfs = new XbfsFile(filePath);
             xbfs.Load();
-            var info = xbfs.GetXbfsInfo();
-            xbfs.ExtractXbfsData(@"F:\XBone\nanddump\");
-            var test = xbfs.ToString(true);
+
+            if (printInfo)
+            {
+                var infoString = xbfs.ToString();
+                Console.WriteLine(infoString);
+            }
+
+            if (outputFolder != String.Empty)
+            {
+                Console.WriteLine("Extracting boot filesystem...");
+                xbfs.ExtractXbfsData(outputFolder);
+            }
         }
     }
 }

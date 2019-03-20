@@ -1,7 +1,8 @@
 ﻿using System;
 using System.IO;
+using System.Runtime.InteropServices;
 
-namespace LibXboxOne
+namespace LibXboxOne.Vhd
 {
     // note: this code doesn't make a working dynamic vhd
     // or maybe it does and i just had compression enabled on the file and that's why it wouldn't mount
@@ -19,16 +20,15 @@ namespace LibXboxOne
             _io = new IO(fileName, FileMode.Create);
         }
 
-        public void Create(ulong driveSize)
+        public void Create(VhdDiskType diskType, ulong driveSize)
         {
             Header = new VhdFooter();
             Header.InitDefaults();
-            Header.OrigSize = driveSize.EndianSwap();
-            Header.CurSize = driveSize.EndianSwap();
+            Header.OriginalSize = driveSize.EndianSwap();
+            Header.CurrentSize = driveSize.EndianSwap();
 
             DynamicDiskHeader = new VhdDynamicDiskHeader();
             DynamicDiskHeader.InitDefaults();
-
 
             var batEntryCount = (uint)(driveSize/DynamicDiskHeader.BlockSize.EndianSwap());
             BlockAllocationTable = new uint[(int) batEntryCount];
@@ -37,8 +37,8 @@ namespace LibXboxOne
 
             DynamicDiskHeader.MaxTableEntries = batEntryCount.EndianSwap();
 
-            Header.CalculateChecksum();
-            DynamicDiskHeader.CalculateChecksum();
+            Header.FixChecksum();
+            DynamicDiskHeader.FixChecksum();
         }
 
         public void Save()
@@ -59,7 +59,7 @@ namespace LibXboxOne
             _io.Stream.Position += 0x180;
 
             // reserve space for the drive
-            _io.Stream.Position += (long)Header.OrigSize.EndianSwap();
+            _io.Stream.Position += (long)Header.OriginalSize.EndianSwap();
 
             // write vhd footer
             _io.Writer.WriteStruct(Header);

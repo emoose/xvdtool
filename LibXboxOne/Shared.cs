@@ -12,7 +12,10 @@ namespace LibXboxOne
         public static extern uint XvdMount(IntPtr unk1,
                                            out int mountedDiskNum, 
                                            IntPtr hXvdHandle,
-                                           [MarshalAs(UnmanagedType.LPWStr)] string pszXvdPath);
+                                           [MarshalAs(UnmanagedType.LPWStr)] string pszXvdPath,
+                                           long unk2,
+                                           long unk3,
+                                           int unk4);
 
         [DllImport("xsapi.dll", SetLastError = true)]
         public static extern uint XvdUnmountDiskNumber(IntPtr hXvdHandle, 
@@ -27,72 +30,6 @@ namespace LibXboxOne
 
         [DllImport("xsapi.dll", SetLastError = true)]
         public static extern uint XvdCloseAdapter(IntPtr phXvdHandle);
-
-        [StructLayout(LayoutKind.Sequential)]
-// ReSharper disable once InconsistentNaming
-        public struct BCRYPT_PSS_PADDING_INFO
-        {
-            public BCRYPT_PSS_PADDING_INFO(string pszAlgId, int cbSalt)
-            {
-                this.pszAlgId = pszAlgId;
-                this.cbSalt = cbSalt;
-            }
-
-            [MarshalAs(UnmanagedType.LPWStr)]
-            public string pszAlgId;
-            public int cbSalt;
-        }
-
-
-        [DllImport("ncrypt.dll", SetLastError = false)]
-        public static extern uint NCryptOpenStorageProvider(out IntPtr phProvider,
-                                                              [MarshalAs(UnmanagedType.LPWStr)] string pszProviderName,
-                                                              uint dwFlags);
-
-        [DllImport("ncrypt.dll", SetLastError = false)]
-        public static extern uint NCryptImportKey(IntPtr hProvider,
-                                                  IntPtr hImportKey,
-                                                  [MarshalAs(UnmanagedType.LPWStr)] string pszBlobType,
-                                                  IntPtr pParameterList,
-                                                  out IntPtr phKey,
-                                                  [MarshalAs(UnmanagedType.LPArray)]
-                                                  byte[] pbData,
-                                                  uint cbData,
-                                                  uint dwFlags);
-
-        [DllImport("ncrypt.dll", SetLastError = false)]
-        public static extern uint NCryptVerifySignature(IntPtr hKey,
-                                                        [In] ref BCRYPT_PSS_PADDING_INFO pPaddingInfo,
-                                                        [In, MarshalAs(UnmanagedType.LPArray)] byte[] pbHashValue,
-                                                        int cbHashValue,
-                                                        [In, MarshalAs(UnmanagedType.LPArray)] byte[] pbSignature,
-                                                        int cbSignature,
-                                                        uint dwFlags);
-
-        [DllImport("ncrypt.dll", SetLastError = false)]
-        public static extern uint NCryptSignHash(IntPtr hKey,
-                                                        [In] ref BCRYPT_PSS_PADDING_INFO pPaddingInfo,
-                                                        [MarshalAs(UnmanagedType.LPArray)]
-                                                        byte[] pbHashValue,
-                                                        int cbHashValue,
-                                                        [MarshalAs(UnmanagedType.LPArray)]
-                                                        byte[] pbSignature,
-                                                        int cbSignature,
-                                                        [Out] out uint pcbResult,
-                                                        int dwFlags);
-
-        [DllImport("ncrypt.dll", SetLastError = false)]
-        public static extern uint NCryptSignHash(IntPtr hKey,
-                                                        [In] ref BCRYPT_PSS_PADDING_INFO pPaddingInfo,
-                                                        [In, MarshalAs(UnmanagedType.LPArray)] byte[] pbHashValue,
-                                                        int cbHashValue,
-                                                        IntPtr pbSignature,
-                                                        int cbSignature,
-                                                        [Out] out uint pcbResult,
-                                                        uint dwFlags);
-
-        [DllImport("ncrypt.dll", SetLastError = false)]
-        public static extern uint NCryptFreeObject(IntPtr hObject);
 
         [DllImport("kernel32.dll")]
         public static extern int DeviceIoControl(IntPtr hDevice, int
@@ -220,66 +157,6 @@ namespace LibXboxOne
             return String.Empty;
         }
 
-        public static uint SignHash(byte[] key, string keyType, byte[] hash, out byte[] signature) // keyType = RSAFULLPRIVATEBLOB, RSAPRIVATEBLOB, RSAPUBLICBLOB
-        {
-            IntPtr hProvider;
-            IntPtr hKey;
-
-            signature = null;
-
-            uint result = Natives.NCryptOpenStorageProvider(out hProvider, "Microsoft Software Key Storage Provider", 0);
-            if (result != 0)
-                return result;
-
-            result = Natives.NCryptImportKey(hProvider, IntPtr.Zero, keyType, IntPtr.Zero, out hKey, key, (uint)key.Length, 0);
-            if (result != 0)
-            {
-                Natives.NCryptFreeObject(hProvider);
-                return result;
-            }
-
-            var pss = new Natives.BCRYPT_PSS_PADDING_INFO("SHA256", 0x20);
-
-            uint resultSigLength;
-
-            result = Natives.NCryptSignHash(hKey, ref pss, hash, hash.Length, IntPtr.Zero, 0, out resultSigLength, 8);
-            if (result == 0)
-            {
-                signature = new byte[resultSigLength];
-                result = Natives.NCryptSignHash(hKey, ref pss, hash, hash.Length, signature, 0x200, out resultSigLength, 8);
-            }
-
-            Natives.NCryptFreeObject(hKey);
-            Natives.NCryptFreeObject(hProvider);
-
-            return result;
-        }
-
-        public static uint SignatureValid(byte[] key, string keyType, byte[] signature, byte[] hash) // keyType = RSAFULLPRIVATEBLOB, RSAPRIVATEBLOB, RSAPUBLICBLOB
-        {
-            IntPtr hProvider;
-            IntPtr hKey;
-
-            uint result = Natives.NCryptOpenStorageProvider(out hProvider, "Microsoft Software Key Storage Provider", 0);
-            if (result != 0)
-                return result;
-            result = Natives.NCryptImportKey(hProvider, IntPtr.Zero, keyType, IntPtr.Zero, out hKey, key, (uint)key.Length, 0);
-            if (result != 0)
-            {
-                Natives.NCryptFreeObject(hProvider);
-                return result;
-            }
-
-            var pss = new Natives.BCRYPT_PSS_PADDING_INFO("SHA256", 0x20);
-
-            result = Natives.NCryptVerifySignature(hKey, ref pss, hash, hash.Length, signature, signature.Length, 8);
-
-            Natives.NCryptFreeObject(hKey);
-            Natives.NCryptFreeObject(hProvider);
-
-            return result;
-        }
-
         /// <summary>
         /// Reads in a block from a file and converts it to the struct
         /// type specified by the template parameter
@@ -327,9 +204,29 @@ namespace LibXboxOne
             return bytes;
         }
 
-        public static string ToHexString(this byte[] bytes)
+        public static string ToHexString(this byte[] bytes, bool spaces = true)
         {
-            return bytes.Aggregate("", (current, b) => current + (b.ToString("X2") + " "));
+            return bytes.Aggregate("", (current, b) => current + (b.ToString("X2") + (spaces ? " " : "")));
+        }
+
+        public static string ToHexString(this uint[] array)
+        {
+            return array.Aggregate("", (current, b) => current + "0x" + (b.ToString("X8") + " "));
+        }
+
+        public static string ToHexString(this ushort[] array)
+        {
+            return array.Aggregate("", (current, b) => current + "0x" + (b.ToString("X4") + " "));
+        }
+
+        public static byte[] ToBytes(this string hexString)
+        {
+            hexString = hexString.Replace(" ", "");
+
+            byte[] retval = new byte[hexString.Length / 2];
+            for (int i = 0; i < hexString.Length; i += 2)
+                retval[i / 2] = Convert.ToByte(hexString.Substring(i, 2), 16);
+            return retval;
         }
 
         public static bool IsArrayEmpty(this byte[] bytes)
@@ -348,86 +245,11 @@ namespace LibXboxOne
             return true;
         }
 
-        public static bool IsFlagSet(this uint flags, uint flag)
-        {
-            return (flags & flag) == flag;
-        }
-
-        public static uint RemoveFlag(this uint flags, uint flag)
-        {
-            return IsFlagSet(flags, flag) ? ToggleFlag(flags, flag) : flags;
-        }
-
-        public static uint ToggleFlag(this uint flags, uint flag)
-        {
-            return (flags ^ flag);
-        }
-
         public static void AppendLineSpace(this StringBuilder b, string str)
         {
             b.AppendLine(str + " ");
         }
 
-        public static byte[] MorphIv(byte[] iv)
-        {
-            byte dl = 0;
-            var newIv = new byte[0x10];
-
-            for (int i = 0; i < 0x10; i++)
-            {
-                byte cl = iv[i];
-                byte al = cl;
-                al = (byte)(al + al);
-                al = (byte)(al | dl);
-                dl = cl;
-                newIv[i] = al;
-                dl = (byte)(dl >> 7);
-            }
-            if (dl != 0)
-                newIv[0] = (byte)(newIv[0] ^ 0x87);
-            return newIv;
-        }
-
-        public static byte[] CryptData(bool encrypt, byte[] data, byte[] key, byte[] startIv)
-        {
-            var cipher = new AesCipher(key);
-            int blocks = data.Length / 0x10;
-            var newData = new byte[data.Length];
-            var iv = new byte[startIv.Length];
-            Array.Copy(startIv, iv, startIv.Length);
-            for (int i = 0; i < blocks; i++)
-            {
-                byte[] crypted = CryptBlock(encrypt, data, i * 0x10, 0x10, iv, cipher);
-                iv = MorphIv(iv);
-                Array.Copy(crypted, 0, newData, i * 0x10, 0x10);
-            }
-            return newData;
-        }
-
-        static byte[] CryptBlock(bool encrypt, byte[] data, int dataOffset, int dataLength, byte[] iv, AesCipher cipher)
-        {
-            var newData = new byte[dataLength];
-
-            //if (!encrypt)
-                for (int i = 0; i < dataLength; i++)
-                {
-                    newData[i] = (byte)(data[dataOffset + i] ^ iv[i % iv.Length]);
-                }
-
-            var cryptData = new byte[dataLength];
-
-            if(encrypt)
-                cipher.EncryptBlock(newData, 0, dataLength, cryptData, 0);
-            else
-                cipher.DecryptBlock(newData, 0, dataLength, cryptData, 0);
-
-            for (int i = 0; i < dataLength; i++)
-            {
-                cryptData[i] = (byte)(cryptData[i] ^ iv[i % iv.Length]);
-            }
-
-            return cryptData;
-        }
         public static ushort EndianSwap(this ushort num)
         {
             byte[] data = BitConverter.GetBytes(num);

@@ -1,71 +1,55 @@
-﻿namespace LibXboxOne
+﻿using System;
+
+namespace LibXboxOne
 {
+    public enum XvdType : uint
+    {
+        Fixed = 0,
+        Dynamic = 1
+    }
+
     public enum XvdContentType : uint
     {
-        // ReSharper disable InconsistentNaming
         Data = 0,
-        GameContainer = 1,
-        SystemOS = 2, // system.xvd / sharedOS
-        EraOS = 3, // era.xvd / exclusiveOS
+        Title = 1,
+        SystemOS = 2,
+        EraOS = 3,
         Scratch = 4,
         ResetData = 5,
         Application = 6,
-        HostOS = 7, // host.xvd / hostOS
-        // 8
-        // 9
-        // 0xA
+        HostOS = 7,
+        X360STFS = 8,
+        X360FATX = 9,
+        X360GDFX = 0xA,
         Updater = 0xB,
-        UpdaterAlt = 0xC, // some updater.xvd files use this
-        Template = 0xD, // sostmpl.xvd SettingsTemplate.xvd
-        // 0xE
-        // 0xF
-        // 0x10
-        // 0x11
-        // 0x12
+        OfflineUpdater = 0xC,
+        Template = 0xD,
+        MteHost = 0xE,
+        MteApp = 0xF,
+        MteTitle = 0x10,
+        MteEraOS = 0x11,
+        EraTools = 0x12,
         SystemTools = 0x13,
         SystemAux = 0x14,
-        // 0x15
-        // 0x16
-        // 0x17
-        AppDLC = 0x18, // downloadable content for an application
-        GameDLC = 0x19, // downloadable content for a game title
-        UniversalDLC = 0x1A // dowloadable content not associated with an application or game
-        // ReSharper restore InconsistentNaming
+        SomethingSomething = 0x15,
+        Codec = 0x16,
+        Qaslt = 0x17,
+        AppDlc = 0x18,
+        TitleDlc = 0x19,
+        UniversalDlc = 0x1A,
+        SystemData = 0x1B,
+        Test = 0x1C,
+        Unknown1D = 0x1D,
+        Kiosk = 0x1E,
+        Unknown20 = 0x20,
+        Uwa = 0x21,
+        Unknown22 = 0x22,
+        Unknown23 = 0x23,
+        Unknown24 = 0x24,
+        ServerAgent = 0x25
     }
 
-    public enum XvdContentTypeNew : uint
-    {
-        ContentTypeData = 0,
-        ContentTypeTitle = 1,
-        ContentTypeSystemOS = 2,
-        ContentTypeEraOS = 3,
-        ContentTypeScratch = 4,
-        ContentTypeResetData = 5,
-        ContentTypeApplication = 6,
-        ContentTypeHostOS = 7,
-        ContentTypeX360STFS = 8,
-        ContentTypeX360FATX = 9,
-        ContentTypeX360GDFX = 0xA,
-        ContentTypeUpdater = 0xB,
-        ContentTypeOfflineUpdater = 0xC,
-        ContentTypeTemplate = 0xD,
-        ContentTypeMteHost = 0xE,
-        ContentTypeMteApp = 0xF,
-        ContentTypeMteTitle = 0x10,
-        ContentTypeMteEraOS = 0x11,
-        ContentTypeEraTools = 0x12,
-        ContentTypeSystemTools = 0x13,
-        ContentTypeSystemAux = 0x14,
-        ContentTypeSomethingSomething = 0x15,
-        ContentTypeCodec = 0x16,
-        ContentTypeQaslt = 0x17,
-        ContentTypeAppDlc = 0x18,
-        ContentTypeTitleDlc = 0x19,
-        ContentTypeUniversalDlc = 0x1A,
-        ContentTypeSystemData = 0x1B,
-        ContentTypeTest = 0x1C
-    }
-
+    [Flags]
     public enum XvcRegionFlags : uint
     {
         Resident = 1,
@@ -74,12 +58,16 @@
         FileSystemMetadata = 8
     }
 
+    [Flags]
     public enum XvdVolumeFlags : uint
     {
         ReadOnly = 1,
         EncryptionDisabled = 2, // data decrypted, no encrypted CIKs
         DataIntegrityDisabled = 4, // unsigned and unhashed
-        SystemFile = 8, // only observed in system files
-        Unknown = 0x40, // unsure, never set on unsigned/unhashed files
+        LegacySectorSize = 8,
+        ResiliencyEnabled = 0x10,
+        SraReadOnly = 0x20,
+        RegionIdInXts = 0x40,
+        EraSpecific = 0x80
     }
 }

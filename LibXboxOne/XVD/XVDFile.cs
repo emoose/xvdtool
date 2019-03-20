@@ -5,52 +5,48 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Xml;
+using LibXboxOne.Keys;
 
 namespace LibXboxOne
 {
     public class XvdFile : IDisposable
     {
-        public static bool CikFileLoaded = false;
-        public static Dictionary<Guid, byte[]> CikKeys = new Dictionary<Guid, byte[]>();
-        public static Guid NullGuid = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        public static byte[] TestCikHash = { 0xb7, 0x18, 0x3b, 0x86, 0x83, 0x56, 0x43, 0x02, 0x99, 0xe5, 0xef, 0xcb, 0xa9, 0xe8, 0x34, 0x97, 0x5d, 0x78, 0xcf, 0x6f };
+        #region Constants
 
-        public static Guid GetTestCikKey()
-        {
-            foreach (var kvp in CikKeys)
-            {
-                byte[] guidBytes = kvp.Key.ToByteArray();
-                byte[] guidHash = SHA1.Create().ComputeHash(guidBytes);
-                if (guidHash.IsEqualTo(TestCikHash))
-                {
-                    return kvp.Key;
-                }
-            }
+        public static readonly uint PAGE_SIZE = 0x1000;
+        public static readonly uint BLOCK_SIZE = 0xAA000;
+        public static readonly uint SECTOR_SIZE = 4096;
+        public static readonly uint LEGACY_SECTOR_SIZE = 512;
+        public static readonly uint INVALID_SECTOR = 0xFFFFFFFF;
 
-            return NullGuid;
-        }
+        public static readonly uint HASH_ENTRY_LENGTH = 0x18;
 
-        public static bool OdkKeyLoaded = false;
-        public static byte[] OdkKey;
+        public static readonly uint HASH_ENTRIES_IN_PAGE = PAGE_SIZE / HASH_ENTRY_LENGTH; // 0xAA
+        public static readonly uint PAGES_PER_BLOCK = BLOCK_SIZE / PAGE_SIZE; // 0xAA
 
-        public static bool SignKeyLoaded = false;
-        public static byte[] SignKey;
+        public static readonly uint DATA_BLOCKS_IN_LEVEL0_HASHTREE = HASH_ENTRIES_IN_PAGE; // 0xAA
+        public static readonly uint DATA_BLOCKS_IN_LEVEL1_HASHTREE = HASH_ENTRIES_IN_PAGE * DATA_BLOCKS_IN_LEVEL0_HASHTREE; // 0x70E4
+        public static readonly uint DATA_BLOCKS_IN_LEVEL2_HASHTREE = HASH_ENTRIES_IN_PAGE * DATA_BLOCKS_IN_LEVEL1_HASHTREE; // 0x4AF768
+        public static readonly uint DATA_BLOCKS_IN_LEVEL3_HASHTREE = HASH_ENTRIES_IN_PAGE * DATA_BLOCKS_IN_LEVEL2_HASHTREE; // 0x31C84B10
 
-        public static bool DisableNativeFunctions = false;
+        #endregion
+
         public static bool DisableDataHashChecking = false;
 
         public XvdHeader Header;
+        public uint[] DynamicHeader;
         public XvcInfo XvcInfo;
 
         public List<XvcRegionHeader> RegionHeaders;
         public List<XvcUpdateSegmentInfo> UpdateSegments;
 
         public ulong HashTreeOffset;
-        public ulong HashTreeBlockCount;
+        public ulong HashTreePageCount;
         public ulong HashTreeLevels;
         public ulong UserDataOffset;
+        public ulong DynamicHeaderOffset;
+        public ulong DriveDataOffset;
         public ulong DataOffset;
-        public ulong XvdDataBlockCount;
 
         public bool HashTreeValid = false;
         public bool DataHashTreeValid = false;
@@ -58,17 +54,19 @@ namespace LibXboxOne
 
         public bool CikIsDecrypted = false;
 
-        public static uint[] XvcContentTypes = 
+        public static XvdContentType[] XvcContentTypes = 
         { // taken from bit test 0x07018042 (00000111000000011000000001000010)
           // idx of each set bit (from right to left) is an XVC-enabled content type
-            0x1,
-            0x6,
-            0xF,
-            0x10,
-            0x18,
-            0x19,
-            0x1A
+            XvdContentType.Title,
+            XvdContentType.Application,
+            XvdContentType.MteApp,
+            XvdContentType.MteTitle,
+            XvdContentType.AppDlc,
+            XvdContentType.TitleDlc,
+            XvdContentType.UniversalDlc
         };
+
+        public OdkIndex OverrideOdk { get; set; }
 
         private readonly IO _io;
         private readonly string _filePath;
@@ -85,17 +83,118 @@ namespace LibXboxOne
 
         public bool IsXvcFile
         {
-            get { return Header.ContentType < 0x1A && XvcContentTypes.Contains(Header.ContentType); }
+            get { return XvcContentTypes.Contains(Header.ContentType); }
         }
 
         public bool IsEncrypted
         {
-            get { return !Header.VolumeFlags.IsFlagSet((uint) XvdVolumeFlags.EncryptionDisabled); }
+            get { return !Header.VolumeFlags.HasFlag(XvdVolumeFlags.EncryptionDisabled); }
         }
 
         public bool IsDataIntegrityEnabled
         {
-            get { return !Header.VolumeFlags.IsFlagSet((uint)XvdVolumeFlags.DataIntegrityDisabled); }
+            get { return !Header.VolumeFlags.HasFlag(XvdVolumeFlags.DataIntegrityDisabled); }
+        }
+
+        public bool IsResiliencyEnabled
+        {
+            get { return Header.VolumeFlags.HasFlag(XvdVolumeFlags.ResiliencyEnabled); }
+        }
+
+        public bool UsesLegacySectorSize
+        {
+            get { return Header.VolumeFlags.HasFlag(XvdVolumeFlags.LegacySectorSize); }
+        }
+
+        public XvdFile(string path)
+        {
+            _filePath = path;
+            _io = new IO(path);
+            OverrideOdk = OdkIndex.Invalid;
+        }
+
+        public static bool PagesAligned(ulong page)
+        {
+            return (page & (PAGE_SIZE - 1)) == 0;
+        }
+
+        public static ulong PageAlign(ulong offset)
+        {
+            return offset & 0xFFFFFFFFFFFFF000;
+        }
+
+        public static ulong InBlockOffset(ulong offset)
+        {
+            return offset & (BLOCK_SIZE - 1);
+        }
+
+        public static ulong InPageOffset(ulong offset)
+        {
+            return offset & (PAGE_SIZE - 1);
+        }
+
+        public static ulong BlockNumberToOffset(ulong blockNumber)
+        {
+            return blockNumber * BLOCK_SIZE;
+        }
+
+        public static ulong PageNumberToOffset(ulong pageNumber)
+        {
+            return pageNumber * PAGE_SIZE;
+        }
+
+        public static ulong BytesToBlocks(ulong bytes)
+        {
+            return (bytes + BLOCK_SIZE - 1) / BLOCK_SIZE;
+        }
+
+        public static ulong PagesToBlocks(ulong pages)
+        {
+            return (pages + PAGES_PER_BLOCK - 1) / PAGES_PER_BLOCK;
+        }
+
+        public static ulong BytesToPages(ulong bytes)
+        {
+            return (bytes + PAGE_SIZE - 1) / PAGE_SIZE;
+        }
+
+        public static ulong OffsetToBlockNumber(ulong offset)
+        {
+            return offset / BLOCK_SIZE;
+        }
+
+        public static ulong OffsetToPageNumber(ulong offset)
+        {
+            return offset / PAGE_SIZE;
+        }
+
+        public static ulong SectorsToBytes(ulong sectors)
+        {
+            return sectors * SECTOR_SIZE; 
+        }
+
+        public static ulong LegacySectorsToBytes(ulong sectors)
+        {
+            return sectors * LEGACY_SECTOR_SIZE;
+        }
+
+        public static ulong ComputePagesSpanned(ulong startOffset, ulong lengthBytes)
+        {
+            return OffsetToPageNumber(startOffset + lengthBytes - 1) -
+                   OffsetToPageNumber(lengthBytes) + 1;
+        }
+
+        static ulong QueryFirstDynamicPage(ulong metaDataPagesCount)
+        {
+            return (ulong)PAGES_PER_BLOCK * PagesToBlocks(metaDataPagesCount);
+        }
+
+        ulong ComputeDataBackingPageNumber(XvdType type, ulong numHashLevels, ulong hashPageCount, ulong dataPageNumber)
+        {
+            if (type > XvdType.Dynamic) // Invalid Xvd Type!
+                return dataPageNumber;
+
+            return dataPageNumber + hashPageCount;    
         }
 
         private void CryptHeaderCik(bool encrypt)
@@ -106,20 +205,30 @@ namespace LibXboxOne
                 return;
             }
 
-            if (!OdkKeyLoaded)
-                return;
+            var odkToUse = OverrideOdk == OdkIndex.Invalid ? Header.ODKKeyslotID : OverrideOdk;
 
-            var cipher = new AesCipher(OdkKey);
-            if (encrypt)
+            var odkKey = Keys.DurangoKeys.GetOdkById(odkToUse);
+            if (odkKey == null)
             {
-                cipher.EncryptBlock(Header.EncryptedCIK, 0, 0x10, Header.EncryptedCIK, 0);
-                cipher.EncryptBlock(Header.EncryptedCIK, 0x10, 0x10, Header.EncryptedCIK, 0x10);
+                throw new InvalidOperationException(
+                    $"ODK with Id \'{Header.ODKKeyslotID}\' not found! Cannot crypt CIK in header");
             }
-            else
+            else if (!odkKey.HasKeyData)
             {
-                cipher.DecryptBlock(Header.EncryptedCIK, 0, 0x10, Header.EncryptedCIK, 0);
-                cipher.DecryptBlock(Header.EncryptedCIK, 0x10, 0x10, Header.EncryptedCIK, 0x10);
+                throw new InvalidOperationException(
+                    $"ODK with Id \'{Header.ODKKeyslotID}\' is known but not loaded! Cannot crypt CIK in header");
             }
+
+            byte[] nullIv = new byte[16];
+
+            var cipher = Aes.Create();
+            cipher.Mode = CipherMode.ECB;
+            cipher.Padding = PaddingMode.None;
+
+            ICryptoTransform transform = encrypt ? cipher.CreateEncryptor(odkKey.KeyData, nullIv) :
+                                                   cipher.CreateDecryptor(odkKey.KeyData, nullIv);
+
+            transform.TransformBlock(Header.KeyMaterial, 0, Header.KeyMaterial.Length, Header.KeyMaterial, 0);
 
             CikIsDecrypted = !encrypt;
         }
@@ -142,280 +251,106 @@ namespace LibXboxOne
             if (key == null)
                 return false;
 
-            return CryptSection(encrypt, key, header.Id, header.Offset, header.Length);
+            return CryptSectionXts(encrypt, key, header.Id, header.Offset, header.Length);
         }
 
-        private bool CryptSection(bool encrypt, byte[] key, uint headerId, ulong offset, ulong length)
+        internal bool CryptSectionXts(bool encrypt, byte[] key, uint headerId, ulong offset, ulong length)
         {
-            var ivKey = new byte[0x10];
-            var dataKey = new byte[0x10];
-            Array.Copy(key, ivKey, 0x10);
-            Array.Copy(key, 0x10, dataKey, 0, 0x10);
+            ulong numDataUnits = BytesToPages(length);
+            var headerIdBytes = BitConverter.GetBytes(headerId);
 
-            var counterToEncrypt = new byte[0x10];
-            Array.Copy(Header.VDUID, 0, counterToEncrypt, 0x8, 0x8);
-            byte[] test = BitConverter.GetBytes(headerId);
-            Array.Copy(test, 0, counterToEncrypt, 0x4, 0x4);
+            var tweakAesKey = new byte[0x10];
+            var dataAesKey = new byte[0x10];
 
-            int numBlocks = (int)(length + 0xFFF) / 0x1000;
+            var tweak = new byte[0x10];
 
-            var ivCipher = new AesCipher(ivKey);
+            // Split tweak- / Data AES key
+            Array.Copy(key, tweakAesKey, 0x10);
+            Array.Copy(key, 0x10, dataAesKey, 0, 0x10);
+
+            // Copy VDUID and header Id as tweak
+            Array.Copy(Header.VDUID, 0, tweak, 0x8, 0x8);
+            Array.Copy(headerIdBytes, 0, tweak, 0x4, 0x4);
+
+            var cipher = new AesXtsTransform(tweak, dataAesKey, tweakAesKey, encrypt);
 
             _io.Stream.Position = (long)offset;
-            for (int i = 0; i < numBlocks; i++)
+            for (ulong dataUnit = 0; dataUnit < numDataUnits; dataUnit++)
             {
-                var counter = new byte[0x10];
-                Array.Copy(counterToEncrypt, counter, 0x10);
+                var transformedData = new byte[PAGE_SIZE];
+                var origData = _io.Reader.ReadBytes((int)PAGE_SIZE);
+                _io.Stream.Position -= PAGE_SIZE;
 
-                var blockIdBytes = BitConverter.GetBytes(i);
-                Array.Copy(blockIdBytes, counter, 4);
+                cipher.TransformDataUnit(origData, 0, origData.Length, transformedData, 0, dataUnit);
 
-                var counterEnc = new byte[0x10];
-                ivCipher.EncryptBlock(counter, 0, 0x10, counterEnc, 0);
-
-                byte[] origData = _io.Reader.ReadBytes(0x1000);
-                byte[] newData = Shared.CryptData(encrypt, origData, dataKey, counterEnc);
-
-                _io.Stream.Position = _io.Stream.Position - 0x1000;
-                _io.Writer.Write(newData);
+                _io.Writer.Write(transformedData);
             }
             return true;
         }
 
-        private ulong CalculateHashBlockNumForBlockNum(uint unk1, ulong blockNum, uint idx, out ulong entryNumInBlock)
+        internal static ulong CalculateHashBlockNumForBlockNum(XvdType type, ulong hashTreeLevels, ulong numberOfHashedPages,
+                                                                ulong blockNum, uint index, out ulong entryNumInBlock)
         {
-            var tempHashTreeLevels = HashTreeLevels;
+            ulong HashBlockExponent(ulong blockCount)
+            {
+                return (ulong)Math.Pow(0xAA, blockCount);
+            }
 
+            long _hashTreeLevels = (long)hashTreeLevels;
+            ulong result = 0xFFFF;
             entryNumInBlock = 0;
 
-            if (unk1 > 1)
+            if ((uint)type > 1 || index > 3)
+                return result; // Invalid data
+
+            if (index == 0)
+                entryNumInBlock = blockNum % 0xAA;
+            else
+                entryNumInBlock = blockNum / HashBlockExponent(index) % 0xAA;
+
+            if (index == 3)
                 return 0;
 
-            uint edx;
+            result = blockNum / HashBlockExponent(index + 1);
+            hashTreeLevels -= (index + 1);
 
-            ulong returnVal = 0;
-            if (idx == 0)
+            if (index == 0 && hashTreeLevels > 0)
             {
-                ulong newBlock = blockNum*0xc0c0c0c1;
-                edx = (uint)(newBlock >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newBlock = (uint)(newBlock & uint.MaxValue);
-
-                returnVal = edx >> 7;
-
-                var eax = returnVal * 0xAA;
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                edx = (uint)(eax >> 32);
-                eax = (uint)(eax & uint.MaxValue);
-
-                blockNum -= eax;
-                entryNumInBlock = blockNum;
-                tempHashTreeLevels--;
-
-                if (tempHashTreeLevels == 0)
-                    return returnVal;
-
-                var addr = XvdDataBlockCount + 0x70E3;
-
-                addr = addr * 0x9121b243;
-                edx = (uint)(addr >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                addr = (uint)(addr & uint.MaxValue);
-
-                edx = edx >> 0xE;
-                returnVal += edx;
-                tempHashTreeLevels--;
+                result += (numberOfHashedPages + HashBlockExponent(2) - 1) / HashBlockExponent(2);
+                hashTreeLevels--;
             }
-            if (idx == 1)
+            
+            if ((index == 0 || index == 1) && hashTreeLevels > 0)
             {
-                var newBlock = blockNum * 0xc0c0c0c1;
-                edx = (uint)(newBlock >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newBlock = (uint)(newBlock & uint.MaxValue);
-
-                ulong ecx = edx;
-                ecx = ecx >> 7;
-
-                var newEcx = ecx * 0xc0c0c0c1;
-                edx = (uint)(newEcx >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newEcx = (uint)(newEcx & uint.MaxValue);
-
-                edx = edx >> 7;
-
-                var eax = (ulong)edx * 0xAA;
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                edx = (uint)(eax >> 32);
-                eax = (uint)(eax & uint.MaxValue);
-
-                ecx -= eax;
-
-                entryNumInBlock = ecx;
-
-                newBlock = blockNum * 0x9121b243;
-                edx = (uint)(newBlock >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newBlock = (uint)(newBlock & uint.MaxValue);
-
-                returnVal = edx;
-                returnVal = returnVal >> 0xE;
-                tempHashTreeLevels -= 2;
+                result += (numberOfHashedPages + HashBlockExponent(3) - 1) / HashBlockExponent(3);
+                hashTreeLevels--;
             }
-            if (idx == 0 || idx == 1)
-            {
-                if (tempHashTreeLevels == 0)
-                    return returnVal;
 
-                var addr = XvdDataBlockCount + 0x4AF767;
+            if (hashTreeLevels > 0 )
+                result += (numberOfHashedPages + HashBlockExponent(4) - 1) / HashBlockExponent(4);
 
-                addr = addr*0xDA8D187D;
-                edx = (uint)(addr >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                addr = (uint)(addr & uint.MaxValue);
-
-                tempHashTreeLevels--;
-                edx = edx >> 0x16;
-                returnVal += edx;
-            }
-            if (idx == 2)
-            {
-                var newBlock = blockNum * 0x9121B243;
-                edx = (uint)(newBlock >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newBlock = (uint)(newBlock & uint.MaxValue);
-
-                ulong ecx = edx;
-                ecx = ecx >> 0xE;
-
-                var newEcx = ecx * 0xc0c0c0c1;
-                edx = (uint)(newEcx >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newEcx = (uint)(newEcx & uint.MaxValue);
-
-                edx = edx >> 7;
-
-                var eax = (ulong)edx * 0xAA;
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                edx = (uint)(eax >> 32);
-                eax = (uint)(eax & uint.MaxValue);
-
-                ecx -= eax;
-
-                entryNumInBlock = ecx;
-
-                newBlock = blockNum * 0xda8d187d;
-                edx = (uint)(newBlock >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newBlock = (uint)(newBlock & uint.MaxValue);
-
-                returnVal = edx;
-                tempHashTreeLevels -= 3;
-                returnVal = returnVal >> 0x16;
-            }
-            if (idx == 0 || idx == 1 || idx == 2)
-            {
-                if (tempHashTreeLevels == 0)
-                    return returnVal;
-
-                var addr = XvdDataBlockCount + 0x31C84B0F;
-
-                var newAddr = addr * 0x491CC17D;
-                edx = (uint)(newAddr >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newAddr = (uint)(newAddr & uint.MaxValue);
-
-                addr -= edx;
-                addr = addr >> 1;
-                addr += edx;
-                addr = addr >> 0x1D;
-                returnVal += addr;
-                return returnVal;
-            }
-            if (idx == 3)
-            {
-                var newBlock = blockNum * 0xDA8D187D;
-                edx = (uint)(newBlock >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newBlock = (uint)(newBlock & uint.MaxValue);
-
-                ulong ecx = edx;
-                ecx = ecx >> 0x16;
-
-                var newEcx = ecx * 0xc0c0c0c1;
-                edx = (uint)(newEcx >> 32);
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                newEcx = (uint)(newEcx & uint.MaxValue);
-
-                edx = edx >> 7;
-
-                ulong eax = (ulong)edx * 0xAA;
-                // ReSharper disable once UnusedVariable
-                // ReSharper disable once RedundantAssignment
-                edx = (uint)(eax >> 32);
-                eax = (uint)(eax & uint.MaxValue);
-
-                ecx -= eax;
-                entryNumInBlock = ecx;
-                returnVal = 0;
-            }
-            return returnVal;
+            return result;
         }
 
-        private ulong CalculateNumHashBlocksInLevel(ulong size, ulong idx)
+        internal static ulong CalculateNumHashBlocksInLevel(ulong size, ulong idx, bool resilient)
         {
-            var tempSize = size;
-            if (idx == 0)
-            {
-                tempSize += 0xA9;
-                tempSize = tempSize * 0xc0c0c0c1;
-                return (tempSize >> 32) / 0x80;
-            }
-            if (idx == 1)
-            {
-                tempSize += 0x70e3;
-                tempSize = tempSize * 0x9121b243;
-                return (tempSize >> 32) / 0x4000;
-            }
-            if (idx == 2)
-            {
-                tempSize += 0x4af767;
-                tempSize = tempSize * 0xDA8D187D;
-                return (tempSize >> 32) / 0x400000;
-            }
-            if (idx == 3)
-            {
-                tempSize += 0x31C84B0F;
-                tempSize = tempSize * 0x491CC17D;
-                var high = (tempSize >> 32);
-                var low = (tempSize & uint.MaxValue);
-                low -= high;
-                low = low / 2;
-                low += high;
-                return low / 0x20000000;
-            }
-            return 0;
+            if (idx > 3)
+                return 0;
+
+            ulong blockSz = (ulong)Math.Pow(0xAA, idx + 1);
+            blockSz = (size + blockSz - 1) / blockSz;
+
+            if (resilient)
+                blockSz *= 2;
+
+            return blockSz;
         }
 
         public byte[] ExtractEmbeddedXvd()
         {
             if (Header.EmbeddedXVDLength == 0)
                 return null;
-            _io.Stream.Position = 3 * 0x1000; // end of XVD header
+            _io.Stream.Position = (long)PageNumberToOffset(3); // end of XVD header
             return _io.Reader.ReadBytes((int)Header.EmbeddedXVDLength);
         }
 
@@ -427,211 +362,45 @@ namespace LibXboxOne
             return _io.Reader.ReadBytes((int) Header.UserDataLength);
         }
 
-        private void CalculateDataOffsets()
+        static ulong CalculateNumberHashPages(out ulong hashTreeLevels, ulong hashedPagesCount, bool resilient)
         {
-            ulong[] longs = { Header.UserDataLength, Header.XvcDataLength, Header.DynamicHeaderLength, Header.DriveSize };
-            // count up how many blocks each of the sections lengths in the header take up
-            XvdDataBlockCount = longs.Select(addLong => (addLong + 0xFFF) / 0x1000).Aggregate<ulong, ulong>(0, (current, newLong) => current + newLong);
-
-            ulong total2 = XvdDataBlockCount + 0xa9;
-            total2 = total2 * 0xC0C0C0C1;
-
-            var high = (uint)(total2 >> 32);
-            // ReSharper disable once UnusedVariable
-            var low = (uint)(total2 & uint.MaxValue);
-
-            HashTreeBlockCount = high / 0x80;
-            if (HashTreeBlockCount > 1)
+            ulong hashTreeBlockCount = PagesToBlocks(hashedPagesCount);
+            hashTreeLevels = 1;
+            
+            if (hashTreeBlockCount > 1)
             {
-                HashTreeLevels = 1;
                 ulong result = 2;
                 while (result > 1)
                 {
-                    result = CalculateNumHashBlocksInLevel(XvdDataBlockCount, HashTreeLevels);
-                    HashTreeLevels += 1;
-                    HashTreeBlockCount += result;
+                    result = CalculateNumHashBlocksInLevel(hashedPagesCount, hashTreeLevels, false);
+                    hashTreeLevels += 1;
+                    hashTreeBlockCount += result;
                 }
             }
 
-            var userDataBlocks = (Header.UserDataLength + 0xFFF) / 0x1000;
-            var exvdBlocks = (Header.EmbeddedXVDLength + 0xFFF) / 0x1000;
-            var totalBlocks = 3 + exvdBlocks;
-            HashTreeOffset = totalBlocks * 0x1000;
-            UserDataOffset = (totalBlocks + HashTreeBlockCount) * 0x1000;
+            if (resilient)
+                hashTreeBlockCount *= 2;
+
+            return hashTreeBlockCount;
+        }
+
+        private void CalculateDataOffsets()
+        {
+            HashTreePageCount = CalculateNumberHashPages(out HashTreeLevels, Header.NumberOfHashedPages, IsResiliencyEnabled);
+
+            var totalPages = 3 + Header.EmbeddedXvdPageCount;
+            HashTreeOffset = PageNumberToOffset(totalPages);
+            UserDataOffset = PageNumberToOffset(totalPages + HashTreePageCount);
 
             if (!IsDataIntegrityEnabled)
                 UserDataOffset = HashTreeOffset;
 
-            DataOffset = UserDataOffset + (userDataBlocks * 0x1000);
-        }
-
-        public XvdFile(string path)
-        {
-            _filePath = path;
-            _io = new IO(path);
-
-            LoadKeysFromDisk();
-        }
-
-        public static void LoadKeysFromDisk()
-        {
-            if (!CikFileLoaded)
-            {
-                string cikFile = Shared.FindFile("cik_keys.bin");
-                if (!String.IsNullOrEmpty(cikFile))
-                {
-                    using(var cikIo = new IO(cikFile))
-                    {
-                        if (cikIo.Stream.Length >= 0x30)
-                        {
-                            var numKeys = (int)(cikIo.Stream.Length/0x30);
-                            for (int i = 0; i < numKeys; i++)
-                            {
-                                var keyGuid = new Guid(cikIo.Reader.ReadBytes(0x10));
-                                byte[] key = cikIo.Reader.ReadBytes(0x20);
-                                if(!CikKeys.ContainsKey(keyGuid))
-                                    CikKeys.Add(keyGuid, key);
-                            }
-                            CikFileLoaded = true;
-                        }
-                    }
-                    GetTestCikKey();
-                }
-            }
-            if (!OdkKeyLoaded)
-            {
-                string odkFile = Shared.FindFile("odk_key.bin");
-                if (!String.IsNullOrEmpty(odkFile))
-                {
-                    byte[] testKey = File.ReadAllBytes(odkFile);
-                    if (testKey.Length >= 0x20)
-                    {
-                        OdkKey = testKey;
-                        OdkKeyLoaded = true;
-                    }
-                }
-            }
-            if (!SignKeyLoaded)
-            {
-                string keyFile = Shared.FindFile("rsa3_key.bin");
-                if (!String.IsNullOrEmpty(keyFile))
-                {
-                    byte[] testKey = File.ReadAllBytes(keyFile);
-                    if (testKey.Length >= 0x91B)
-                    {
-                        SignKey = testKey;
-                        SignKeyLoaded = true;
-                    }
-                }
-            }
-
-            if (!CikFileLoaded || !OdkKeyLoaded || !SignKeyLoaded)
-                LoadKeysFromSdk();
-        }
-
-
-        public static bool LoadKeysFromSdk(string sdkPath = "")
-        {
-            if (String.IsNullOrEmpty(sdkPath))
-                sdkPath = @"C:\Program Files (x86)\Microsoft Durango XDK\bin";
-
-            if (!sdkPath.ToLower().EndsWith("xvdsign.exe"))
-                sdkPath = Path.Combine(sdkPath, "xvdsign.exe");
-
-            if (!File.Exists(sdkPath))
-                return false;
-
-            byte[] exeData = File.ReadAllBytes(sdkPath);
-            byte[] testOdkHash = { 0xCA, 0x37, 0x13, 0x2D, 0xFB, 0x4B, 0x81, 0x15, 0x06, 0xAE, 0x4D, 0xC4, 0x5F, 0x45, 0x97, 0x0F, 0xED, 0x8F, 0xE5, 0xE5, 0x8C, 0x1B, 0xAC, 0xB2, 0x59, 0xF1, 0xB9, 0x61, 0x45, 0xB0, 0xEB, 0xC6 };
-            byte[] testCikGuidHash = { 0x2E, 0xD6, 0x95, 0x85, 0x97, 0x6B, 0xD0, 0x0F, 0x62, 0x06, 0xFF, 0x07, 0xC9, 0xA1, 0xFB, 0x46, 0x20, 0x74, 0xD3, 0x60, 0x64, 0x56, 0x09, 0x3D, 0x87, 0xF7, 0xE8, 0x2A, 0x73, 0x3E, 0x53, 0xD8 };
-            byte[] testCikHash = { 0x67, 0x86, 0xC1, 0x1B, 0x78, 0x8E, 0xD5, 0xCC, 0xE3, 0xC7, 0x69, 0x54, 0x25, 0xCB, 0x82, 0x97, 0x03, 0x47, 0x18, 0x06, 0x50, 0x89, 0x3D, 0x1B, 0x56, 0x13, 0xB2, 0xEF, 0xB3, 0x3F, 0x9F, 0x4E };
-            byte[] testSignHash = { 0x8E, 0x2B, 0x60, 0x37, 0x70, 0x06, 0xD8, 0x7E, 0xE8, 0x50, 0x33, 0x4C, 0x42, 0xFC, 0x20, 0x00, 0x81, 0x38, 0x6A, 0x83, 0x8C, 0x65, 0xD9, 0x6D, 0x1E, 0xA5, 0x20, 0x32, 0xAA, 0x96, 0x28, 0xC5 };
-
-            if (testOdkHash.Length != 0x20)
-                return false;
-            if (testCikHash.Length != 0x20)
-                return false;
-            if (testCikGuidHash.Length != 0x20)
-                return false;
-            if (testSignHash.Length != 0x20)
-                return false;
-
-            var testOdk = new byte[0x20];
-            var odkFound = false;
-            var testCikGuid = new byte[0x10];
-            var cikGuidFound = false;
-            var testCik = new byte[0x20];
-            var cikFound = false;
-            var testSign = new byte[0x91B];
-            var testSignFound = false;
-
-            var sha = SHA256.Create();
-            for (int i = 0; i < exeData.Length - 0x20; i += 8)
-            {
-                if (odkFound && cikFound && cikGuidFound && testSignFound)
-                    break;
-                byte[] hash16 = sha.ComputeHash(exeData, i, 16);
-                byte[] hash32 = sha.ComputeHash(exeData, i, 32);
-
-                if (!odkFound && hash32.IsEqualTo(testOdkHash))
-                {
-                    Array.Copy(exeData, i, testOdk, 0, 0x20);
-                    odkFound = true;
-                    i += 0x18;
-                }
-                else if (!cikFound && hash32.IsEqualTo(testCikHash))
-                {
-                    Array.Copy(exeData, i, testCik, 0, 0x20);
-                    cikFound = true;
-                    i += 0x18;
-                }
-                else if (!cikGuidFound && hash16.IsEqualTo(testCikGuidHash))
-                {
-                    Array.Copy(exeData, i, testCikGuid, 0, 0x10);
-                    cikGuidFound = true;
-                    i += 0x8;
-                }
-                else if(!testSignFound)
-                {
-                    byte[] signHash = sha.ComputeHash(exeData, i, 0x91B); // 0x91B = RSA3 struct size
-                    if (signHash.IsEqualTo(testSignHash))
-                    {
-                        Array.Copy(exeData, i, testSign, 0, 0x91B);
-                        testSignFound = true;
-                        i += 0x913;
-                    }
-                }
-            }
-
-            if (!odkFound || !cikFound || !cikGuidFound || !testSignFound)
-                return false; // failed to find one of the keys, exit out in case the rest are incorrect
-
-            if (!OdkKeyLoaded)
-            {
-                OdkKey = testOdk;
-                OdkKeyLoaded = true;
-            }
-
-            if (!SignKeyLoaded)
-            {
-                SignKey = testSign;
-                SignKeyLoaded = true;
-            }
-
-            var keyGuid = new Guid(testCikGuid);
-            if (!CikKeys.ContainsKey(keyGuid))
-            {
-                CikKeys.Add(keyGuid, testCik);
-            }
-            CikFileLoaded = true;
-            GetTestCikKey();
-
-            return true;
-        }
-
-        public void Dispose()
-        {
-            _io.Dispose();
+            DynamicHeaderOffset = 0;
+            DataOffset = UserDataOffset + PageNumberToOffset(Header.UserDataPageCount);
+            DriveDataOffset = DataOffset + PageNumberToOffset(Header.DynamicHeaderPageCount);
+            
+            if (Header.Type == XvdType.Dynamic)
+                DynamicHeaderOffset = DataOffset;
         }
 
         public bool Decrypt()
@@ -660,20 +429,20 @@ namespace LibXboxOne
             else
             {
                 // todo: check with more non-xvc xvds and see if they use any other headerId besides 0x1
-                success = CryptSection(false, Header.EncryptedCIK, 0x1, UserDataOffset,
+                success = CryptSectionXts(false, Header.KeyMaterial, 0x1, UserDataOffset,
                     (ulong)_io.Stream.Length - UserDataOffset);
             }
 
             if (!success)
                 return false;
 
-            Header.VolumeFlags = Header.VolumeFlags.ToggleFlag((uint) XvdVolumeFlags.EncryptionDisabled);
+            Header.VolumeFlags ^= XvdVolumeFlags.EncryptionDisabled;
             Save();
 
             return true;
         }
 
-        public bool Encrypt(int cikKeyId = 0)
+        public bool Encrypt(Guid cikKeyId)
         {
             if (IsEncrypted)
                 return true;
@@ -682,27 +451,33 @@ namespace LibXboxOne
 
             if (!IsXvcFile)
             {
-                if (Header.EncryptedCIK.IsArrayEmpty())
+                if (Header.KeyMaterial.IsArrayEmpty())
                 {
                     // generate a new CIK if there's none specified
                     var rng = new Random();
-                    Header.EncryptedCIK = new byte[0x20];
-                    rng.NextBytes(Header.EncryptedCIK);
+                    Header.KeyMaterial = new byte[0x20];
+                    rng.NextBytes(Header.KeyMaterial);
                 }
 
                 // todo: check with more non-xvc xvds and see if they use any other headerId besides 0x1
-                success = CryptSection(true, Header.EncryptedCIK, 0x1, UserDataOffset,
+                success = CryptSectionXts(true, Header.KeyMaterial, 0x1, UserDataOffset,
                     (ulong)_io.Stream.Length - UserDataOffset);
             }
             else
             {
-                if (cikKeyId >= 0) // if cikKeyId isn't -1 set the XvcInfo key GUID to one we know
+                if (cikKeyId != null && cikKeyId != Guid.Empty) // if cikKeyId is set, set the XvcInfo key accordingly
                 {
-                    var keyGuids = CikKeys.Keys.ToList();
-                    if (cikKeyId < 0 || cikKeyId >= keyGuids.Count)
-                        return false;
+                    var key = DurangoKeys.GetCikByGuid(cikKeyId);
+                    if (key == null)
+                    {
+                        throw new InvalidOperationException($"Desired CIK with GUID {cikKeyId} is unknown");
+                    }
+                    else if (!key.HasKeyData)
+                    {
+                        throw new InvalidOperationException($"Desired CIK with GUID {cikKeyId} is known but not loaded");
+                    }
 
-                    XvcInfo.EncryptionKeyIds[0].KeyId = keyGuids[cikKeyId].ToByteArray();
+                    XvcInfo.EncryptionKeyIds[0].KeyId = cikKeyId.ToByteArray();
                 }
 
                 for (int i = 0; i < RegionHeaders.Count; i++)
@@ -725,12 +500,12 @@ namespace LibXboxOne
 
             CryptHeaderCik(true);
 
-            Header.VolumeFlags = Header.VolumeFlags.ToggleFlag((uint)XvdVolumeFlags.EncryptionDisabled);
+            Header.VolumeFlags ^= XvdVolumeFlags.EncryptionDisabled;
 
             // seems the readonly flag gets set when encrypting
-            if (!Header.VolumeFlags.IsFlagSet((uint) XvdVolumeFlags.ReadOnly))
+            if (!Header.VolumeFlags.HasFlag(XvdVolumeFlags.ReadOnly))
             {
-                Header.VolumeFlags = Header.VolumeFlags.ToggleFlag((uint)XvdVolumeFlags.ReadOnly);
+                Header.VolumeFlags ^= XvdVolumeFlags.ReadOnly;
             }
 
             Save();
@@ -761,7 +536,7 @@ namespace LibXboxOne
             if (IsDataIntegrityEnabled)
             {
 // ReSharper disable once UnusedVariable
-                int[] invalidBlocks = VerifyDataHashTree(true);
+                ulong[] invalidBlocks = VerifyDataHashTree(true);
 // ReSharper disable once UnusedVariable
                 bool hashTreeValid = CalculateHashTree();
             }
@@ -783,6 +558,16 @@ namespace LibXboxOne
 
             if (DataOffset >= (ulong)_io.Stream.Length)
                 return false;
+
+            if (Header.Type == XvdType.Dynamic)
+            {
+                _io.Stream.Position = (long)DynamicHeaderOffset;
+                DynamicHeader = new uint[Header.DynamicHeaderLength / sizeof(uint)];
+                for (int entry = 0; entry < DynamicHeader.Length; entry++)
+                {
+                    DynamicHeader[entry] = _io.Reader.ReadUInt32();
+                }
+            }
 
             if (Header.XvcDataLength > 0 && IsXvcFile)
             {
@@ -809,7 +594,7 @@ namespace LibXboxOne
             {
                 if (!DisableDataHashChecking)
                 {
-                    int[] invalidBlocks = VerifyDataHashTree();
+                    ulong[] invalidBlocks = VerifyDataHashTree();
                     DataHashTreeValid = invalidBlocks.Length <= 0;
                 }
                 HashTreeValid = VerifyHashTree();
@@ -824,7 +609,7 @@ namespace LibXboxOne
             if (!IsXvcFile)
                 return true;
 
-            ulong hashTreeSize = HashTreeBlockCount * 0x1000;
+            ulong hashTreeSize = HashTreePageCount * PAGE_SIZE;
 
             var ms = new MemoryStream();
             var msIo = new IO(ms);
@@ -878,7 +663,7 @@ namespace LibXboxOne
 
             byte[] xvcData = ms.ToArray();
             msIo.Dispose();
-            byte[] hash = SHA256.Create().ComputeHash(xvcData);
+            byte[] hash = HashUtils.ComputeSha256(xvcData);
             bool isValid = Header.OriginalXvcDataHash.IsEqualTo(hash);
 
             if (rehash)
@@ -892,13 +677,13 @@ namespace LibXboxOne
             if (IsDataIntegrityEnabled)
                 return true;
 
-            var hashTreeSize = (long) (HashTreeBlockCount * 0x1000);
+            var hashTreeSize = (long) (HashTreePageCount * PAGE_SIZE);
 
             _io.Stream.Position = (long)HashTreeOffset;
             if (!_io.AddBytes(hashTreeSize))
                 return false;
 
-            Header.VolumeFlags = Header.VolumeFlags.ToggleFlag((uint)XvdVolumeFlags.DataIntegrityDisabled);
+            Header.VolumeFlags ^= XvdVolumeFlags.DataIntegrityDisabled;
 
             if (IsXvcFile)
             {
@@ -938,13 +723,13 @@ namespace LibXboxOne
             if (!IsDataIntegrityEnabled)
                 return true;
 
-            var hashTreeSize = (long)(HashTreeBlockCount * 0x1000);
+            var hashTreeSize = (long)(HashTreePageCount * PAGE_SIZE);
 
             _io.Stream.Position = (long)HashTreeOffset;
             if (!_io.DeleteBytes(hashTreeSize))
                 return false;
 
-            Header.VolumeFlags = Header.VolumeFlags.ToggleFlag((uint)XvdVolumeFlags.DataIntegrityDisabled);
+            Header.VolumeFlags ^= XvdVolumeFlags.DataIntegrityDisabled;
             
             for (int i = 0; i < Header.TopHashBlockHash.Length; i++)
                 Header.TopHashBlockHash[i] = 0;
@@ -979,31 +764,33 @@ namespace LibXboxOne
             return true;
         }
 
-        public int[] VerifyDataHashTree(bool rehash = false)
+        public ulong[] VerifyDataHashTree(bool rehash = false)
         {
-            int dataBlockCount = (int)((ulong)_io.Stream.Length - UserDataOffset)/0x1000;
-            var invalidBlocks = new List<int>();
+            ulong dataBlockCount = ((ulong)_io.Stream.Length - UserDataOffset) / PAGE_SIZE;
+            var invalidBlocks = new List<ulong>();
 
-            for (int i = 0; i < dataBlockCount; i++)
+            for (ulong i = 0; i < dataBlockCount; i++)
             {
                 ulong stackNum;
-                var blockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated, (ulong)i, 0, out stackNum);
+                var blockNum = CalculateHashBlockNumForBlockNum(Header.Type,
+                                                                HashTreeLevels, Header.NumberOfHashedPages,
+                                                                (ulong)i, 0, out stackNum);
 
-                var hashEntryOffset = (blockNum*0x1000) + HashTreeOffset;
-                hashEntryOffset += stackNum*0x18;
+                var hashEntryOffset = PageNumberToOffset(blockNum) + HashTreeOffset;
+                hashEntryOffset += stackNum * HASH_ENTRY_LENGTH;
 
                 _io.Stream.Position = (long)hashEntryOffset;
-                byte[] oldhash = _io.Reader.ReadBytes(0x18);
+                byte[] oldhash = _io.Reader.ReadBytes((int)HASH_ENTRY_LENGTH);
 
-                var dataToHashOffset = (((uint)i*0x1000) + UserDataOffset);
+                var dataToHashOffset = (PageNumberToOffset(i) + UserDataOffset);
 
                 _io.Stream.Position = (long)dataToHashOffset;
-                byte[] data = _io.Reader.ReadBytes(0x1000);
-                byte[] hash = SHA256.Create().ComputeHash(data);
-                Array.Resize(ref hash, 0x18);
+                byte[] data = _io.Reader.ReadBytes((int)PAGE_SIZE);
+                byte[] hash = HashUtils.ComputeSha256(data);
+                Array.Resize(ref hash, (int)HASH_ENTRY_LENGTH);
 
-                bool writeIdx = false; // encrypted data uses 0x14 hashes with a block IDX added to the end to make the 0x18 hash
-                var idxToWrite = (uint)i;
+                bool writeIdx = false; // encrypted data uses 0x14 hashes with a block IDX added to the end to make the HASH_ENTRY_LENGTH hash
+                uint idxToWrite = (uint)i;
                 if (IsEncrypted)
                 {
                     if (IsXvcFile)
@@ -1024,7 +811,7 @@ namespace LibXboxOne
                         if (hdr.Id != 0)
                         {
                             var regionOffset = dataToHashOffset - hdr.Offset;
-                            var regionBlockNo = (regionOffset + 0xFFF)/0x1000;
+                            var regionBlockNo = BytesToPages(regionOffset);
                             idxToWrite = (uint) regionBlockNo;
                         }
                     }
@@ -1061,24 +848,28 @@ namespace LibXboxOne
             while (hashTreeLevel < HashTreeLevels)
             {
                 uint dataBlockNum = 0;
-                if (XvdDataBlockCount != 0)
+                if (Header.NumberOfHashedPages != 0)
                 {
-                    while (dataBlockNum < XvdDataBlockCount)
+                    while (dataBlockNum < Header.NumberOfHashedPages)
                     {
                         ulong entryNum;
-                        var blockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated, dataBlockNum, hashTreeLevel - 1, out entryNum);
-                        _io.Stream.Position = (long)(HashTreeOffset + (blockNum * 0x1000));
-                        byte[] blockHash = SHA256.Create().ComputeHash(_io.Reader.ReadBytes(0x1000));
-                        Array.Resize(ref blockHash, 0x18);
+                        var blockNum = CalculateHashBlockNumForBlockNum(Header.Type,
+                                                                        HashTreeLevels, Header.NumberOfHashedPages,
+                                                                        dataBlockNum, hashTreeLevel - 1, out entryNum);
+                        _io.Stream.Position = (long)(HashTreeOffset + PageNumberToOffset(blockNum));
+                        byte[] blockHash = HashUtils.ComputeSha256(_io.Reader.ReadBytes((int)PAGE_SIZE));
+                        Array.Resize(ref blockHash, (int)HASH_ENTRY_LENGTH);
 
                         ulong entryNum2;
-                        var secondBlockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated, dataBlockNum, hashTreeLevel, out entryNum2);
+                        var secondBlockNum = CalculateHashBlockNumForBlockNum(Header.Type,
+                                                                                HashTreeLevels, Header.NumberOfHashedPages,
+                                                                                dataBlockNum, hashTreeLevel, out entryNum2);
                         
-                        var hashEntryOffset = HashTreeOffset + (secondBlockNum*0x1000);
+                        var hashEntryOffset = HashTreeOffset + PageNumberToOffset(secondBlockNum);
                         hashEntryOffset += (entryNum2 + (entryNum2 * 2)) << 3;
                         _io.Stream.Position = (long)hashEntryOffset;
 
-                        byte[] oldHash = _io.Reader.ReadBytes(0x18);
+                        byte[] oldHash = _io.Reader.ReadBytes((int)HASH_ENTRY_LENGTH);
                         if (!blockHash.IsEqualTo(oldHash))
                         {
                             _io.Stream.Position = (long)hashEntryOffset; // todo: maybe return a list of blocks that needed rehashing
@@ -1092,7 +883,7 @@ namespace LibXboxOne
                 blocksPerLevel = blocksPerLevel * 0xAA;
             }
             _io.Stream.Position = (long)HashTreeOffset;
-            byte[] hash = SHA256.Create().ComputeHash(_io.Reader.ReadBytes(0x1000));
+            byte[] hash = HashUtils.ComputeSha256(_io.Reader.ReadBytes((int)PAGE_SIZE));
             Header.TopHashBlockHash = hash;
 
             return true;
@@ -1104,7 +895,7 @@ namespace LibXboxOne
                 return true;
 
             _io.Stream.Position = (long)HashTreeOffset;
-            byte[] hash = SHA256.Create().ComputeHash(_io.Reader.ReadBytes(0x1000));
+            byte[] hash = HashUtils.ComputeSha256(_io.Reader.ReadBytes((int)PAGE_SIZE));
             if (!Header.TopHashBlockHash.IsEqualTo(hash))
                 return false;
 
@@ -1117,26 +908,30 @@ namespace LibXboxOne
             while (hashTreeLevel < HashTreeLevels)
             {
                 uint dataBlockNum = 0;
-                if (XvdDataBlockCount != 0)
+                if (Header.NumberOfHashedPages != 0)
                 {
-                    while (dataBlockNum < XvdDataBlockCount)
+                    while (dataBlockNum < Header.NumberOfHashedPages)
                     {
                         ulong entryNum;
-                        var blockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated, dataBlockNum, hashTreeLevel - 1, out entryNum);
+                        var blockNum = CalculateHashBlockNumForBlockNum(Header.Type,
+                                                                        HashTreeLevels, Header.NumberOfHashedPages,
+                                                                        dataBlockNum, hashTreeLevel - 1, out entryNum);
 
-                        _io.Stream.Position = (long) (HashTreeOffset + (blockNum*0x1000));
-                        byte[] blockHash = SHA256.Create().ComputeHash(_io.Reader.ReadBytes(0x1000));
-                        Array.Resize(ref blockHash, 0x18);
+                        _io.Stream.Position = (long) (HashTreeOffset + PageNumberToOffset(blockNum));
+                        byte[] blockHash = HashUtils.ComputeSha256(_io.Reader.ReadBytes((int)PAGE_SIZE));
+                        Array.Resize(ref blockHash, (int)HASH_ENTRY_LENGTH);
 
                         ulong entryNum2;
-                        var secondBlockNum = CalculateHashBlockNumForBlockNum(Header.Unknown1_HashTableRelated, dataBlockNum, hashTreeLevel, out entryNum2);
+                        var secondBlockNum = CalculateHashBlockNumForBlockNum(Header.Type,
+                                                                              HashTreeLevels, Header.NumberOfHashedPages,
+                                                                              dataBlockNum, hashTreeLevel, out entryNum2);
                         topHashTreeBlock = secondBlockNum;
 
-                        var hashEntryOffset = HashTreeOffset + (secondBlockNum * 0x1000);
+                        var hashEntryOffset = HashTreeOffset + PageNumberToOffset(secondBlockNum);
                         hashEntryOffset += (entryNum2 + (entryNum2 * 2)) << 3;
                         _io.Stream.Position = (long)hashEntryOffset;
 
-                        byte[] expectedHash = _io.Reader.ReadBytes(0x18);
+                        byte[] expectedHash = _io.Reader.ReadBytes((int)HASH_ENTRY_LENGTH);
                         if (!expectedHash.IsEqualTo(blockHash))
                         {
                             // wrong hash
@@ -1202,24 +997,20 @@ namespace LibXboxOne
 
                 vhdFile.Stream.Position = driveSize;
 
-                var footer = new VhdFooter();
+                var footer = new Vhd.VhdFooter();
                 footer.InitDefaults();
-                footer.OrigSize = ((ulong) driveSize).EndianSwap();
-                footer.CurSize = footer.OrigSize;
+                footer.OriginalSize = ((ulong) driveSize).EndianSwap();
+                footer.CurrentSize = footer.OriginalSize;
                 footer.UniqueId = Header.VDUID;
 
                 // don't need to calculate these
-                footer.DiskGeometryHeads = 0;
-                footer.DiskGeometrySectors = 0;
-                footer.DiskGeometryCylinders = 0;
+                footer.DiskGeometry = 0;
                 footer.TimeStamp = 0;
 
-                footer.CalculateChecksum();
+                footer.FixChecksum();
 
                 vhdFile.Writer.WriteStruct(footer);
             }
-            if (DisableNativeFunctions)
-                return true;
 
             // make sure NTFS compression is disabled on the vhd
 
@@ -1241,41 +1032,61 @@ namespace LibXboxOne
             return true;
         }
 
-        public string GetXvcKey(int keyIndex, out byte[] keyOutput)
+        public bool GetXvcKey(ushort keyIndex, out byte[] keyOutput)
+        {
+            keyOutput = null;
+            if (XvcInfo.EncryptionKeyIds == null || XvcInfo.EncryptionKeyIds.Length < 1 || XvcInfo.KeyCount == 0)
+                return false;
+            
+            XvcEncryptionKeyId xvcKeyEntry = XvcInfo.EncryptionKeyIds[keyIndex];
+            if (xvcKeyEntry.IsKeyNulled)
+                return false;
+            
+            return GetXvcKeyByGuid(new Guid(xvcKeyEntry.KeyId), out keyOutput);
+        }
+
+        public bool GetXvcKeyByGuid(Guid keyGuid, out byte[] keyOutput)
         {
             keyOutput = null;
 
-            if (XvcInfo.EncryptionKeyIds == null || 
-                XvcInfo.EncryptionKeyIds.Length <= keyIndex ||
-                XvcInfo.KeyCount == 0 || 
-                XvcInfo.EncryptionKeyIds[keyIndex].IsKeyNulled)
-                return null;
-
-            var keyGuid = new Guid(XvcInfo.EncryptionKeyIds[keyIndex].KeyId);
-
-            if (XvcInfo.IsUsingTestCik && keyGuid == GetTestCikKey())
+            if (XvcInfo.EncryptionKeyIds == null || XvcInfo.EncryptionKeyIds.Length < 1 || XvcInfo.KeyCount == 0)
+                return false;
+            
+            bool keyFound = false;
+            foreach(var xvcKey in XvcInfo.EncryptionKeyIds)
             {
-                keyOutput = CikKeys[keyGuid];
-                return "testsigned";
+                if ((new Guid(xvcKey.KeyId) == keyGuid))
+                {
+                    keyFound = true;
+                }
             }
 
-            if (CikKeys.ContainsKey(keyGuid))
+            if (!keyFound)
             {
-                keyOutput = CikKeys[keyGuid];
-                return keyGuid.ToString() + " (from cik_keys.bin)";
+                Console.WriteLine($"Key {keyGuid} is not used by this XVC");
+                return false;
             }
+
+            if(DurangoKeys.IsCikLoaded(keyGuid))
+            {
+                keyOutput = DurangoKeys.GetCikByGuid(keyGuid).KeyData;
+                return true;
+            }
+
+            Console.WriteLine($"Did not find CIK {keyGuid} loaded in Keystorage");
+            Console.WriteLine("Checking for XML licenses...");
 
             string licenseFolder = Path.GetDirectoryName(FilePath);
             if (Path.GetFileName(licenseFolder) == "MSXC")
                 licenseFolder = Path.GetDirectoryName(licenseFolder);
 
             if (String.IsNullOrEmpty(licenseFolder))
-                return null; // fix for weird resharper warning
+                return false;
 
             licenseFolder = Path.Combine(licenseFolder, "Licenses");
 
             if (!Directory.Exists(licenseFolder))
-                return null;
+                return false;
 
             foreach (string file in Directory.GetFiles(licenseFolder, "*.xml"))
             {
@@ -1302,9 +1113,7 @@ namespace LibXboxOne
                 if (keyIdNode == null)
                     continue;
 
-                string keyId = keyIdNode.InnerText;
-
-                if (keyId != keyGuid.ToString())
+                if (keyGuid != new Guid(keyIdNode.InnerText))
                     continue;
 
                 XmlNode licenseBlockNode = licenseXml.SelectSingleNode("//resp:SPLicenseBlock", xmlns2);
@@ -1319,7 +1128,7 @@ namespace LibXboxOne
                 if (keyIdBlock == null)
                     continue;
 
-                if (!keyIdBlock.BlockData.IsEqualTo(XvcInfo.EncryptionKeyIds[keyIndex].KeyId))
+                if (!(new Guid(keyIdBlock.BlockData) == keyGuid))
                     continue;
 
                 var decryptKeyBlock = block.GetBlockWithId(XvcLicenseBlockId.EncryptedCik);
@@ -1327,12 +1136,12 @@ namespace LibXboxOne
                     continue;
 
                 keyOutput = decryptKeyBlock.BlockData;
-
+                Console.WriteLine($"Xvd CIK key found in {file}");
                 // todo: decrypt/deobfuscate the key
 
-                return file;
+                return true;
             }
-            return null;
+            return false;
         }
 
         public byte[] Read(long offset, int count)
@@ -1354,19 +1163,23 @@ namespace LibXboxOne
             string fmt = formatted ? "    " : "";
 
             b.AppendLine("XvdMiscInfo:");
-            b.AppendLineSpace(fmt + "Block Count: 0x" + XvdDataBlockCount.ToString("X"));
+            b.AppendLineSpace(fmt + "Page Count: 0x" + Header.NumberOfHashedPages.ToString("X"));
 
             if (Header.EmbeddedXVDLength > 0)
                 b.AppendLineSpace(fmt + "Embedded XVD Offset: 0x3000");
 
             if(Header.UserDataLength > 0)
                 b.AppendLineSpace(fmt + "User Data Offset: 0x" + UserDataOffset.ToString("X"));
+            
+            if(Header.Type == XvdType.Dynamic)
+                b.AppendLineSpace(fmt + "Dynamic Header Offset: 0x" + DynamicHeaderOffset.ToString("X"));
 
             b.AppendLineSpace(fmt + "XVD Data Offset: 0x" + DataOffset.ToString("X"));
+            b.AppendLineSpace(fmt + "Drive Data Offset: 0x" + DriveDataOffset.ToString("X"));
 
             if (IsDataIntegrityEnabled)
             {
-                b.AppendLineSpace(fmt + "Hash Tree Block Count: 0x" + HashTreeBlockCount.ToString("X"));
+                b.AppendLineSpace(fmt + "Hash Tree Page Count: 0x" + HashTreePageCount.ToString("X"));
                 b.AppendLineSpace(fmt + "Hash Tree Levels: 0x" + HashTreeLevels.ToString("X"));
                 b.AppendLineSpace(fmt + "Hash Tree Valid: " + (HashTreeValid ? "true" : "false"));
 
@@ -1387,16 +1200,11 @@ namespace LibXboxOne
             if (formatted)
             {
                 byte[] decryptKey;
-                string licenseFile = GetXvcKey(0, out decryptKey);
-                if (!String.IsNullOrEmpty(licenseFile))
+                bool xvcKeyFound = GetXvcKey(0, out decryptKey);
+                if (xvcKeyFound)
                 {
-                    if (licenseFile != "testsigned")
-                        b.AppendLine("Decrypt key from license file " + licenseFile +
-                                     " (key is wrong though until the obfuscation/encryption on it is figured out)");
-                    else
-                        b.AppendLine("Decrypt key for test-signed package:");
-
-                    b.AppendLine(decryptKey.ToHexString());
+                    b.AppendLine($"Decrypt key for xvc keyslot 0:" + decryptKey.ToHexString());
+                    b.AppendLine("(key is wrong though until the obfuscation/encryption on it is figured out)");
                     b.AppendLine();
                 }
             } 
@@ -1410,7 +1218,7 @@ namespace LibXboxOne
                     b.Append(RegionHeaders[i].ToString(formatted));
                 }
 
-            if (RegionHeaders != null)
+            if (UpdateSegments != null)
                 for (int i = 0; i < UpdateSegments.Count; i++)
                 {
                     if (UpdateSegments[i].Unknown1 == 0)
@@ -1423,5 +1231,10 @@ namespace LibXboxOne
             return b.ToString();
         }
         #endregion
+
+        public void Dispose()
+        {
+            _io.Dispose();
+        }
     }
 }
