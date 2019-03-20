@@ -1,10 +1,10 @@
-### xvdtool - by emoose (aka noob25x)
+# xvdtool [![Build status](https://api.travis-ci.com/emoose/xvdtool.svg?branch=master)](https://travis-ci.com/emoose/xvdtool)
 
 xvdtool is a C# command-line utility for manipulating Xbox One XVD/XVC packages. It can print detailed info about package headers, resign, rehash, en/decrypt and verify data integrity of a package, it can also convert (some, but not all) decrypted XVD files to VHD.
 
-So far it's only been tested with dev-crypted packages (which use a different 256-bit **Offline Distribution Key (ODK)** to retail packages), as the retail key is still unknown. **This currently makes the tool useless for 90% of people**, but developers looking into how XVD files work will find a detailed mapping of the XVD structures and complete methods for manipulating them.
+So far it's only been tested with dev-crypted packages (which use a different 256-bit **Offline Distribution Key (ODK)** to retail packages), as the retail key is still unknown. **This currently makes the tool useless for 90% of people**, but developers looking into how XVD files work will find a detailed mapping of the XVD structures and near-complete methods for manipulating them.
 
-However **no encryption keys are provided with this tool**, you'll have to find them yourself. Hashes (MD5/SHA256) for the dev keys are provided below.
+However **no encryption keys are provided with this tool**, you'll have to find them yourself. Hashes for the dev keys are provided below.
 If you have an Xbox One development kit or GamingServices framework (Windows10-exclusive) installed, you can use DurangoKeyExtractor to extract the keys from there.
 
 Also included is a tool for extracting files from the XBFS (Xbox Boot File System) inside the Xbox One NAND, based on tuxuser's original [NANDOne](https://github.com/tuxuser/NANDOne) work with a few small additions.
@@ -66,7 +66,7 @@ To decrypt non-XVC packages you'll need the correct ODK. The devkit ODK is "wide
 
 Decrypting XVC packages is a different matter, XVC packages use a **Content Instance Key (CIK)** which appears to be stored somewhere outside the package, however where and how it's stored is currently unknown. If you have the correct deobfuscated CIK for a given package you should be able to use it to to decrypt the package.
 
-Devkit/test-signed XVC packages use a static CIK which is also "widely known" (Checksums hash provided below).
+Devkit/test-signed XVC packages use a static CIK which is also "widely known" (Hash provided below).
 
 ### Required Files
 To make full use of this tool you'll need the following files, which **are not included**. The tool will work fine without them, but some functions might not work.
@@ -122,8 +122,8 @@ Additionally, you can provide keys from arbitrary filesystem locations via the r
 
 #### Naming the keys
 For CIK it is not important how the keys are named if they have the binary structure of `[16 byte encryption key GUID][32 byte CIK]`.
-Xvd signing keys should have a distinct identifier so you can refer to them via the `-sk (-signkey)` cmdline switch.
-Odk need to be named either by OdkIndex (`<index>.odk`) or by its identifier: `RedOdk.odk, StandardOdk.odk etc.`
+XVD signing keys should have a distinct identifier so you can refer to them via the `-sk (-signkey)` cmdline switch.
+ODK needs to be named either by OdkIndex (`<index>.odk`) or by its identifier: `RedOdk.odk, StandardOdk.odk etc.`
 For detailed up-to-date info refer to: `LibXboxOne/Keys/`
 
 ### What are XVDs?
