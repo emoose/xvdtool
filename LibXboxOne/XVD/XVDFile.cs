@@ -362,10 +362,10 @@ namespace LibXboxOne
                 return false;
 
             XvcRegionHeader header = RegionHeaders[regionIdx];
-            if (encrypt && header.KeyId == 0xFFFF)
+            if (encrypt && header.KeyId == XvcConstants.XVC_KEY_NONE)
                 header.KeyId = 0;
 
-            if (header.Length <= 0 || header.Offset <= 0 || header.KeyId == 0xFFFF || (header.KeyId+1) > XvcInfo.KeyCount)
+            if (header.Length <= 0 || header.Offset <= 0 || header.KeyId == XvcConstants.XVC_KEY_NONE || (header.KeyId+1) > XvcInfo.KeyCount)
                 return false;
 
             byte[] key;
@@ -374,7 +374,7 @@ namespace LibXboxOne
             if (key == null)
                 return false;
 
-            return CryptSectionXts(encrypt, key, header.Id, header.Offset, header.Length);
+            return CryptSectionXts(encrypt, key, (uint)header.Id, header.Offset, header.Length);
         }
 
         internal bool CryptSectionXts(bool encrypt, byte[] key, uint headerId, ulong offset, ulong length)
@@ -536,7 +536,7 @@ namespace LibXboxOne
                 for (int i = 0; i < RegionHeaders.Count; i++)
                 {
                     XvcRegionHeader header = RegionHeaders[i];
-                    if (header.Length <= 0 || header.Offset <= 0 || header.KeyId == 0xFFFF || (header.KeyId + 1) > XvcInfo.KeyCount)
+                    if (header.Length <= 0 || header.Offset <= 0 || header.KeyId == XvcConstants.XVC_KEY_NONE || (header.KeyId + 1) > XvcInfo.KeyCount)
                         continue;
                     if (!CryptXvcRegion(i, false))
                         return false;
@@ -600,10 +600,12 @@ namespace LibXboxOne
                 for (int i = 0; i < RegionHeaders.Count; i++)
                 {
                     XvcRegionHeader header = RegionHeaders[i];
-                    if (header.Length <= 0 || header.Offset <= 0 || ((header.KeyId + 1) > XvcInfo.KeyCount && header.KeyId != 0xFFFF))
+                    if (header.Length <= 0 || header.Offset <= 0 || ((header.KeyId + 1) > XvcInfo.KeyCount && header.KeyId != XvcConstants.XVC_KEY_NONE))
                         continue;
 
-                    if (header.Id == 0x40000005 || header.Id == 0x40000004 || header.Id == 0x40000001)
+                    if (header.Id == XvcRegionId.Header ||
+                        header.Id == XvcRegionId.EmbeddedXvd ||
+                        header.Id == XvcRegionId.MetadataXvc)
                         continue; // skip XVD header / EXVD / XVC info
 
                     if (!CryptXvcRegion(i, true))
@@ -900,7 +902,7 @@ namespace LibXboxOne
                         var hdr = new XvcRegionHeader();
                         foreach (var region in RegionHeaders)
                         {
-                            if (region.KeyId == 0xFFFF)
+                            if (region.KeyId == XvcConstants.XVC_KEY_NONE)
                                 continue; // skip unencrypted regions
 
                             if (dataToHashOffset >= region.Offset && dataToHashOffset < (region.Offset + region.Length))
