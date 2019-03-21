@@ -22,6 +22,7 @@ before_deploy:
 - for proj in {XVDTool,XBFSTool,DurangoKeyExtractor}; do dotnet publish -c Release -r $PUBLISH_TARGET -o publish-$PUBLISH_TARGET $proj; done
 - for proj in {XVDTool,XBFSTool,DurangoKeyExtractor}; do cp -R $proj/publish-$PUBLISH_TARGET/* $PUBLISH_TARGET/; done
 - cp README.md $PUBLISH_TARGET/
+- cp CHANGELOG.md $PUBLISH_TARGET/
 - cd $PUBLISH_TARGET
 - zip -r ../XVDTool-$PUBLISH_TARGET-$TRAVIS_BRANCH.zip .
 - cd $TRAVIS_BUILD_DIR
