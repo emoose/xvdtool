@@ -4,12 +4,6 @@ dotnet: 2.2.100
 os: linux
 dist: xenial
 
-env:
-  - PUBLISH_TARGET=osx.10.12-x64
-  - PUBLISH_TARGET=linux-x64
-  - PUBLISH_TARGET=win-x64
-  - PUBLISH_TARGET=win-x86
-
 script:
 - dotnet --info
 - dotnet restore
@@ -17,21 +11,14 @@ script:
 - dotnet build -c Release
 
 before_deploy:
-- cd $TRAVIS_BUILD_DIR
-- mkdir $PUBLISH_TARGET
-- for proj in {XVDTool,XBFSTool,DurangoKeyExtractor}; do dotnet publish -c Release -r $PUBLISH_TARGET -o publish-$PUBLISH_TARGET $proj; done
-- for proj in {XVDTool,XBFSTool,DurangoKeyExtractor}; do cp -R $proj/publish-$PUBLISH_TARGET/* $PUBLISH_TARGET/; done
-- cp README.md $PUBLISH_TARGET/
-- cd $PUBLISH_TARGET
-- zip -r ../XVDTool-$PUBLISH_TARGET-$TRAVIS_BRANCH.zip .
-- cd $TRAVIS_BUILD_DIR
+- for rid in {osx.10.12-x64,linux-x64,win-x64,win-x86}; do ./build_release.sh $rid $TRAVIS_BRANCH; done
 
 deploy:
   - provider: releases
     api_key:
       secure: JPZMLDzKKF3w15jqG5wuTok3YBPqOoH8fEl50tL5oRUMM7t9Enog3zgp3UQ1o4q8PqMfCsV92o/bHUzVjGGSZ/FzgOtEIvPMmmd4X+ahG0MQ7ZpmZg9hB56FakeGUlWQTFs70ve+dc9m9j/J038k+UctLc/cIt8EiOIqPOkGMPPAdmJqu2jIYXDWuIB9lKFxwFCLXp4ixNJ+q+0TlrDOsXb1pbSctsr8x1I7wb0ctcQ20YyTZBLO0WDqE3DwhH/ePzRs4z7jX8MScZgPQisPA3Jl/hLJzw24LWHshXh7qWSrCfSBb+6MKmzxyKtSkNe36wv720JZQbL7m+DqyGb4BgBpkWsmb2OQydcU1Lc4K+nAkYQ3kihwqhfqxAKHTe6bSsHcodjb+DSKGcUNctdzL6KeRJStgM1J/TTI0CYrvYUjbRhj0BDHTNR6pGrPIeYzOZ3dPfEGZaRkAttMLcUTq2aImXx2vqFd/q4wL/6XHaD9TtiiKd+2FE7FSAhLfJA3Nx3Gg3GQrVTzNyLFn76pxVlSZf5G8xdGZh3tCyJyf7tQBGxIwT85XM4Sxg8+IC8r0pFWvpN2IOHBMKQxkTHnR+Ir1P+AgZOkIEdIJPtBLiyCCql6/m3khlsfUcLvnxc1TPuWBhts75Jocno9qbEeUQhBQr5f8fT9EUqtxzcFXS8=
     file_glob: true
-    file: "XVDTool-$PUBLISH_TARGET-$TRAVIS_BRANCH.zip"
+    file: "release/*.zip"
     skip_cleanup: true
     on:
       tags: true

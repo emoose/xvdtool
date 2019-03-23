@@ -384,18 +384,17 @@ namespace XVDTool
                         Console.WriteLine(@"Error: package already decrypted");
                         return;
                     }
-                    string keyToUse = odkToUse != OdkIndex.Invalid ? odkToUse.ToString() : "<ODK indicated by XVD header>";
+
                     if (file.IsXvcFile)
                     {
-                        if (!file.GetXvcKeyByGuid(cikToUse, out byte[] outputKey))
-                        {
-                            Console.WriteLine("Error: unable to find key for key GUID " + cikToUse);
-                            return;
-                        }
-                        keyToUse = $"{cikToUse}: {outputKey.ToHexString()}";
+                        Console.WriteLine("Decrypting XVC...");
+                    }
+                    else
+                    {
+                        string keyToUse = odkToUse != OdkIndex.Invalid ? odkToUse.ToString() : "<ODK indicated by XVD header>";
+                        Console.WriteLine("Decrypting XVD using \"" + keyToUse + "\" key...");
                     }
 
-                    Console.WriteLine("Decrypting package using \"" + keyToUse + "\" key...");
                     bool success = file.Decrypt();
                     Console.WriteLine(success ? "Package decrypted successfully!" : "Error during decryption!");
                     if (!success)
