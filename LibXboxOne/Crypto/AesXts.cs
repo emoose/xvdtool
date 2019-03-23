@@ -61,7 +61,7 @@ namespace LibXboxOne
             return newTweak;
         }
 
-        public int TransformDataUnit(byte[] inputBuffer, int inputOffset, int inputCount, byte[] outputBuffer, int outputOffset, ulong dataUnit)
+        public int TransformDataUnit(byte[] inputBuffer, int inputOffset, int inputCount, byte[] outputBuffer, int outputOffset, uint dataUnit)
         {
             int transformedBytes = 0;
             int blocks = inputCount / BlockSize;

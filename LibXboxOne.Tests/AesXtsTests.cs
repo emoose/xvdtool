@@ -40,7 +40,7 @@ namespace LibXboxOne.Tests
             for (int dataUnit=0; dataUnit < 3; dataUnit++)
             {
                 transformedBytes += cipher.TransformDataUnit(plaintext, dataUnit * 0x1000, 0x1000,
-                                         result, dataUnit * 0x1000, (ulong)dataUnit);
+                                         result, dataUnit * 0x1000, (uint)dataUnit);
             }
 
             Assert.Equal(0x3000, transformedBytes);
@@ -62,7 +62,7 @@ namespace LibXboxOne.Tests
             for (int dataUnit=0; dataUnit < 3; dataUnit++)
             {
                 transformedBytes += cipher.TransformDataUnit(ciphertext, dataUnit * 0x1000, 0x1000,
-                                         result, dataUnit * 0x1000, (ulong)dataUnit);
+                                         result, dataUnit * 0x1000, (uint)dataUnit);
             }
 
             Assert.Equal(0x3000, transformedBytes);
@@ -85,7 +85,7 @@ namespace LibXboxOne.Tests
             {
                 transformedBytes += cipher.TransformDataUnit(plaintext, dataUnit * 0x1000, 0x1000,
                                          result, dataUnit * 0x1000,
-                                         (ulong)dataUnit+1); // <- Invalid data unit
+                                         (uint)dataUnit + 1); // <- Invalid data unit
             }
 
             Assert.Equal(0x3000, transformedBytes);

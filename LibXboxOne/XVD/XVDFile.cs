@@ -381,7 +381,6 @@ namespace LibXboxOne
 
         internal bool CryptSectionXts(bool encrypt, byte[] key, uint headerId, ulong offset, ulong length)
         {
-            ulong numDataUnits = BytesToPages(length);
             var headerIdBytes = BitConverter.GetBytes(headerId);
 
             var tweakAesKey = new byte[0x10];
@@ -400,14 +399,37 @@ namespace LibXboxOne
             var cipher = new AesXtsTransform(tweak, dataAesKey, tweakAesKey, encrypt);
 
             _io.Stream.Position = (long)offset;
-            for (ulong dataUnit = 0; dataUnit < numDataUnits; dataUnit++)
+
+            var startPage = (offset - UserDataOffset) / PAGE_SIZE;
+            ulong numPages = BytesToPages(length);
+            for (uint page = 0; page < numPages; page++)
             {
                 var transformedData = new byte[PAGE_SIZE];
+
+                var pageOffset = _io.Stream.Position;
                 var origData = _io.Reader.ReadBytes((int)PAGE_SIZE);
-                _io.Stream.Position -= PAGE_SIZE;
+
+                uint dataUnit = page;
+                if(IsDataIntegrityEnabled)
+                {
+                    // fetch dataUnit from hash table entry for this page (last 4 bytes of hash entry)
+                    // TODO: seems we'll have to insert dataUnit when re-adding hashtables...
+
+                    ulong entryNum;
+                    var hashBlockNum = CalculateHashBlockNumForBlockNum(Header.Type,
+                                                                    HashTreeLevels, Header.NumberOfHashedPages,
+                                                                    startPage + page, 0, out entryNum);
+
+                    var hashEntryOffset = PageNumberToOffset(hashBlockNum) + HashTreeOffset;
+                    hashEntryOffset += entryNum * HASH_ENTRY_LENGTH;
+
+                    _io.Stream.Position = (long)hashEntryOffset + 0x14;
+                    dataUnit = _io.Reader.ReadUInt32();
+                }
 
                 cipher.TransformDataUnit(origData, 0, origData.Length, transformedData, 0, dataUnit);
 
+                _io.Stream.Position = pageOffset;
                 _io.Writer.Write(transformedData);
             }
             return true;
@@ -902,13 +924,13 @@ namespace LibXboxOne
 
             for (ulong i = 0; i < dataBlockCount; i++)
             {
-                ulong stackNum;
+                ulong entryNum;
                 var blockNum = CalculateHashBlockNumForBlockNum(Header.Type,
                                                                 HashTreeLevels, Header.NumberOfHashedPages,
-                                                                (ulong)i, 0, out stackNum);
+                                                                (ulong)i, 0, out entryNum);
 
                 var hashEntryOffset = PageNumberToOffset(blockNum) + HashTreeOffset;
-                hashEntryOffset += stackNum * HASH_ENTRY_LENGTH;
+                hashEntryOffset += entryNum * HASH_ENTRY_LENGTH;
 
                 _io.Stream.Position = (long)hashEntryOffset;
                 byte[] oldhash = _io.Reader.ReadBytes((int)HASH_ENTRY_LENGTH);
