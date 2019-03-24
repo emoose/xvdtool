@@ -55,6 +55,7 @@ namespace XVDTool
             var resignPackage = false;
             var addHashTree = false;
             var removeHashTree = false;
+            var removeMDU = false;
             var printInfo = false;
             var writeInfo = false;
             var printHelp = false;
@@ -97,6 +98,7 @@ namespace XVDTool
                 { "ee|encrypt", v => encryptPackage = v != null },
                 { "hd|removehash|removehashtree", v => removeHashTree = v != null },
                 { "he|addhash|addhashtree", v => addHashTree = v != null },
+                { "md|removemdu", v => removeMDU = v != null },
 
                 { "xe|extractembedded=", v => exvdDest = v },
                 { "xu|extractuserdata=", v => userDataDest = v },
@@ -154,6 +156,8 @@ namespace XVDTool
                 Console.WriteLine();
                 Console.WriteLine(fmt + "-hd (-removehash) - remove hash tree/data integrity from package");
                 Console.WriteLine(fmt + "-he (-addhash) - add hash tree/data integrity to package");
+                Console.WriteLine();
+                Console.WriteLine(fmt + "-md (-removemdu) - remove mutable data (MDU) from package");
                 Console.WriteLine();
                 Console.WriteLine(fmt + "-r (-rehash) - fix data integrity hashes inside package");
                 Console.WriteLine(fmt + "-rs (-resign) - sign package using the private key from rsa3_key.bin");
@@ -439,7 +443,24 @@ namespace XVDTool
                     Console.WriteLine(success
                         ? "Hash tree removed successfully and header updated."
                         : "Error: hash tree is larger than input package (???)");
-                    return;
+                    if (!success)
+                        return;
+                }
+
+                if(removeMDU)
+                {
+                    if(file.Header.NumMDUPages <= 0)
+                    {
+                        Console.WriteLine("Error: cannot remove mutable data from package that hasn't got any.");
+                        return;
+                    }
+                    Console.WriteLine("Removing mutable data from package...");
+                    bool success = file.RemoveMutableData() && file.Save();
+                    Console.WriteLine(success
+                        ? "Mutable data removed successfully and header updated."
+                        : "Failed to remove mutable data?");
+                    if (!success)
+                        return;
                 }
 
                 if (addHashTree)

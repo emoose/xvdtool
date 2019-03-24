@@ -302,6 +302,12 @@ namespace LibXboxOne
 
         /* 0xC = END */
 
+        public XvcUpdateSegment(XvcUpdateSegment src)
+        {
+            PageNum = src.PageNum;
+            Hash = src.Hash;
+        }
+
         public override string ToString()
         {
             return ToString(false);

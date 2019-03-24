@@ -871,48 +871,82 @@ namespace LibXboxOne
             //return CalculateHashTree();
         }
 
-        public bool RemoveHashTree()
+        internal bool RemoveBytes(ulong offset, ulong length)
         {
-            if (!IsDataIntegrityEnabled)
-                return true;
+            var page = BytesToPages(offset);
+            var numPages = BytesToPages(length);
 
-            var hashTreeSize = (long)(HashTreePageCount * PAGE_SIZE);
-
-            _io.Stream.Position = (long)HashTreeOffset;
-            if (!_io.DeleteBytes(hashTreeSize))
+            _io.Stream.Position = (long)offset;
+            if (!_io.DeleteBytes((long)length))
                 return false;
-
-            Header.VolumeFlags ^= XvdVolumeFlags.DataIntegrityDisabled;
-            
-            for (int i = 0; i < Header.TopHashBlockHash.Length; i++)
-                Header.TopHashBlockHash[i] = 0;
 
             if (IsXvcFile)
             {
-                if (XvcInfo.InitialPlayOffset > HashTreeOffset)
-                    XvcInfo.InitialPlayOffset -= (ulong) hashTreeSize;
+                if (XvcInfo.InitialPlayOffset > offset)
+                    XvcInfo.InitialPlayOffset -= length;
 
-                if (XvcInfo.PreviewOffset > HashTreeOffset)
-                    XvcInfo.PreviewOffset -= (ulong) hashTreeSize;
+                if (XvcInfo.PreviewOffset > offset)
+                    XvcInfo.PreviewOffset -= length;
 
-                for(int i = 0; i < RegionHeaders.Count; i++)
+                for (int i = 0; i < RegionHeaders.Count; i++)
                 {
                     var newHdr = new XvcRegionHeader(RegionHeaders[i]);
 
                     ulong regionEnd = newHdr.Offset + newHdr.Length;
 
-                    if ((newHdr.Offset == HashTreeOffset || newHdr.Offset < HashTreeOffset) && HashTreeOffset < regionEnd)
-                        newHdr.Length -= (ulong)hashTreeSize;
-                    else if (newHdr.Offset > HashTreeOffset)
-                        newHdr.Offset -= (ulong)hashTreeSize;
+                    if (offset >= newHdr.Offset && regionEnd > offset)
+                        newHdr.Length -= length; // offset is part of region, reduce length
+                    else if (newHdr.Offset > offset)
+                        newHdr.Offset -= length; // offset is before region, reduce offset
 
-                    newHdr.Hash = 0;
+                    newHdr.Hash = 0; // ???
 
                     RegionHeaders[i] = newHdr;
                 }
+
+                for(int i = 0; i < UpdateSegments.Count; i++)
+                {
+                    var newSegment = new XvcUpdateSegment(UpdateSegments[i]);
+
+                    if (newSegment.PageNum >= page)
+                        newSegment.PageNum -= (uint)numPages;
+
+                    UpdateSegments[i] = newSegment;
+                }
             }
 
-            // todo: figure out update segments and fix them
+            return true;
+        }
+
+        public bool RemoveMutableData()
+        {
+            if (Header.NumMDUPages <= 0)
+                return true;
+
+            var mduLength = Header.NumMDUPages * PAGE_SIZE;
+
+            if (!RemoveBytes(MduOffset, mduLength))
+                return false;
+
+            Header.NumMDUPages = 0;
+
+            return true;
+        }
+
+        public bool RemoveHashTree()
+        {
+            if (!IsDataIntegrityEnabled)
+                return true;
+
+            var hashTreeLength = HashTreePageCount * PAGE_SIZE;
+
+            if (!RemoveBytes(HashTreeOffset, hashTreeLength))
+                return false;
+
+            Header.VolumeFlags ^= XvdVolumeFlags.DataIntegrityDisabled;
+
+            for (int i = 0; i < Header.TopHashBlockHash.Length; i++)
+                Header.TopHashBlockHash[i] = 0;
 
             return true;
         }
