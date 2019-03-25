@@ -439,7 +439,7 @@ namespace XVDTool
                         return;
                     }
                     Console.WriteLine("Attempting to remove hash tree from package...");
-                    bool success = file.RemoveHashTree() && file.Save();
+                    bool success = file.RemoveHashTree();
                     Console.WriteLine(success
                         ? "Hash tree removed successfully and header updated."
                         : "Error: hash tree is larger than input package (???)");
@@ -455,7 +455,7 @@ namespace XVDTool
                         return;
                     }
                     Console.WriteLine("Removing mutable data from package...");
-                    bool success = file.RemoveMutableData() && file.Save();
+                    bool success = file.RemoveMutableData();
                     Console.WriteLine(success
                         ? "Mutable data removed successfully and header updated."
                         : "Failed to remove mutable data?");

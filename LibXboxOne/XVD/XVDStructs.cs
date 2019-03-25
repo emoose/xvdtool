@@ -302,12 +302,6 @@ namespace LibXboxOne
 
         /* 0xC = END */
 
-        public XvcUpdateSegment(XvcUpdateSegment src)
-        {
-            PageNum = src.PageNum;
-            Hash = src.Hash;
-        }
-
         public override string ToString()
         {
             return ToString(false);
@@ -385,23 +379,6 @@ namespace LibXboxOne
         /* 0x78 */ public ulong Unknown78;
 
         /* 0x80 = END */
-
-        public XvcRegionHeader(XvcRegionHeader src)
-        {
-            Id = src.Id;
-            KeyId = src.KeyId;
-            Padding6 = src.Padding6;
-            Flags = src.Flags;
-            FirstSegmentIndex = src.FirstSegmentIndex;
-            Description = src.Description;
-
-            Offset = src.Offset;
-            Length = src.Length;
-            Hash = src.Hash;
-            Unknown68 = src.Unknown68;
-            Unknown70 = src.Unknown70;
-            Unknown78 = src.Unknown78;
-        }
 
         public override string ToString()
         {
