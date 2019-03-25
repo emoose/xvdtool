@@ -91,7 +91,7 @@ namespace LibXboxOne
         }
 
         public static ulong CalculateHashBlockNumForBlockNum(XvdType type, ulong hashTreeLevels, ulong numberOfHashedPages,
-                                                                ulong blockNum, uint index, out ulong entryNumInBlock)
+                                                                ulong blockNum, uint hashLevel, out ulong entryNumInBlock)
         {
             ulong HashBlockExponent(ulong blockCount)
             {
@@ -102,27 +102,27 @@ namespace LibXboxOne
             ulong result = 0xFFFF;
             entryNumInBlock = 0;
 
-            if ((uint)type > 1 || index > 3)
+            if ((uint)type > 1 || hashLevel > 3)
                 return result; // Invalid data
 
-            if (index == 0)
+            if (hashLevel == 0)
                 entryNumInBlock = blockNum % 0xAA;
             else
-                entryNumInBlock = blockNum / HashBlockExponent(index) % 0xAA;
+                entryNumInBlock = blockNum / HashBlockExponent(hashLevel) % 0xAA;
 
-            if (index == 3)
+            if (hashLevel == 3)
                 return 0;
 
-            result = blockNum / HashBlockExponent(index + 1);
-            hashTreeLevels -= (index + 1);
+            result = blockNum / HashBlockExponent(hashLevel + 1);
+            hashTreeLevels -= hashLevel + 1;
 
-            if (index == 0 && hashTreeLevels > 0)
+            if (hashLevel == 0 && hashTreeLevels > 0)
             {
                 result += (numberOfHashedPages + HashBlockExponent(2) - 1) / HashBlockExponent(2);
                 hashTreeLevels--;
             }
 
-            if ((index == 0 || index == 1) && hashTreeLevels > 0)
+            if ((hashLevel == 0 || hashLevel == 1) && hashTreeLevels > 0)
             {
                 result += (numberOfHashedPages + HashBlockExponent(3) - 1) / HashBlockExponent(3);
                 hashTreeLevels--;
@@ -134,11 +134,11 @@ namespace LibXboxOne
             return result;
         }
 
-        public static ulong CalculateNumHashBlocksInLevel(ulong size, ulong idx, bool resilient)
+        public static ulong CalculateNumHashBlocksInLevel(ulong size, ulong hashLevel, bool resilient)
         {
             ulong hashBlocks = 0;
 
-            switch (idx)
+            switch (hashLevel)
             {
                 case 0:
                     hashBlocks = (size + XvdFile.DATA_BLOCKS_IN_LEVEL0_HASHTREE - 1) / XvdFile.DATA_BLOCKS_IN_LEVEL0_HASHTREE;
@@ -162,7 +162,6 @@ namespace LibXboxOne
 
         public static ulong CalculateNumberHashPages(out ulong hashTreeLevels, ulong hashedPagesCount, bool resilient)
         {
-
             ulong hashTreePageCount = (hashedPagesCount + XvdFile.HASH_ENTRIES_IN_PAGE - 1) / XvdFile.HASH_ENTRIES_IN_PAGE;
             hashTreeLevels = 1;
 

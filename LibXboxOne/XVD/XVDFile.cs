@@ -109,8 +109,7 @@ namespace LibXboxOne
         public ulong MduOffset => XvdMath.PageNumberToOffset(Header.EmbeddedXvdPageCount) +
                                   EmbeddedXvdOffset;
 
-        public ulong HashTreeOffset => XvdMath.PageNumberToOffset(Header.MutableDataPageCount) +
-                                       MduOffset;
+        public ulong HashTreeOffset => Header.MutableDataLength + MduOffset;
 
         public ulong HashTreePageCount {
             get
@@ -221,7 +220,7 @@ namespace LibXboxOne
                 logicalOffset = XvdMath.PageNumberToOffset(dataBackingBlockNum);
                 logicalOffset += XvdMath.InPageOffset(dataStartOffset);
                 logicalOffset += XvdMath.PageNumberToOffset(Header.EmbeddedXvdPageCount);
-                logicalOffset += XvdMath.PageNumberToOffset(Header.MutableDataPageCount);
+                logicalOffset += Header.MutableDataLength;
                 logicalOffset += XVD_HEADER_INCL_SIGNATURE_SIZE;
                 logicalOffset += PAGE_SIZE;
             }
@@ -229,7 +228,7 @@ namespace LibXboxOne
             { // Xvd type fixed
                 logicalOffset = virtualOffset;
                 logicalOffset += XvdMath.PageNumberToOffset(Header.EmbeddedXvdPageCount);
-                logicalOffset += XvdMath.PageNumberToOffset(Header.MutableDataPageCount);
+                logicalOffset += Header.MutableDataLength;
                 logicalOffset += XvdMath.PageNumberToOffset(Header.NumberOfMetadataPages);
                 logicalOffset += XVD_HEADER_INCL_SIGNATURE_SIZE;
                 logicalOffset += PAGE_SIZE;

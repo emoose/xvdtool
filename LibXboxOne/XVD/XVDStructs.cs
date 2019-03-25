@@ -110,6 +110,7 @@ namespace LibXboxOne
 
         /* 0xE00 = END */
 
+        public ulong MutableDataLength => XvdMath.PageNumberToOffset(MutableDataPageCount);
         public ulong UserDataPageCount => XvdMath.BytesToPages(UserDataLength);
         public ulong XvcInfoPageCount => XvdMath.BytesToPages(XvcDataLength);
         public ulong EmbeddedXvdPageCount => XvdMath.BytesToPages(EmbeddedXVDLength);
@@ -243,7 +244,7 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + "Writeable Expiration Date: 0x" + WriteableExpirationDate.ToString("X"));
             b.AppendLineSpace(fmt + "Writeable Policy flags: 0x" + WriteablePolicyFlags.ToString("X"));
             b.AppendLineSpace(fmt + "Persistent Local storage length: 0x" + PersistentLocalStorageSize.ToString("X"));
-            b.AppendLineSpace(fmt + "Mutable data page count: 0x" + MutableDataPageCount.ToString("X"));
+            b.AppendLineSpace(fmt + $"Mutable data page count: 0x{MutableDataPageCount:X} (0x{MutableDataLength:X} bytes)");
 
             b.AppendLineSpace(fmt + "Sandbox Id: " + new string(SandboxId).Replace("\0", ""));
             b.AppendLineSpace(fmt + "Product Id: " + new Guid(ProductId));
