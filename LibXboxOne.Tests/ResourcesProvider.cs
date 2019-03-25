@@ -35,7 +35,12 @@ namespace LibXboxOne.Tests
             var file = $"{ResourcePath}/{type}/{fileName}";
             if (File.Exists(file))
             {
-                return await File.ReadAllBytesAsync(file);
+                using (FileStream stream = File.OpenRead(file))
+                {
+                    byte[] result = new byte[stream.Length];
+                    await stream.ReadAsync(result, 0, (int)stream.Length);
+                    return result;
+                }
             }
             throw new FileNotFoundException(file);
         }

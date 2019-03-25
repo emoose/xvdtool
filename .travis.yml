@@ -5,13 +5,14 @@ os: linux
 dist: xenial
 
 script:
-- dotnet --info
 - dotnet restore
-- dotnet test
-- dotnet build -c Release
+- dotnet test -f netcoreapp2.0 LibXboxOne.Tests
+- dotnet build -c Release -f netcoreapp2.0 XVDTool
+- dotnet build -c Release -f netcoreapp2.0 XBFSTool
+- dotnet build -c Release -f netcoreapp2.0 DurangoKeyExtractor
 
 before_deploy:
-- for rid in {osx.10.12-x64,linux-x64,win-x64,win-x86}; do ./build_release.sh $rid $TRAVIS_BRANCH; done
+- for rid in {osx.10.12-x64,linux-x64,win-x64,win-x86}; do ./build_release.sh $rid $TRAVIS_BRANCH netcoreapp2.0; done
 
 deploy:
   - provider: releases
