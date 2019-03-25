@@ -449,7 +449,7 @@ namespace XVDTool
 
                 if(removeMDU)
                 {
-                    if(file.Header.NumMDUPages <= 0)
+                    if(file.Header.MutableDataPageCount <= 0)
                     {
                         Console.WriteLine("Error: cannot remove mutable data from package that hasn't got any.");
                         return;

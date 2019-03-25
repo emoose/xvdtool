@@ -18,7 +18,7 @@ namespace LibXboxOne.Tests
         [InlineData(0xC2BFF, 2, 0x1)]
         public void TestNumHashBlockCalculation(ulong size, ulong index, ulong expected)
         {
-            ulong actual = XvdFile.CalculateNumHashBlocksInLevel(size, index, false);
+            ulong actual = XvdMath.CalculateNumHashBlocksInLevel(size, index, false);
 
             Assert.Equal(expected, actual);
         }
@@ -38,7 +38,7 @@ namespace LibXboxOne.Tests
                                                          ulong blockNum, uint index,
                                                          ulong expectedEntryNum, ulong expectedResult)
         {
-            ulong result = XvdFile.CalculateHashBlockNumForBlockNum(xvdType, hashTreeLevels, xvdDataBlockCount,
+            ulong result = XvdMath.CalculateHashBlockNumForBlockNum(xvdType, hashTreeLevels, xvdDataBlockCount,
                                                                     blockNum, index, out ulong entryNumInBlock);
             
             Assert.Equal(expectedEntryNum, entryNumInBlock);
@@ -52,7 +52,7 @@ namespace LibXboxOne.Tests
         [InlineData(0x5F653, 0x8FB)]
         public void TestCalculateHashTreeBlockCount(ulong xvdDataBlockCount, ulong expected)
         {
-            ulong result = XvdFile.PagesToBlocks(xvdDataBlockCount);
+            ulong result = XvdMath.PagesToBlocks(xvdDataBlockCount);
 
             Assert.Equal(expected, result);
         }

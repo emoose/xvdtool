@@ -89,7 +89,7 @@ namespace LibXboxOne
         /* 0x26C */ public uint PersistentLocalStorageSize;
         
         // NEW FIELDS: only seen in SoDTest windows-XVC!
-        /* 0x270 */ public byte NumMDUPages;
+        /* 0x270 */ public byte MutableDataPageCount;
         /* 0x271 */ public byte Unknown271;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
@@ -110,11 +110,11 @@ namespace LibXboxOne
 
         /* 0xE00 = END */
 
-        public ulong UserDataPageCount => XvdFile.BytesToPages(UserDataLength);
-        public ulong XvcInfoPageCount => XvdFile.BytesToPages(XvcDataLength);
-        public ulong EmbeddedXvdPageCount => XvdFile.BytesToPages(EmbeddedXVDLength);
-        public ulong DynamicHeaderPageCount => XvdFile.BytesToPages(DynamicHeaderLength);
-        public ulong DrivePageCount => XvdFile.BytesToPages(DriveSize);
+        public ulong UserDataPageCount => XvdMath.BytesToPages(UserDataLength);
+        public ulong XvcInfoPageCount => XvdMath.BytesToPages(XvcDataLength);
+        public ulong EmbeddedXvdPageCount => XvdMath.BytesToPages(EmbeddedXVDLength);
+        public ulong DynamicHeaderPageCount => XvdMath.BytesToPages(DynamicHeaderLength);
+        public ulong DrivePageCount => XvdMath.BytesToPages(DriveSize);
         public ulong NumberOfHashedPages => (DrivePageCount + UserDataPageCount + XvcInfoPageCount + DynamicHeaderPageCount);
         public ulong NumberOfMetadataPages => (UserDataPageCount + XvcInfoPageCount + DynamicHeaderPageCount);
         public ulong SectorSize => VolumeFlags.HasFlag(XvdVolumeFlags.LegacySectorSize) ?
@@ -243,7 +243,7 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + "Writeable Expiration Date: 0x" + WriteableExpirationDate.ToString("X"));
             b.AppendLineSpace(fmt + "Writeable Policy flags: 0x" + WriteablePolicyFlags.ToString("X"));
             b.AppendLineSpace(fmt + "Persistent Local storage length: 0x" + PersistentLocalStorageSize.ToString("X"));
-            b.AppendLineSpace(fmt + "Number of MDU pages: 0x" + NumMDUPages.ToString("X"));
+            b.AppendLineSpace(fmt + "Mutable data page count: 0x" + MutableDataPageCount.ToString("X"));
 
             b.AppendLineSpace(fmt + "Sandbox Id: " + new string(SandboxId).Replace("\0", ""));
             b.AppendLineSpace(fmt + "Product Id: " + new Guid(ProductId));
@@ -258,7 +258,7 @@ namespace LibXboxOne
                 b.AppendLineSpace(fmt + "Unknown271: " + Unknown271.ToString("X"));
 
             if (!Unknown272.IsArrayEmpty())
-            b.AppendLineSpace(fmt + "Unknown272: " + Unknown272.ToHexString());
+                b.AppendLineSpace(fmt + "Unknown272: " + Unknown272.ToHexString());
 
             if (!Reserved13C.IsArrayEmpty())
                 b.AppendLineSpace(fmt + "Reserved13C: " + Environment.NewLine + fmt + Reserved13C.ToHexString());
@@ -314,7 +314,7 @@ namespace LibXboxOne
 
             string fmt = formatted ? "    " : "";
 
-            b.AppendLineSpace(fmt + $"PageNum: 0x{PageNum:X} (@ 0x{XvdFile.PageNumberToOffset(PageNum)})");
+            b.AppendLineSpace(fmt + $"PageNum: 0x{PageNum:X} (@ 0x{XvdMath.PageNumberToOffset(PageNum)})");
             b.AppendLineSpace(fmt + $"Hash: 0x{Hash:X}");
 
             return b.ToString();
