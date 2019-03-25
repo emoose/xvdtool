@@ -412,18 +412,11 @@ namespace LibXboxOne
                 uint dataUnit = page;
                 if(IsDataIntegrityEnabled)
                 {
-                    // fetch dataUnit from hash table entry for this page (last 4 bytes of hash entry)
+                    // fetch dataUnit from hash table entry for this page
                     // TODO: seems we'll have to insert dataUnit when re-adding hashtables...
 
-                    ulong entryNum;
-                    var hashBlockNum = CalculateHashBlockNumForBlockNum(Header.Type,
-                                                                    HashTreeLevels, Header.NumberOfHashedPages,
-                                                                    startPage + page, 0, out entryNum);
-
-                    var hashEntryOffset = PageNumberToOffset(hashBlockNum) + HashTreeOffset;
-                    hashEntryOffset += entryNum * HASH_ENTRY_LENGTH;
-
-                    _io.Stream.Position = (long)hashEntryOffset + 0x14;
+                    // last 4 bytes of hash entry = dataUnit
+                    _io.Stream.Position = (long)CalculateHashEntryOffsetForBlock(startPage + page, 0) + 0x14;
                     dataUnit = _io.Reader.ReadUInt32();
                 }
 
@@ -961,6 +954,13 @@ namespace LibXboxOne
             return Save();
         }
 
+        public ulong CalculateHashEntryOffsetForBlock(ulong blockNum, uint hashLevel)
+        {
+            ulong entryNum = 0;
+            var hashBlock = CalculateHashBlockNumForBlockNum(Header.Type, HashTreeLevels, Header.NumberOfHashedPages, blockNum, hashLevel, out entryNum);
+            return HashTreeOffset + PageNumberToOffset(hashBlock) + (entryNum * HASH_ENTRY_LENGTH);
+        }
+
         public ulong[] VerifyDataHashTree(bool rehash = false)
         {
             ulong dataBlockCount = ((ulong)_io.Stream.Length - UserDataOffset) / PAGE_SIZE;
@@ -968,20 +968,14 @@ namespace LibXboxOne
 
             for (ulong i = 0; i < dataBlockCount; i++)
             {
-                ulong entryNum;
-                var blockNum = CalculateHashBlockNumForBlockNum(Header.Type,
-                                                                HashTreeLevels, Header.NumberOfHashedPages,
-                                                                (ulong)i, 0, out entryNum);
-
-                var hashEntryOffset = PageNumberToOffset(blockNum) + HashTreeOffset;
-                hashEntryOffset += entryNum * HASH_ENTRY_LENGTH;
-
+                var hashEntryOffset = CalculateHashEntryOffsetForBlock(i, 0);
                 _io.Stream.Position = (long)hashEntryOffset;
+
                 byte[] oldhash = _io.Reader.ReadBytes((int)HASH_ENTRY_LENGTH);
 
-                var dataToHashOffset = (PageNumberToOffset(i) + UserDataOffset);
-
+                var dataToHashOffset = PageNumberToOffset(i) + UserDataOffset;
                 _io.Stream.Position = (long)dataToHashOffset;
+
                 byte[] data = _io.Reader.ReadBytes((int)PAGE_SIZE);
                 byte[] hash = HashUtils.ComputeSha256(data);
                 Array.Resize(ref hash, (int)HASH_ENTRY_LENGTH);
@@ -1049,27 +1043,16 @@ namespace LibXboxOne
                 {
                     while (dataBlockNum < Header.NumberOfHashedPages)
                     {
-                        ulong entryNum;
-                        var blockNum = CalculateHashBlockNumForBlockNum(Header.Type,
-                                                                        HashTreeLevels, Header.NumberOfHashedPages,
-                                                                        dataBlockNum, hashTreeLevel - 1, out entryNum);
-                        _io.Stream.Position = (long)(HashTreeOffset + PageNumberToOffset(blockNum));
+                        _io.Stream.Position = (long)CalculateHashEntryOffsetForBlock(dataBlockNum, hashTreeLevel - 1);
                         byte[] blockHash = HashUtils.ComputeSha256(_io.Reader.ReadBytes((int)PAGE_SIZE));
                         Array.Resize(ref blockHash, (int)HASH_ENTRY_LENGTH);
 
-                        ulong entryNum2;
-                        var secondBlockNum = CalculateHashBlockNumForBlockNum(Header.Type,
-                                                                                HashTreeLevels, Header.NumberOfHashedPages,
-                                                                                dataBlockNum, hashTreeLevel, out entryNum2);
-                        
-                        var hashEntryOffset = HashTreeOffset + PageNumberToOffset(secondBlockNum);
-                        hashEntryOffset += (entryNum2 + (entryNum2 * 2)) << 3;
-                        _io.Stream.Position = (long)hashEntryOffset;
+                        _io.Stream.Position = (long)CalculateHashEntryOffsetForBlock(dataBlockNum, hashTreeLevel);
 
                         byte[] oldHash = _io.Reader.ReadBytes((int)HASH_ENTRY_LENGTH);
                         if (!blockHash.IsEqualTo(oldHash))
                         {
-                            _io.Stream.Position = (long)hashEntryOffset; // todo: maybe return a list of blocks that needed rehashing
+                            _io.Stream.Position -= (int)HASH_ENTRY_LENGTH; // todo: maybe return a list of blocks that needed rehashing
                             _io.Writer.Write(blockHash);
                         }
 
@@ -1109,24 +1092,13 @@ namespace LibXboxOne
                 {
                     while (dataBlockNum < Header.NumberOfHashedPages)
                     {
-                        ulong entryNum;
-                        var blockNum = CalculateHashBlockNumForBlockNum(Header.Type,
-                                                                        HashTreeLevels, Header.NumberOfHashedPages,
-                                                                        dataBlockNum, hashTreeLevel - 1, out entryNum);
-
-                        _io.Stream.Position = (long) (HashTreeOffset + PageNumberToOffset(blockNum));
+                        _io.Stream.Position = (long)CalculateHashEntryOffsetForBlock(dataBlockNum, hashTreeLevel - 1);
                         byte[] blockHash = HashUtils.ComputeSha256(_io.Reader.ReadBytes((int)PAGE_SIZE));
                         Array.Resize(ref blockHash, (int)HASH_ENTRY_LENGTH);
 
-                        ulong entryNum2;
-                        var secondBlockNum = CalculateHashBlockNumForBlockNum(Header.Type,
-                                                                              HashTreeLevels, Header.NumberOfHashedPages,
-                                                                              dataBlockNum, hashTreeLevel, out entryNum2);
-                        topHashTreeBlock = secondBlockNum;
-
-                        var hashEntryOffset = HashTreeOffset + PageNumberToOffset(secondBlockNum);
-                        hashEntryOffset += (entryNum2 + (entryNum2 * 2)) << 3;
-                        _io.Stream.Position = (long)hashEntryOffset;
+                        var upperHashBlockOffset = CalculateHashEntryOffsetForBlock(dataBlockNum, hashTreeLevel);
+                        topHashTreeBlock = BytesToPages(upperHashBlockOffset);
+                        _io.Stream.Position = (long)upperHashBlockOffset;
 
                         byte[] expectedHash = _io.Reader.ReadBytes((int)HASH_ENTRY_LENGTH);
                         if (!expectedHash.IsEqualTo(blockHash))

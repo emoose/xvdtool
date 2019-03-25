@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- XvdFile: Move duplicated "get hash entry offset" code to its own function
+- XvdFile: Improve VerifyXvcHash & fix AddHashTree, remove unneeded copy constructors for structs
 - XvdFile: Add RemoveMutableData function & -removemdu tool option
 - XvdFile: Move data-removal logic from RemoveHashTree into seperate RemoveData function + add fixups for XvdUpdateSegments
 - XvdFile: Allow fetching dataUnit from hashtables during CryptSectionXts
