@@ -24,7 +24,7 @@ namespace LibXboxOne
         public static readonly uint INVALID_SECTOR = 0xFFFFFFFF;
 
         public static readonly uint HASH_ENTRY_LENGTH = 0x18;
-        public static readonly uint HASH_ENTRY_LENGTH_XVC = 0x14;
+        public static readonly uint HASH_ENTRY_LENGTH_ENCRYPTED = 0x14;
 
         public static readonly uint HASH_ENTRIES_IN_PAGE = PAGE_SIZE / HASH_ENTRY_LENGTH; // 0xAA
         public static readonly uint PAGES_PER_BLOCK = BLOCK_SIZE / PAGE_SIZE; // 0xAA
@@ -167,7 +167,7 @@ namespace LibXboxOne
         {
             get
             {
-                return IsXvcFile ? HASH_ENTRY_LENGTH_XVC : HASH_ENTRY_LENGTH;
+                return IsEncrypted ? HASH_ENTRY_LENGTH_ENCRYPTED : HASH_ENTRY_LENGTH;
             }
         }
 

@@ -364,7 +364,6 @@ namespace XVDTool
                     return;
                 }
 
-
                 Console.WriteLine($"Loading file from {filePath}...");
                 if (!XvdFile.DisableDataHashChecking)
                     Console.WriteLine("(and verifying hash table, use -nd to disable)");
@@ -385,24 +384,17 @@ namespace XVDTool
                         Console.WriteLine(info);
                 }
 
-                if (decryptPackage)
+                if (addHashTree)
                 {
-                    if (!file.IsEncrypted)
-                        Console.WriteLine(@"Warning: -decrypt failed as package is already decrypted");
+                    if (file.IsDataIntegrityEnabled)
+                        Console.WriteLine("Warning: -addhashtree failed as package already has a hash tree.");
                     else
                     {
-                        if (file.IsXvcFile)
-                        {
-                            Console.WriteLine("Decrypting XVC...");
-                        }
-                        else
-                        {
-                            string keyToUse = odkToUse != OdkIndex.Invalid ? odkToUse.ToString() : "<ODK indicated by XVD header>";
-                            Console.WriteLine("Decrypting XVD using \"" + keyToUse + "\" key...");
-                        }
-
-                        bool success = file.Decrypt();
-                        Console.WriteLine(success ? "Package decrypted successfully!" : "Error during decryption!");
+                        Console.WriteLine("Attempting to add hash tree to package...");
+                        bool success = file.AddHashTree() && file.Save();
+                        Console.WriteLine(success
+                            ? "Hash tree added successfully and header updated."
+                            : "Error: failed to extend package to make room for hash tree, is there enough disk space?");
                         if (!success)
                             return;
                     }
@@ -434,17 +426,24 @@ namespace XVDTool
                     }
                 }
 
-                if (addHashTree)
+                if (decryptPackage)
                 {
-                    if (file.IsDataIntegrityEnabled)
-                        Console.WriteLine("Warning: -addhashtree failed as package already has a hash tree.");
+                    if (!file.IsEncrypted)
+                        Console.WriteLine(@"Warning: -decrypt failed as package is already decrypted");
                     else
                     {
-                        Console.WriteLine("Attempting to add hash tree to package...");
-                        bool success = file.AddHashTree() && file.Save();
-                        Console.WriteLine(success
-                            ? "Hash tree added successfully and header updated."
-                            : "Error: failed to extend package to make room for hash tree, is there enough disk space?");
+                        if (file.IsXvcFile)
+                        {
+                            Console.WriteLine("Decrypting XVC...");
+                        }
+                        else
+                        {
+                            string keyToUse = odkToUse != OdkIndex.Invalid ? odkToUse.ToString() : "<ODK indicated by XVD header>";
+                            Console.WriteLine("Decrypting XVD using \"" + keyToUse + "\" key...");
+                        }
+
+                        bool success = file.Decrypt();
+                        Console.WriteLine(success ? "Package decrypted successfully!" : "Error during decryption!");
                         if (!success)
                             return;
                     }
