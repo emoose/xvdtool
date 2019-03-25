@@ -1097,7 +1097,7 @@ namespace LibXboxOne
                         Array.Resize(ref blockHash, (int)HASH_ENTRY_LENGTH);
 
                         var upperHashBlockOffset = CalculateHashEntryOffsetForBlock(dataBlockNum, hashTreeLevel);
-                        topHashTreeBlock = BytesToPages(upperHashBlockOffset);
+                        topHashTreeBlock = OffsetToPageNumber(upperHashBlockOffset - HashTreeOffset);
                         _io.Stream.Position = (long)upperHashBlockOffset;
 
                         byte[] expectedHash = _io.Reader.ReadBytes((int)HASH_ENTRY_LENGTH);
