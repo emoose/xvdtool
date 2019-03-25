@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 
@@ -64,7 +65,6 @@ namespace LibXboxOne
         public int TransformDataUnit(byte[] inputBuffer, int inputOffset, int inputCount, byte[] outputBuffer, int outputOffset, uint dataUnit)
         {
             int transformedBytes = 0;
-            int blocks = inputCount / BlockSize;
             byte[] encryptedTweak = new byte[0x10];
             byte[] tweak = _tweakBytes;
 
@@ -74,30 +74,31 @@ namespace LibXboxOne
             // Encrypt tweak
             _tweakEncryptor.TransformBlock(tweak, 0, tweak.Length, encryptedTweak, 0);
 
+            byte[] encryptedTweakOrig = new byte[0x10];
+            Array.Copy(encryptedTweak, encryptedTweakOrig, 0x10);
+
+            int blocks = inputCount / BlockSize;
+
+            // Apply first part of tweak (input-tweak) to input buffer all at once
             for (int i = 0; i < blocks; i++)
             {
-                // Encrypt data, using encrypted tweak as IV
-                transformedBytes += TransformBlock(inputBuffer, inputOffset + (i * BlockSize), BlockSize,
-                                                   outputBuffer, outputOffset + (i * BlockSize),
-                                                   encryptedTweak);
+                for (int y = 0; y < BlockSize; y++)
+                    outputBuffer[outputOffset + (i * BlockSize) + y] = (byte)(inputBuffer[inputOffset + (i * BlockSize) + y] ^ encryptedTweak[y % encryptedTweak.Length]);
+
                 encryptedTweak = MultiplyTweak(encryptedTweak);
             }
 
-            return transformedBytes;
-        }
+            // AES transform the data...
+            transformedBytes = _dataTransform.TransformBlock(outputBuffer, outputOffset, inputCount, outputBuffer, outputOffset);
 
-        int TransformBlock(byte[] inputBuffer, int inputOffset, int inputCount, byte[] outputBuffer, int outputOffset, byte[] encryptedTweak)
-        {
-            for (int i = 0; i < inputCount; i++)
+            // Reset tweak back to original encrypted tweak and then apply output-tweak
+            Array.Copy(encryptedTweakOrig, encryptedTweak, 0x10);
+            for (int i = 0; i < blocks; i++)
             {
-                inputBuffer[inputOffset + i] = (byte)(inputBuffer[inputOffset + i] ^ encryptedTweak[i % encryptedTweak.Length]);
-            }
+                for (int y = 0; y < BlockSize; y++)
+                    outputBuffer[outputOffset + (i * BlockSize) + y] = (byte)(outputBuffer[outputOffset + (i * BlockSize) + y] ^ encryptedTweak[y % encryptedTweak.Length]);
 
-            int transformedBytes = _dataTransform.TransformBlock(inputBuffer, inputOffset, inputCount, outputBuffer, outputOffset);
-
-            for (int i = 0; i < inputCount; i++)
-            {
-                outputBuffer[outputOffset + i] = (byte)(outputBuffer[outputOffset + i] ^ encryptedTweak[i % encryptedTweak.Length]);
+                encryptedTweak = MultiplyTweak(encryptedTweak);
             }
 
             return transformedBytes;
