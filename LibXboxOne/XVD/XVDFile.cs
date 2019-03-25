@@ -24,6 +24,7 @@ namespace LibXboxOne
         public static readonly uint INVALID_SECTOR = 0xFFFFFFFF;
 
         public static readonly uint HASH_ENTRY_LENGTH = 0x18;
+        public static readonly uint HASH_ENTRY_LENGTH_XVC = 0x14;
 
         public static readonly uint HASH_ENTRIES_IN_PAGE = PAGE_SIZE / HASH_ENTRY_LENGTH; // 0xAA
         public static readonly uint PAGES_PER_BLOCK = BLOCK_SIZE / PAGE_SIZE; // 0xAA
@@ -159,6 +160,14 @@ namespace LibXboxOne
             {
                 return XvdMath.PageNumberToOffset(Header.DynamicHeaderPageCount) +
                        DynamicHeaderOffset;
+            }
+        }
+
+        public uint DataHashEntryLength
+        {
+            get
+            {
+                return IsXvcFile ? HASH_ENTRY_LENGTH_XVC : HASH_ENTRY_LENGTH;
             }
         }
 
@@ -799,53 +808,14 @@ namespace LibXboxOne
                 var hashEntryOffset = CalculateHashEntryOffsetForBlock(i, 0);
                 _io.Stream.Position = (long)hashEntryOffset;
 
-                byte[] oldhash = _io.Reader.ReadBytes((int)HASH_ENTRY_LENGTH);
+                byte[] oldhash = _io.Reader.ReadBytes((int)DataHashEntryLength);
 
                 var dataToHashOffset = XvdMath.PageNumberToOffset(i) + UserDataOffset;
                 _io.Stream.Position = (long)dataToHashOffset;
 
                 byte[] data = _io.Reader.ReadBytes((int)PAGE_SIZE);
                 byte[] hash = HashUtils.ComputeSha256(data);
-                Array.Resize(ref hash, (int)HASH_ENTRY_LENGTH);
-
-                bool writeIdx = false; // encrypted data uses 0x14 hashes with a block IDX added to the end to make the HASH_ENTRY_LENGTH hash
-                uint idxToWrite = (uint)i;
-                if (IsEncrypted)
-                {
-                    if (IsXvcFile)
-                    {
-                        var hdr = new XvcRegionHeader();
-                        foreach (var region in RegionHeaders)
-                        {
-                            if (region.KeyId == XvcConstants.XVC_KEY_NONE)
-                                continue; // skip unencrypted regions
-
-                            if (dataToHashOffset >= region.Offset && dataToHashOffset < (region.Offset + region.Length))
-                            {
-                                writeIdx = true;
-                                hdr = region;
-                                break;
-                            }
-                        }
-                        if (hdr.Id != 0)
-                        {
-                            var regionOffset = dataToHashOffset - hdr.Offset;
-                            var regionBlockNo = XvdMath.OffsetToPageNumber(regionOffset);
-                            idxToWrite = (uint) regionBlockNo;
-                        }
-                    }
-                    else
-                    {
-                        writeIdx = true;
-                        idxToWrite = (uint) i;
-                    }
-                }
-
-                if (writeIdx)
-                {
-                    byte[] idxBytes = BitConverter.GetBytes(idxToWrite);
-                    Array.Copy(idxBytes, 0, hash, 0x14, 4);
-                }
+                Array.Resize(ref hash, (int)DataHashEntryLength);
 
                 if (hash.IsEqualTo(oldhash))
                     continue;

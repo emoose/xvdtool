@@ -229,8 +229,8 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + "XVC Data Length: 0x" + XvcDataLength.ToString("X"));
             b.AppendLineSpace(fmt + "Dynamic Header Length: 0x" + DynamicHeaderLength.ToString("X"));
             b.AppendLineSpace(fmt + "BlockSize: 0x" + BlockSize.ToString("X"));
-            b.AppendLineSpace(fmt + "Ext Entries: " + ExtEntries.Length);
-            foreach(XvdExtEntry entry in ExtEntries)
+            b.AppendLineSpace(fmt + "Ext Entries: " + ExtEntries.Where(e => !e.IsEmpty).Count());
+            foreach(XvdExtEntry entry in ExtEntries.Where(e => !e.IsEmpty))
                 b.AppendLineSpace(fmt + entry.ToString(true));
 
             b.AppendLineSpace(fmt + "Capabilities: " + Capabilities.ToHexString());
@@ -275,13 +275,15 @@ namespace LibXboxOne
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode, Pack = 1)]
     public struct XvdExtEntry
     {
-        /* 0x00 */ uint Code;
-        /* 0x04 */ uint Length;
-        /* 0x08 */ ulong Offset;
-        /* 0x10 */ uint DataLength;
-        /* 0x14 */ uint Reserved;
+        /* 0x00 */ public uint Code;
+        /* 0x04 */ public uint Length;
+        /* 0x08 */ public ulong Offset;
+        /* 0x10 */ public uint DataLength;
+        /* 0x14 */ public uint Reserved;
 
         /* 0x18 = END */
+
+        public bool IsEmpty => Code == 0 && Length == 0 && Offset == 0 && DataLength == 0 && Reserved == 0;
 
         public override string ToString()
         {

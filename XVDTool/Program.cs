@@ -364,6 +364,11 @@ namespace XVDTool
                     return;
                 }
 
+
+                Console.WriteLine($"Loading file from {filePath}...");
+                if (!XvdFile.DisableDataHashChecking)
+                    Console.WriteLine("(and verifying hash table, use -nd to disable)");
+
                 var file = new XvdFile(filePath);
                 file.OverrideOdk = odkToUse;
 
@@ -386,7 +391,6 @@ namespace XVDTool
                         Console.WriteLine(@"Warning: -decrypt failed as package is already decrypted");
                     else
                     {
-
                         if (file.IsXvcFile)
                         {
                             Console.WriteLine("Decrypting XVC...");
