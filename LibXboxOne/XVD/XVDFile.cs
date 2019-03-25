@@ -296,7 +296,24 @@ namespace LibXboxOne
 
         internal bool CryptSectionXts(bool encrypt, byte[] key, uint headerId, ulong offset, ulong length)
         {
-            var headerIdBytes = BitConverter.GetBytes(headerId);
+            var startPage = XvdMath.OffsetToPageNumber(offset - UserDataOffset);
+            ulong numPages = XvdMath.BytesToPages(length);
+
+            // Pre-read data unit numbers to minimize needing to seek around the file
+            List<uint> dataUnits = null;
+            if (IsDataIntegrityEnabled)
+            {
+                dataUnits = new List<uint>();
+                for (uint page = 0; page < numPages; page++)
+                {
+                    // fetch dataUnit from hash table entry for this page
+                    // TODO: seems we'll have to insert dataUnit when re-adding hashtables...
+
+                    // last 4 bytes of hash entry = dataUnit
+                    _io.Stream.Position = (long)CalculateHashEntryOffsetForBlock(startPage + page, 0) + 0x14;
+                    dataUnits.Add(_io.Reader.ReadUInt32());
+                }
+            }
 
             var tweakAesKey = new byte[0x10];
             var dataAesKey = new byte[0x10];
@@ -308,38 +325,27 @@ namespace LibXboxOne
             Array.Copy(key, 0x10, dataAesKey, 0, 0x10);
 
             // Copy VDUID and header Id as tweak
+            var headerIdBytes = BitConverter.GetBytes(headerId);
             Array.Copy(Header.VDUID, 0, tweak, 0x8, 0x8);
             Array.Copy(headerIdBytes, 0, tweak, 0x4, 0x4);
 
             var cipher = new AesXtsTransform(tweak, dataAesKey, tweakAesKey, encrypt);
 
+            // Perform crypto!
             _io.Stream.Position = (long)offset;
-
-            var startPage = XvdMath.OffsetToPageNumber(offset - UserDataOffset);
-            ulong numPages = XvdMath.BytesToPages(length);
             for (uint page = 0; page < numPages; page++)
-            {
+            { 
                 var transformedData = new byte[PAGE_SIZE];
 
                 var pageOffset = _io.Stream.Position;
                 var origData = _io.Reader.ReadBytes((int)PAGE_SIZE);
 
-                uint dataUnit = page;
-                if(IsDataIntegrityEnabled)
-                {
-                    // fetch dataUnit from hash table entry for this page
-                    // TODO: seems we'll have to insert dataUnit when re-adding hashtables...
-
-                    // last 4 bytes of hash entry = dataUnit
-                    _io.Stream.Position = (long)CalculateHashEntryOffsetForBlock(startPage + page, 0) + 0x14;
-                    dataUnit = _io.Reader.ReadUInt32();
-                }
-
-                cipher.TransformDataUnit(origData, 0, origData.Length, transformedData, 0, dataUnit);
+                cipher.TransformDataUnit(origData, 0, origData.Length, transformedData, 0, dataUnits == null ? page : dataUnits[(int)page]);
 
                 _io.Stream.Position = pageOffset;
                 _io.Writer.Write(transformedData);
             }
+
             return true;
         }
 
