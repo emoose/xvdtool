@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- XvdMath: Fix InBlockOffset calculation
+- XvdFilesystem: Implement XvdFilesystem operations via XvdFilesystemStream
 - XvdMount: Support supplying mountpoint to xvd mounting (-mp / -mountpoint)
 - XvdFile: Move duplicated "get hash entry offset" code to its own function
 - XvdFile: Improve VerifyXvcHash & fix AddHashTree, remove unneeded copy constructors for structs

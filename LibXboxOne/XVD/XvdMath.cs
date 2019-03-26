@@ -18,7 +18,7 @@ namespace LibXboxOne
 
         public static ulong InBlockOffset(ulong offset)
         {
-            return offset & (XvdFile.BLOCK_SIZE - 1);
+            return offset - ((offset / XvdFile.BLOCK_SIZE) * XvdFile.BLOCK_SIZE);
         }
 
         public static ulong InPageOffset(ulong offset)
