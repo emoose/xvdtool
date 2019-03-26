@@ -69,10 +69,26 @@ namespace LibXboxOne
                                               DiscUtils.Streams.Ownership.None,
                                               geometry);
 
-            var fsStream = disk.Partitions[0].Open();
-            var fs = new DiscUtils.Ntfs.NtfsFileSystem(fsStream);
-            
-            ExtractFiles(fs.Root, outputDirectory);
+            using (var fsStream = disk.Partitions[0].Open())
+            {
+                /* Workaround:
+                 * Wrap the NTFS filesystem stream  in a SnapshotStream to override
+                 * BiosParamaterBlock's SignatureByte in memory for DiscUtils to accept
+                 * the stream.
+                 *
+                 * See: https://github.com/DiscUtils/DiscUtils/issues/146
+                 */
+                var snapshotStream = new DiscUtils.Streams.SnapshotStream(fsStream, Ownership.None);
+
+                snapshotStream.Snapshot();
+                snapshotStream.Seek(0x26, SeekOrigin.Begin);
+                snapshotStream.WriteByte(0x80);
+                /* Workaround end */
+
+                var fs = new DiscUtils.Ntfs.NtfsFileSystem(snapshotStream);
+
+                ExtractFiles(fs.Root, outputDirectory);
+            }
 
             return true;
         }
