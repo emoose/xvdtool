@@ -1135,6 +1135,19 @@ namespace LibXboxOne
                     b.Append(RegionSpecifiers[i].ToString(formatted));
                 }
 
+            b.AppendLine();
+            if (!IsEncrypted)
+            {
+                try
+                {
+                    b.Append(Filesystem.ToString(formatted));
+                }
+                catch (Exception e)
+                {
+                    b.AppendLine($"Failed to get XvdFilesystem info, error: {e}");
+                }
+            }
+
             return b.ToString();
         }
         #endregion
