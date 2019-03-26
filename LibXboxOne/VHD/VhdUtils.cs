@@ -4,7 +4,6 @@ namespace LibXboxOne.Vhd
 {
     public static class VhdUtils
     {
-        const uint VHD_SECTOR_LENGTH = 512;
         static readonly DateTime VhdEpoch = new DateTime(2000, 1, 1, 1, 0, 0, DateTimeKind.Utc);
         public static uint GetTimestamp(DateTime dateTime)
         {
@@ -12,9 +11,9 @@ namespace LibXboxOne.Vhd
         }
 
         // Source: https://github.com/ctatoiu/PS-Azure/blob/master/src/ServiceManagement/Compute/VhdManagement/Model/DiskGeometry.cs
-        public static VhdDiskGeometry CalculateDiskGeometry(ulong driveSize)
+        public static VhdDiskGeometry CalculateDiskGeometry(ulong driveSize, uint sectorSize)
         {
-            long totalSectors = (long)(driveSize / VHD_SECTOR_LENGTH);
+            long totalSectors = (long)(driveSize / sectorSize);
             if (totalSectors > 65535 * 16 * 255)
             {
                 totalSectors = 65535 * 16 * 255;

@@ -32,6 +32,7 @@ namespace LibXboxOne.Vhd
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x1AB)]
         /* 0x55 */ public byte[] Reserved;
 
+        static uint VHD_SECTOR_LENGTH => 512;
     	static uint VHD_FILEFORMAT_VERSION => 0x00010000;
         static uint VHD_CREATOR_VERSION => 0x000A0000;
 
@@ -53,7 +54,7 @@ namespace LibXboxOne.Vhd
                 CreatorHostOS = VhdCreatorHostOs.Windows,
                 OriginalSize = driveSize.EndianSwap(),
                 CurrentSize = driveSize.EndianSwap(),
-                DiskGeometry = VhdUtils.CalculateDiskGeometry(driveSize),
+                DiskGeometry = VhdUtils.CalculateDiskGeometry(driveSize, VHD_SECTOR_LENGTH),
                 Checksum = 0x0,
                 UniqueId = uniqueId,
                 SavedState = 0,

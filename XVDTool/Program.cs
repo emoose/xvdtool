@@ -34,6 +34,7 @@ namespace XVDTool
             var exvdDest = String.Empty;
             var userDataDest = String.Empty;
             var vhdDest = String.Empty;
+            var rawimageDest = String.Empty;
             var fsDest = String.Empty;
 
             var signKeyToUse = String.Empty;
@@ -106,7 +107,8 @@ namespace XVDTool
                 { "xe|extractembedded=", v => exvdDest = v },
                 { "xu|extractuserdata=", v => userDataDest = v },
                 { "xv|extractvhd=", v => vhdDest = v },
-                { "xf|extractfilesystem=", v => fsDest = v},
+                { "xi|extractimage=", v => rawimageDest = v },
+                { "xf|extractfiles=", v => fsDest = v },
 
                 { "l|filelist=", v => fileList = v },
                 { "f|folder=", v => folder = v },
@@ -169,7 +171,8 @@ namespace XVDTool
                 Console.WriteLine(fmt + "-xe (-extractembedded) <output-file> - extract embedded XVD from package");
                 Console.WriteLine(fmt + "-xu (-extractuserdata) <output-file> - extract user data from package");
                 Console.WriteLine(fmt + "-xv (-extractvhd) <output-vhd> - extracts filesystem from XVD into a VHD file, doesn't seem to work properly with XVC packages yet (also removes NTFS compression from output VHD so Windows can mount it)");
-                Console.WriteLine(fmt + "-xf (-extractfilesystem) <output-file> - extract filesystem (raw)");
+                Console.WriteLine(fmt + "-xi (-extractimage) <output-file> - extract raw filesystem image");
+                Console.WriteLine(fmt + "-xf (-extractfiles) <output-folder> - extract files from XVD filesystem");
                 Console.WriteLine();
                 Console.WriteLine(fmt + "The next two commands will write info about each package found to [filename].txt");
                 Console.WriteLine(fmt + "also extracts embedded XVD and user data to [filename].exvd.bin / [filename].userdata.bin");
@@ -569,7 +572,7 @@ namespace XVDTool
                     else
                     {
                         Console.WriteLine("Extracting XVD filesystem to VHD file \"" + vhdDest + "\"...");
-                        bool success = file.ExtractFilesystem(vhdDest, true);
+                        bool success = file.Filesystem.ExtractFilesystemImage(vhdDest, true);
                         Console.WriteLine(success
                             ? "Wrote VHD successfully."
                             : "Error: there was a problem extracting the filesystem from the XVD.");
@@ -578,17 +581,33 @@ namespace XVDTool
                     }
                 }
 
+                if (!String.IsNullOrEmpty(rawimageDest))
+                {
+                    if(file.IsEncrypted)
+                        Console.WriteLine("Warning: -extractimage failed as package is still encrypted.");
+                    else
+                    {
+                        Console.WriteLine("Extracting raw filesystem image to file \""+ rawimageDest + "\"...");
+                        bool success = file.Filesystem.ExtractFilesystemImage(rawimageDest, false);
+                        Console.WriteLine(success
+                            ? "Extracted raw image successfully."
+                            : "Error: there was a problem extracting raw image from the XVD.");
+                        if (!success)
+                            return;
+                    }
+                }
+
                 if (!String.IsNullOrEmpty(fsDest))
                 {
                     if(file.IsEncrypted)
-                        Console.WriteLine("Warning: -extractfilesystem failed as package is still encrypted.");
+                        Console.WriteLine("Warning: -extractfiles failed as package is still encrypted.");
                     else
                     {
-                        Console.WriteLine("Extracting XVD filesystem to raw file \""+ fsDest + "\"...");
-                        bool success = file.ExtractFilesystem(fsDest, false);
+                        Console.WriteLine("Extracting XVD files to folder \""+ fsDest + "\"...");
+                        bool success = file.Filesystem.ExtractFilesystem(fsDest);
                         Console.WriteLine(success
-                            ? "Wrote raw filesystem image successfully."
-                            : "Error: there was a problem extracting the filesystem from the XVD.");
+                            ? "Extracted files successfully."
+                            : "Error: there was a problem extracting the files from the XVD.");
                         if (!success)
                             return;
                     }
