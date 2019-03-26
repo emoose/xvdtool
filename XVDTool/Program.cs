@@ -140,7 +140,7 @@ namespace XVDTool
                 Console.WriteLine();
                 Console.WriteLine(fmt + "-m (-mount) - mount package");
                 Console.WriteLine(fmt + "-um (-unmount) - unmount package");
-                Console.WriteLine(fmt + "-mp (-mountpoint) - Mount point for package (e.g. \"X:\"");
+                Console.WriteLine(fmt + "-mp (-mountpoint) - Mount point for package (e.g. \"X:\")");
                 Console.WriteLine();
                 Console.WriteLine(fmt + "-lk (-listkeys) - List known keys including their hashes / availability");
                 Console.WriteLine();
@@ -170,7 +170,7 @@ namespace XVDTool
                 Console.WriteLine();
                 Console.WriteLine(fmt + "-xe (-extractembedded) <output-file> - extract embedded XVD from package");
                 Console.WriteLine(fmt + "-xu (-extractuserdata) <output-file> - extract user data from package");
-                Console.WriteLine(fmt + "-xv (-extractvhd) <output-vhd> - extracts filesystem from XVD into a VHD file, doesn't seem to work properly with XVC packages yet (also removes NTFS compression from output VHD so Windows can mount it)");
+                Console.WriteLine(fmt + "-xv (-extractvhd) <output-vhd> - extracts filesystem from XVD into a VHD file");
                 Console.WriteLine(fmt + "-xi (-extractimage) <output-file> - extract raw filesystem image");
                 Console.WriteLine(fmt + "-xf (-extractfiles) <output-folder> - extract files from XVD filesystem");
                 Console.WriteLine();
