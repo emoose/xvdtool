@@ -14,7 +14,7 @@ namespace LibXboxOne
 
     public class XvdMount
     {
-        public static bool MountXvd(string filepath)
+        public static bool MountXvd(string filepath, string mountPoint, XvdMountFlags flags=0)
         {
             // Setup Xvd handle
             IntPtr pHandle = IntPtr.Zero;
@@ -28,7 +28,7 @@ namespace LibXboxOne
             
             IntPtr pDiskHandle = IntPtr.Zero;
             int diskNum = 0;
-            result = Natives.XvdMount(out pDiskHandle, out diskNum, pHandle, filepath, 0, null, (int)XvdMountFlags.None);
+            result = Natives.XvdMount(out pDiskHandle, out diskNum, pHandle, filepath, 0, mountPoint, (int)flags);
 
             // Check for errors
             if (result == 0x80070002)

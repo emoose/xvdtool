@@ -46,6 +46,8 @@ namespace XVDTool
 
             bool listKeys = false;
 
+            string mountPoint = null;
+
             var mountPackage = false;
             var unmountPackage = false;
 
@@ -70,6 +72,7 @@ namespace XVDTool
 
                 { "m|mount", v => mountPackage = v != null },
                 { "um|unmount", v => unmountPackage = v != null },
+                { "mp|mountpoint=", v => mountPoint = v },
 
                 { "lk|listkeys", v => listKeys = v != null },
 
@@ -135,6 +138,7 @@ namespace XVDTool
                 Console.WriteLine();
                 Console.WriteLine(fmt + "-m (-mount) - mount package");
                 Console.WriteLine(fmt + "-um (-unmount) - unmount package");
+                Console.WriteLine(fmt + "-mp (-mountpoint) - Mount point for package (e.g. \"X:\"");
                 Console.WriteLine();
                 Console.WriteLine(fmt + "-lk (-listkeys) - List known keys including their hashes / availability");
                 Console.WriteLine();
@@ -346,7 +350,7 @@ namespace XVDTool
 
                 if (mountPackage)
                 {
-                    bool success = XvdMount.MountXvd(filePath);
+                    bool success = XvdMount.MountXvd(filePath, mountPoint);
                     Console.WriteLine("Mounting {0} {1}", filePath, success ?
                         "completed successfully" :
                         "failed with error"
