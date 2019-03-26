@@ -572,7 +572,7 @@ namespace XVDTool
                     else
                     {
                         Console.WriteLine("Extracting XVD filesystem to VHD file \"" + vhdDest + "\"...");
-                        bool success = file.Filesystem.ExtractFilesystemImage(vhdDest, true);
+                        bool success = file.Filesystem.ConvertToVhd(vhdDest);
                         Console.WriteLine(success
                             ? "Wrote VHD successfully."
                             : "Error: there was a problem extracting the filesystem from the XVD.");
