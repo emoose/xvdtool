@@ -336,7 +336,7 @@ namespace LibXboxOne
         }
     }
 
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode, Pack = 1)]
     public struct XvcRegionSpecifier
     {
         /* 0x0 */ public XvcRegionId RegionId;

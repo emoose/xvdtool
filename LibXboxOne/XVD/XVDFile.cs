@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Xml;
 using LibXboxOne.Keys;
+using LibXboxOne.ThirdParty;
 
 namespace LibXboxOne
 {
@@ -1117,23 +1118,42 @@ namespace LibXboxOne
                     b.Append(RegionHeaders[i].ToString(formatted));
                 }
 
-            if (UpdateSegments != null)
+            if (UpdateSegments != null && UpdateSegments.Count > 0)
+            {
+                // have to add segments to a seperate List so we can store the index of them...
+                var segments = new List<Tuple<int, XvcUpdateSegment>>();
                 for (int i = 0; i < UpdateSegments.Count; i++)
                 {
                     if (UpdateSegments[i].Hash == 0)
                         break;
-                    b.AppendLine();
-                    b.AppendLine($"Update Segment {i}");
-                    b.Append(UpdateSegments[i].ToString(formatted));
+                    segments.Add(Tuple.Create(i, UpdateSegments[i]));
                 }
 
-            if (RegionSpecifiers != null)
+                b.AppendLine();
+                b.AppendLine("Update Segments:");
+                b.AppendLine();
+                b.AppendLine(segments.ToStringTable(
+                      new[] { "Id", "PageNum (Offset)", "Hash" },
+                      a => a.Item1, a => $"0x{a.Item2.PageNum:X} (0x{XvdMath.PageNumberToOffset(a.Item2.PageNum):X})", a => $"0x{a.Item2.Hash:X}"));
+            }
+
+
+            if (RegionSpecifiers != null && RegionSpecifiers.Count > 0)
+            {
+                // have to add specifiers to a seperate List so we can store the index of them...
+                var specs = new List<Tuple<int, XvcRegionSpecifier>>();
                 for (int i = 0; i < RegionSpecifiers.Count; i++)
                 {
-                    b.AppendLine();
-                    b.AppendLine($"RegionSpecifier {i}");
-                    b.Append(RegionSpecifiers[i].ToString(formatted));
+                    specs.Add(Tuple.Create(i, RegionSpecifiers[i]));
                 }
+
+                b.AppendLine();
+                b.AppendLine("Region Specifiers:");
+                b.AppendLine();
+                b.AppendLine(specs.ToStringTable(
+                      new[] { "Id", "RegionId", "Key", "Value" },
+                      a => a.Item1, a => $"0x{a.Item2.RegionId:X}", a => a.Item2.Key, a => a.Item2.Value));
+            }
 
             b.AppendLine();
             if (!IsEncrypted)
