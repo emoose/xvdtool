@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using DiscUtils;
 using DiscUtils.Ntfs;
 using DiscUtils.Partitions;
@@ -96,6 +97,8 @@ namespace LibXboxOne
                 fs.Dispose();
                 partitionStream.Dispose();
             }
+
+            disk.Dispose();
         }
 
         public bool ExtractFilesystem(string outputDirectory)
@@ -229,6 +232,76 @@ namespace LibXboxOne
                 }
             }
             return true;
+        }
+
+        public string FileInfoToString(DiscFileInfo info)
+        {
+            return $"{info.FullName} ({info.Length} bytes)";
+        }
+
+        public override string ToString()
+        {
+            return ToString(true);
+        }
+
+        public string ToString(bool formatted)
+        {
+            var b = new StringBuilder();
+            b.AppendLine("XvdFilesystem:");
+
+            string fmt = formatted ? "    " : "";
+
+            if (_xvdFile.IsEncrypted)
+            {
+                b.AppendLineSpace(fmt + "Cannot get XvdFilesystem info from encrypted package");
+                return b.ToString();
+            }
+
+            var disk = OpenDisk();
+            b.AppendLineSpace(fmt + "General Disk info:");
+            b.AppendLineSpace(fmt + fmt + $"Capacity: {disk.Capacity} (0x{disk.Capacity:X})");
+            b.AppendLineSpace(fmt + fmt + $"DiskClass: {disk.DiskClass} (0x{disk.DiskClass:X})");
+            b.AppendLineSpace(fmt + fmt + $"SectorSize: {disk.SectorSize} (0x{disk.SectorSize:X})");
+            b.AppendLine();
+
+            var pTable = disk.Partitions;
+            b.AppendLineSpace(fmt + "Partition table info:");
+            b.AppendLineSpace(fmt + fmt + $"Disk GUID: {pTable.DiskGuid}");
+            b.AppendLineSpace(fmt + fmt + $"Partition count: {pTable.Count}");
+            b.AppendLine();
+
+            if (pTable.Count == 0)
+            {
+                b.AppendLineSpace(fmt + fmt + "No partitions found on disk!");
+                disk.Dispose();
+                return b.ToString();
+            }
+
+            b.AppendLineSpace(fmt + fmt + "Partitions:");
+
+            int partitionIndex = 0;
+            foreach (var part in pTable.Partitions)
+            {
+                b.AppendLineSpace(fmt + fmt + $"- Partition {partitionIndex}:");
+
+                b.AppendLineSpace(fmt + fmt + fmt + $"  BIOS-type: {part.TypeAsString} ({part.BiosType} / 0x{part.BiosType:X})");
+                b.AppendLineSpace(fmt + fmt + fmt + $"  GUID-type: {part.GuidType}");
+                b.AppendLineSpace(fmt + fmt + fmt + $"  First sector: {part.FirstSector} (0x{part.FirstSector:X})");
+                b.AppendLineSpace(fmt + fmt + fmt + $"  Last sector: {part.LastSector} (0x{part.LastSector:X})");
+                b.AppendLineSpace(fmt + fmt + fmt + $"  Sector count: {part.SectorCount} (0x{part.SectorCount:X})");
+                b.AppendLine();
+
+                partitionIndex++;
+            }
+            disk.Dispose();
+
+            b.AppendLineSpace(fmt + "Filesystem content:");
+            foreach (var file in IterateFilesystem())
+            {
+                b.AppendLineSpace(fmt + fmt + FileInfoToString(file));
+            }
+
+            return b.ToString();
         }
     }
 }
