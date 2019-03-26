@@ -144,9 +144,9 @@ namespace LibXboxOne.Nand
                     long start = FromLBA(ent.LBA);
                     long length = FromLBA(ent.Length);
                     long end = start + length;
-                    string addInfo = String.Format("{0:X} {1}_{2}", end, i, y);
+                    string addInfo = $"{end:X} {i}_{y}";
                     if (info.ContainsKey(start))
-                        info[start] += " " + addInfo;
+                        info[start] += $" {addInfo}";
                     else
                         info.Add(start, addInfo);
                 }
@@ -155,7 +155,7 @@ namespace LibXboxOne.Nand
             var keys = info.Keys.ToList();
             keys.Sort();
             foreach (var key in keys)
-                infoStr += "" + key.ToString("X") + " - " + info[key] + Environment.NewLine;
+                infoStr += $"{key:X} - {info[key]}{Environment.NewLine}";
 
             return infoStr;
         }
@@ -173,7 +173,7 @@ namespace LibXboxOne.Nand
                     if (ent.Length == 0)
                         continue;
 
-                    string fileName = FromLBA(ent.LBA).ToString("X") + "_" + FromLBA(ent.Length).ToString("X") + "_" + i + "_" + y + "_" + XbfsFilenames[y];
+                    string fileName = $"{FromLBA(ent.LBA):X}_{FromLBA(ent.Length):X}_{i}_{y}_{XbfsFilenames[y]}";
 
                     long read = 0;
                     long total = FromLBA(ent.Length);
@@ -183,7 +183,7 @@ namespace LibXboxOne.Nand
                     if (doneAddrs.Contains(_io.Stream.Position))
                     {
                         writeFile = false;
-                        fileName = "DUPE_" + fileName;
+                        fileName = $"DUPE_{fileName}";
                     }
                     doneAddrs.Add(_io.Stream.Position);
 
@@ -223,7 +223,7 @@ namespace LibXboxOne.Nand
                 if(!XbfsHeaders[i].IsValid)
                     continue;
 
-                b.AppendLine(String.Format("XbfsHeader slot {0}: (0x{1:X})", i, XbfsOffsets[i]));
+                b.AppendLine($"XbfsHeader slot {i}: (0x{XbfsOffsets[i]:X})");
                 b.Append(XbfsHeaders[i].ToString(formatted));
             }
             return b.ToString();

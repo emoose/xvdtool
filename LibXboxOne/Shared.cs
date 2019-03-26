@@ -228,19 +228,19 @@ namespace LibXboxOne
             return bytes;
         }
 
-        public static string ToHexString(this byte[] bytes, bool spaces = true)
+        public static string ToHexString(this byte[] bytes, string seperator = " ")
         {
-            return bytes.Aggregate("", (current, b) => current + (b.ToString("X2") + (spaces ? " " : "")));
+            return bytes.Aggregate("", (current, b) => $"{current}{b:X2}{seperator}");
         }
 
-        public static string ToHexString(this uint[] array)
+        public static string ToHexString(this uint[] array, string seperator = " ")
         {
-            return array.Aggregate("", (current, b) => current + "0x" + (b.ToString("X8") + " "));
+            return array.Aggregate("", (current, b) => $"{current}0x{b:X8}{seperator}");
         }
 
-        public static string ToHexString(this ushort[] array)
+        public static string ToHexString(this ushort[] array, string seperator = " ")
         {
-            return array.Aggregate("", (current, b) => current + "0x" + (b.ToString("X4") + " "));
+            return array.Aggregate("", (current, b) => $"{current}0x{b:X4}{seperator}");
         }
 
         public static byte[] ToBytes(this string hexString)

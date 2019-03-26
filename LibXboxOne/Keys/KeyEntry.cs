@@ -53,7 +53,7 @@ namespace LibXboxOne.Keys
 
         public override string ToString()
         {
-            return $"Loaded: {HasKeyData} Hash: {SHA256Hash.ToHexString(false)} Size: {DataSize}";
+            return $"Loaded: {HasKeyData} Hash: {SHA256Hash.ToHexString("")} Size: {DataSize}";
         }
     }
 }

@@ -21,9 +21,9 @@ namespace LibXboxOne.Nand
             string fmt = formatted ? "    " : "";
 
             var b = new StringBuilder();
-            b.Append(String.Format("LBA: 0x{0:X} (0x{1:X}), ", LBA, LBA * 0x1000));
-            b.Append(String.Format("Length: 0x{0:X} (0x{1:X}), ", Length, Length * 0x1000));
-            b.Append(String.Format("Reserved: 0x{0:X}", Reserved));
+            b.Append($"LBA: 0x{LBA:X} (0x{LBA * 0x1000:X}), ");
+            b.Append($"Length: 0x{Length:X} (0x{Length * 0x1000:X}), ");
+            b.Append($"Reserved: 0x{Reserved:X}");
 
             return b.ToString();
         }

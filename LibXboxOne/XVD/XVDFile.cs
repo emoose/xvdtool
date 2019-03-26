@@ -1054,27 +1054,27 @@ namespace LibXboxOne
             string fmt = formatted ? "    " : "";
 
             b.AppendLine("XvdMiscInfo:");
-            b.AppendLineSpace(fmt + "Page Count: 0x" + Header.NumberOfHashedPages.ToString("X"));
-            b.AppendLineSpace(fmt + "Embedded XVD Offset: 0x" + EmbeddedXvdOffset.ToString("X"));
-            b.AppendLineSpace(fmt + "MDU Offset: 0x" + MduOffset.ToString("X"));
-            b.AppendLineSpace(fmt + "HashTree Offset: 0x" + HashTreeOffset.ToString("X"));
-            b.AppendLineSpace(fmt + "User Data Offset: 0x" + UserDataOffset.ToString("X"));
-            b.AppendLineSpace(fmt + "XVC Data Offset: 0x" + XvcInfoOffset.ToString("X"));
-            b.AppendLineSpace(fmt + "Dynamic Header Offset: 0x" + DynamicHeaderOffset.ToString("X"));
-            b.AppendLineSpace(fmt + "Drive Data Offset: 0x" + DriveDataOffset.ToString("X"));
+            b.AppendLineSpace(fmt + $"Page Count: 0x{Header.NumberOfHashedPages:X}");
+            b.AppendLineSpace(fmt + $"Embedded XVD Offset: 0x{EmbeddedXvdOffset:X}");
+            b.AppendLineSpace(fmt + $"MDU Offset: 0x{MduOffset:X}");
+            b.AppendLineSpace(fmt + $"HashTree Offset: 0x{HashTreeOffset:X}");
+            b.AppendLineSpace(fmt + $"User Data Offset: 0x{UserDataOffset:X}");
+            b.AppendLineSpace(fmt + $"XVC Data Offset: 0x{XvcInfoOffset:X}");
+            b.AppendLineSpace(fmt + $"Dynamic Header Offset: 0x{DynamicHeaderOffset:X}");
+            b.AppendLineSpace(fmt + $"Drive Data Offset: 0x{DriveDataOffset:X}");
 
             if (IsDataIntegrityEnabled)
             {
-                b.AppendLineSpace(fmt + "Hash Tree Page Count: 0x" + HashTreePageCount.ToString("X"));
-                b.AppendLineSpace(fmt + "Hash Tree Levels: 0x" + HashTreeLevels.ToString("X"));
-                b.AppendLineSpace(fmt + "Hash Tree Valid: " + (HashTreeValid ? "true" : "false"));
+                b.AppendLineSpace(fmt + $"Hash Tree Page Count: 0x{HashTreePageCount:X}");
+                b.AppendLineSpace(fmt + $"Hash Tree Levels: 0x{HashTreeLevels:X}");
+                b.AppendLineSpace(fmt + $"Hash Tree Valid: {HashTreeValid}");
 
                 if (!DisableDataHashChecking)
-                    b.AppendLineSpace(fmt + "Data Hash Tree Valid: " + (DataHashTreeValid ? "true" : "false"));
+                    b.AppendLineSpace(fmt + $"Data Hash Tree Valid: {DataHashTreeValid}");
             }
 
             if(IsXvcFile)
-                b.AppendLineSpace(fmt + "XVC Data Hash Valid: " + (XvcDataHashValid ? "true" : "false"));
+                b.AppendLineSpace(fmt + $"XVC Data Hash Valid: {XvcDataHashValid}");
 
             b.AppendLine();
             b.Append(Header.ToString(formatted));
@@ -1089,7 +1089,7 @@ namespace LibXboxOne
                 bool xvcKeyFound = GetXvcKey(0, out decryptKey);
                 if (xvcKeyFound)
                 {
-                    b.AppendLine($"Decrypt key for xvc keyslot 0:" + decryptKey.ToHexString());
+                    b.AppendLine($"Decrypt key for xvc keyslot 0: {decryptKey.ToHexString()}");
                     b.AppendLine("(key is wrong though until the obfuscation/encryption on it is figured out)");
                     b.AppendLine();
                 }
@@ -1123,7 +1123,7 @@ namespace LibXboxOne
                     if (UpdateSegments[i].Hash == 0)
                         break;
                     b.AppendLine();
-                    b.AppendLine("Update Segment " + i);
+                    b.AppendLine($"Update Segment {i}");
                     b.Append(UpdateSegments[i].ToString(formatted));
                 }
 
@@ -1131,7 +1131,7 @@ namespace LibXboxOne
                 for (int i = 0; i < RegionSpecifiers.Count; i++)
                 {
                     b.AppendLine();
-                    b.AppendLine("RegionSpecifier " + i);
+                    b.AppendLine($"RegionSpecifier {i}");
                     b.Append(RegionSpecifiers[i].ToString(formatted));
                 }
 

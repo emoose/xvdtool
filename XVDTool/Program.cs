@@ -494,13 +494,13 @@ namespace XVDTool
                         Console.WriteLine("Warning: -rehash failed as package doesn't have a hash tree.");
                     else
                     {
-                        Console.WriteLine("Old top hash block hash: " + file.Header.TopHashBlockHash.ToHexString());
+                        Console.WriteLine($"Old top hash block hash: {file.Header.TopHashBlockHash.ToHexString()}");
                         Console.WriteLine("Rehashing package...");
                         ulong[] fixedHashes = file.VerifyDataHashTree(true);
                         bool success = file.CalculateHashTree();
                         if (success)
                         {
-                            Console.WriteLine("New top hash block hash: " + file.Header.TopHashBlockHash.ToHexString());
+                            Console.WriteLine($"New top hash block hash: {file.Header.TopHashBlockHash.ToHexString()}");
                             file.Save();
                         }
 
