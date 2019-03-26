@@ -33,8 +33,6 @@ namespace LibXboxOne
         public static readonly uint DATA_BLOCKS_IN_LEVEL1_HASHTREE = HASH_ENTRIES_IN_PAGE * DATA_BLOCKS_IN_LEVEL0_HASHTREE; // 0x70E4
         public static readonly uint DATA_BLOCKS_IN_LEVEL2_HASHTREE = HASH_ENTRIES_IN_PAGE * DATA_BLOCKS_IN_LEVEL1_HASHTREE; // 0x4AF768
         public static readonly uint DATA_BLOCKS_IN_LEVEL3_HASHTREE = HASH_ENTRIES_IN_PAGE * DATA_BLOCKS_IN_LEVEL2_HASHTREE; // 0x31C84B10
-
-        public static readonly uint VHD_BLOCK_SIZE = 2 * 1024 * 1024; // 2 MB
         #endregion
 
         public static bool DisableDataHashChecking = false;
@@ -66,6 +64,7 @@ namespace LibXboxOne
         };
 
         public OdkIndex OverrideOdk { get; set; }
+        public XvdFilesystem Filesystem { get; private set; }
 
         private readonly IO _io;
         private readonly string _filePath;
@@ -178,7 +177,7 @@ namespace LibXboxOne
             OverrideOdk = OdkIndex.Invalid;
         }
 
-        ulong ReadBat(ulong requestedBlock)
+        public uint ReadBat(ulong requestedBlock)
         {
             ulong absoluteAddress = DynamicHeaderOffset + (requestedBlock * sizeof(uint));
             if (absoluteAddress > (DynamicHeaderOffset + Header.DynamicHeaderLength - sizeof(uint)))
@@ -190,6 +189,12 @@ namespace LibXboxOne
 
             _io.Stream.Position = (long)absoluteAddress;
             return _io.Reader.ReadUInt32();
+        }
+
+        public byte[] ReadBytes(long offset, int length)
+        {
+            _io.Stream.Seek(offset, SeekOrigin.Begin);
+            return _io.Reader.ReadBytes((int)length);
         }
 
         public bool VirtualToLogicalDriveOffset(ulong virtualOffset, out ulong logicalOffset)
@@ -581,6 +586,7 @@ namespace LibXboxOne
             }
 
             XvcDataHashValid = VerifyXvcHash();
+            Filesystem = new XvdFilesystem(this);
             return true;
         }
 
@@ -913,63 +919,6 @@ namespace LibXboxOne
             if (topHashTreeBlock != 0)
             {
                 Console.WriteLine(@"Top level hash page calculated to be at {0}, should be 0!", topHashTreeBlock);
-            }
-            return true;
-        }
-
-        public bool ExtractFilesystem(string targetFile, bool createVhd)
-        {
-            using (var fs = File.Open(targetFile, FileMode.Create))
-            {
-                if (Header.Type == XvdType.Fixed)
-                {
-                    for (ulong offset = DriveDataOffset; offset < Header.DriveSize; offset += PAGE_SIZE)
-                    {
-                        _io.Stream.Seek((int)offset, SeekOrigin.Begin);
-                        var pageBytes = _io.Reader.ReadBytes((int)PAGE_SIZE);
-                        fs.Write(pageBytes, 0, pageBytes.Length);
-                    }
-                }
-                else if (Header.Type == XvdType.Dynamic)
-                {
-                    var chunkSize = BLOCK_SIZE;
-                    byte[] emptyChunk = new byte[chunkSize];
-
-                    /* Write first block, which includes partition table */
-                    ulong batBaseAddress = UserDataOffset + XvdMath.PageNumberToOffset(Header.UserDataPageCount);
-                    ulong diffInitialWrite = DriveDataOffset - batBaseAddress;
-
-                    _io.Stream.Seek((int)DriveDataOffset, SeekOrigin.Begin);
-                    var ptBytes = _io.Reader.ReadBytes((int)(chunkSize - diffInitialWrite));
-                    fs.Write(ptBytes, 0, ptBytes.Length);
-
-                    ulong blockCount = XvdMath.BytesToBlocks(Header.DriveSize);
-                    /* Write rest of data, according to block allocation table */
-                    for (ulong block = 0; block < blockCount; block++)
-                    {
-                        ulong batEntry = ReadBat(block);
-                        if (batEntry != INVALID_SECTOR)
-                        {
-                            long targetOffset = (long)(batBaseAddress + XvdMath.PageNumberToOffset(batEntry));
-                            _io.Stream.Seek(targetOffset, SeekOrigin.Begin);
-                            var data = _io.Reader.ReadBytes((int)chunkSize);
-                            fs.Write(data, 0, data.Length);
-                        }
-                        else
-                        {
-                            fs.Write(emptyChunk, 0, emptyChunk.Length);
-                        }
-                    }
-                }
-                else
-                    throw new NotSupportedException($"Invalid xvd type: {Header.Type}");
-
-                if (createVhd)
-                {
-                    var footer = Vhd.VhdFooter.CreateForFixedDisk((ulong)fs.Length, Header.VDUID);
-                    var footerBytes = Shared.StructToBytes<Vhd.VhdFooter>(footer);
-                    fs.Write(footerBytes, 0, footerBytes.Length);
-                }
             }
             return true;
         }

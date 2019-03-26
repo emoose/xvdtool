@@ -1,8 +1,8 @@
 using System;
 
-namespace LibXboxOne.Vhd
+namespace LibXboxOne
 {
-    public struct VhdDiskGeometry
+    public struct XvdDiskGeometry
     {
         public ushort Cylinder;
         public byte Heads;
