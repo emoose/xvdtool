@@ -385,7 +385,7 @@ namespace XVDTool
                     if (writeInfo)
                     {
                         File.WriteAllText(filePath + ".txt", info);
-                        Console.WriteLine("Wrote package info to \"" + filePath + ".txt\"");
+                        Console.WriteLine($"Wrote package info to \"{filePath}.txt\"");
                     }
                     else
                         Console.WriteLine(info);
@@ -423,9 +423,9 @@ namespace XVDTool
                                 Console.WriteLine("Error: Invalid CIK key \"{encryptKeyId}\" specified, make sure said key exists!");
                                 return;
                             }
-                            keyToUse = "CIK:" + cikToUse.ToString();
+                            keyToUse = $"CIK:{cikToUse}";
                         }
-                        Console.WriteLine("Encrypting package using \"" + keyToUse + "\" key...");
+                        Console.WriteLine($"Encrypting package using \"{keyToUse}\" key...");
                         bool success = file.Encrypt(cikToUse);
                         Console.WriteLine(success ? "Package encrypted successfully!" : "Error during encryption!");
                         if (!success)
@@ -446,7 +446,7 @@ namespace XVDTool
                         else
                         {
                             string keyToUse = odkToUse != OdkIndex.Invalid ? odkToUse.ToString() : "<ODK indicated by XVD header>";
-                            Console.WriteLine("Decrypting XVD using \"" + keyToUse + "\" key...");
+                            Console.WriteLine($"Decrypting XVD using \"{keyToUse}\" key...");
                         }
 
                         bool success = file.Decrypt();
@@ -459,7 +459,7 @@ namespace XVDTool
                 if (removeHashTree)
                 {
                     if (!file.IsDataIntegrityEnabled)
-                        Console.WriteLine("Warning: -removehashtree failed as package already doesn't have a hash tree.");
+                        Console.WriteLine("Warning: -removehashtree failed as package doesn't have a hash tree.");
                     else
                     {
                         Console.WriteLine("Attempting to remove hash tree from package...");
@@ -475,7 +475,7 @@ namespace XVDTool
                 if(removeMDU)
                 {
                     if (file.Header.MutableDataPageCount <= 0)
-                        Console.WriteLine("Warning: -removemdu failed as package already doesn't have any mutable data.");
+                        Console.WriteLine("Warning: -removemdu failed as package doesn't have any mutable data.");
                     else
                     {
                         Console.WriteLine("Removing mutable data from package...");
@@ -491,7 +491,7 @@ namespace XVDTool
                 if (rehashPackage)
                 {
                     if (!file.IsDataIntegrityEnabled)
-                        Console.WriteLine("Warning: -rehash failed as package hasn't got a hash tree.");
+                        Console.WriteLine("Warning: -rehash failed as package doesn't have a hash tree.");
                     else
                     {
                         Console.WriteLine("Old top hash block hash: " + file.Header.TopHashBlockHash.ToHexString());
@@ -505,7 +505,7 @@ namespace XVDTool
                         }
 
                         Console.WriteLine(success
-                            ? "Successfully rehashed " + fixedHashes.Length + " invalid data hashes inside package."
+                            ? $"Successfully rehashed {fixedHashes.Length} invalid data hashes inside package."
                             : "Error: there was a problem rehashing the package.");
                         if (!success)
                             return;
@@ -533,8 +533,7 @@ namespace XVDTool
                         try
                         {
                             File.WriteAllBytes(exvdDest, exvd);
-                            Console.WriteLine(
-                                "Extracted embedded XVD to \"" + exvdDest + "\" successfully (0x{0:X} bytes)", exvd.Length);
+                            Console.WriteLine($"Extracted embedded XVD to \"{exvdDest}\" successfully (0x{exvd.Length:X} bytes)");
                         }
                         catch
                         {
@@ -554,9 +553,7 @@ namespace XVDTool
                         try
                         {
                             File.WriteAllBytes(userDataDest, userData);
-                            Console.WriteLine(
-                                "Extracted XVD user data to \"" + userDataDest + "\" successfully (0x{0:X} bytes)",
-                                userData.Length);
+                            Console.WriteLine($"Extracted XVD user data to \"{userDataDest}\" successfully (0x{userData.Length:X} bytes)");
                         }
                         catch
                         {
@@ -571,7 +568,7 @@ namespace XVDTool
                         Console.WriteLine("Warning: -extractvhd failed as package is still encrypted.");
                     else
                     {
-                        Console.WriteLine("Extracting XVD filesystem to VHD file \"" + vhdDest + "\"...");
+                        Console.WriteLine($"Extracting XVD filesystem to VHD file \"{vhdDest}\"...");
                         bool success = file.Filesystem.ConvertToVhd(vhdDest);
                         Console.WriteLine(success
                             ? "Wrote VHD successfully."
@@ -587,7 +584,7 @@ namespace XVDTool
                         Console.WriteLine("Warning: -extractimage failed as package is still encrypted.");
                     else
                     {
-                        Console.WriteLine("Extracting raw filesystem image to file \""+ rawimageDest + "\"...");
+                        Console.WriteLine($"Extracting raw filesystem image to file \"{rawimageDest}\"...");
                         bool success = file.Filesystem.ExtractFilesystemImage(rawimageDest, false);
                         Console.WriteLine(success
                             ? "Extracted raw image successfully."
@@ -603,7 +600,7 @@ namespace XVDTool
                         Console.WriteLine("Warning: -extractfiles failed as package is still encrypted.");
                     else
                     {
-                        Console.WriteLine("Extracting XVD files to folder \""+ fsDest + "\"...");
+                        Console.WriteLine($"Extracting XVD files to folder \"{fsDest}\"...");
                         bool success = file.Filesystem.ExtractFilesystem(fsDest);
                         Console.WriteLine(success
                             ? "Extracted files successfully."

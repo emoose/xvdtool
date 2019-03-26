@@ -9,6 +9,6 @@ namespace LibXboxOne
         Unknown = 0x40000003,
         EmbeddedXvd = 0x40000004,
         Header = 0x40000005,
-        Mdu = 0x40000006
+        MutableData = 0x40000006
     }
 }
