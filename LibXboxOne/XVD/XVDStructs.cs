@@ -105,8 +105,10 @@ namespace LibXboxOne
 
         /* 0x29C */ public Keys.OdkIndex ODKKeyslotID; // 0x2 for test ODK, 0x0 for retail ODK? (makepkg doesn't set this for test ODK crypted packages?)
 
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xB60)]
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xB54)]
         /* 0x2A0 */ public byte[] Reserved2A0;
+        /* 0xDF4 */ public ulong ResilientDataOffset;
+        /* 0xDFC */ public uint ResilientDataLength;
 
         /* 0xE00 = END */
 
@@ -122,7 +124,17 @@ namespace LibXboxOne
                                         XvdFile.LEGACY_SECTOR_SIZE :
                                         XvdFile.SECTOR_SIZE;
 
-        public bool IsSigned => !Signature.IsArrayEmpty();
+        public bool IsSigned
+        {
+            get
+            {
+                // Some console-signed xvds only have 0x10/0x20 bytes of signature area filled
+                // -> Consider such packages unsigned
+                var data = new byte[Signature.Length - 0x20];
+                Array.Copy(Signature, 0x20, data, 0, data.Length);
+                return !data.IsArrayEmpty();
+            }
+        }
 
         byte[] GetHeaderWithoutSignature()
         {
@@ -252,6 +264,8 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + $"Required System Version: {RequiredSystemVersion4}.{RequiredSystemVersion3}.{RequiredSystemVersion2}.{RequiredSystemVersion1}");
             b.AppendLineSpace(fmt + $"ODK Keyslot ID: {ODKKeyslotID}");
             b.AppendLineSpace(fmt + $"KeyMaterial: {Environment.NewLine}{fmt}{KeyMaterial.ToHexString()}");
+            b.AppendLineSpace(fmt + $"Resilient Data offset: 0x{ResilientDataOffset:X}");
+            b.AppendLineSpace(fmt + $"Resilient Data length: 0x{ResilientDataLength:X}");
 
             if (Unknown271 != 0)
                 b.AppendLineSpace(fmt + $"Unknown271: 0x{Unknown271:X}");
