@@ -264,6 +264,13 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + fmt + $"SectorSize: {disk.SectorSize} (0x{disk.SectorSize:X})");
             b.AppendLine();
 
+            if (disk.Partitions == null)
+            {
+                b.AppendLineSpace(fmt + "No partition table found on disk!");
+                disk.Dispose();
+                return b.ToString();
+            }
+
             var pTable = disk.Partitions;
             b.AppendLineSpace(fmt + "Partition table info:");
             b.AppendLineSpace(fmt + fmt + $"Disk GUID: {pTable.DiskGuid}");
