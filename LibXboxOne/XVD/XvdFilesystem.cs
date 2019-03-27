@@ -271,14 +271,16 @@ namespace LibXboxOne
                     Console.WriteLine("Initializing fixed VHD...");
                     vhdDisk = DiscUtils.Vhd.Disk.InitializeFixed(destVhdFs,
                                                                      Ownership.None,
-                                                                     (long)FilesystemSize);
+                                                                     (long)FilesystemSize
+                                                                     + (long)(FilesystemSize / 10));
                 }
                 else if (XvdFsType == XvdType.Dynamic)
                 {
                     Console.WriteLine("Initializing dynamic VHD...");
                     vhdDisk = DiscUtils.Vhd.Disk.InitializeDynamic(destVhdFs,
                                                                        Ownership.None,
-                                                                       (long)FilesystemSize);
+                                                                       (long)FilesystemSize
+                                                                       + (long)(FilesystemSize / 10));
                 }
                 else
                     throw new InvalidOperationException();
