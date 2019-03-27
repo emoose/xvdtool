@@ -1,4 +1,3 @@
-using System;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -18,8 +17,6 @@ namespace LibXboxOne.Nand
 
         public string ToString(bool formatted)
         {
-            string fmt = formatted ? "    " : "";
-
             var b = new StringBuilder();
             b.Append($"LBA: 0x{LBA:X} (0x{LBA * 0x1000:X}), ");
             b.Append($"Length: 0x{Length:X} (0x{Length * 0x1000:X}), ");

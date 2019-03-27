@@ -103,19 +103,15 @@ namespace LibXboxOne.ThirdParty
 
         private static PropertyInfo GetProperty<T>(Expression<Func<T, object>> expresstion)
         {
-            if (expresstion.Body is UnaryExpression)
+            switch (expresstion.Body)
             {
-                if ((expresstion.Body as UnaryExpression).Operand is MemberExpression)
-                {
-                    return ((expresstion.Body as UnaryExpression).Operand as MemberExpression).Member as PropertyInfo;
-                }
+                case UnaryExpression expression when expression.Operand is MemberExpression memberExpression:
+                    return memberExpression.Member as PropertyInfo;
+                case MemberExpression expression1:
+                    return expression1.Member as PropertyInfo;
+                default:
+                    return null;
             }
-
-            if ((expresstion.Body is MemberExpression))
-            {
-                return (expresstion.Body as MemberExpression).Member as PropertyInfo;
-            }
-            return null;
         }
     }
 }

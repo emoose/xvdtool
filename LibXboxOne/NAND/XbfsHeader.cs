@@ -1,6 +1,5 @@
 using System;
 using System.Text;
-using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace LibXboxOne.Nand
@@ -33,29 +32,11 @@ namespace LibXboxOne.Nand
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
         /* 0x3E0 */ public byte[] XbfsHash; // SHA256 hash of 0x0 - 0x3E0
 
-        public string MagicString
-        {
-            get
-            {
-                return new string(Magic);
-            }
-        }
+        public string MagicString => new string(Magic);
 
-        public bool IsValid
-        {
-            get
-            {
-                return MagicString == XbfsMagic;
-            }
-        }
+        public bool IsValid => MagicString == XbfsMagic;
 
-        public bool IsHashValid
-        {
-            get
-            {
-                return XbfsHash.IsEqualTo(CalculateHash());
-            }
-        }
+        public bool IsHashValid => XbfsHash.IsEqualTo(CalculateHash());
 
         byte[] CalculateHash()
         {

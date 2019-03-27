@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-using System.IO;
-using System.Security.Cryptography;
+﻿using System.IO;
 using Xunit;
 
 namespace LibXboxOne.Tests

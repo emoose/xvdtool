@@ -49,19 +49,15 @@ namespace LibXboxOne.Nand
         };
 
         private readonly IO _io;
-        private readonly string _filePath;
 
         public List<XbfsHeader> XbfsHeaders;
         public Certificates.PspConsoleCert ConsoleCert;
 
-        public string FilePath
-        {
-            get { return _filePath; }
-        }
+        public readonly string FilePath;
 
         public XbfsFile(string path)
         {
-            _filePath = path;
+            FilePath = path;
             _io = new IO(path);
         }
 
@@ -193,16 +189,18 @@ namespace LibXboxOne.Nand
 
                     using (var fileIo = new IO(Path.Combine(folderPath, fileName), FileMode.Create))
                     {
-                        if(writeFile)
-                            while (read < total)
-                            {
-                                int toRead = 0x4000;
-                                if (total - read < toRead)
-                                    toRead = (int) (total - read);
-                                byte[] data = _io.Reader.ReadBytes(toRead);
-                                fileIo.Writer.Write(data);
-                                read += toRead;
-                            }
+                        if (!writeFile) // create empty file for DUPE_* files
+                            continue;
+
+                        while (read < total)
+                        {
+                            int toRead = 0x4000;
+                            if (total - read < toRead)
+                                toRead = (int) (total - read);
+                            byte[] data = _io.Reader.ReadBytes(toRead);
+                            fileIo.Writer.Write(data);
+                            read += toRead;
+                        }
                     }
                 }
             }

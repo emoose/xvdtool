@@ -1,5 +1,3 @@
-using System;
-
 namespace LibXboxOne
 {
     public static class XvcConstants

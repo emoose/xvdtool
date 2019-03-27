@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace LibXboxOne
 {
@@ -79,7 +77,7 @@ namespace LibXboxOne
 
         public static ulong QueryFirstDynamicPage(ulong metaDataPagesCount)
         {
-            return (ulong)XvdFile.PAGES_PER_BLOCK * PagesToBlocks(metaDataPagesCount);
+            return XvdFile.PAGES_PER_BLOCK * PagesToBlocks(metaDataPagesCount);
         }
 
         public static ulong ComputeDataBackingPageNumber(XvdType type, ulong numHashLevels, ulong hashPageCount, ulong dataPageNumber)
@@ -97,8 +95,7 @@ namespace LibXboxOne
             {
                 return (ulong)Math.Pow(0xAA, blockCount);
             }
-
-            long _hashTreeLevels = (long)hashTreeLevels;
+            
             ulong result = 0xFFFF;
             entryNumInBlock = 0;
 
@@ -211,13 +208,13 @@ namespace LibXboxOne
                 {
                     heads = 4;
                 }
-                if (cylinderTimesHeads >= (heads * 1024) || heads > 16)
+                if (cylinderTimesHeads >= heads * 1024 || heads > 16)
                 {
                     sectorsPerTrack = 31;
                     heads = 16;
                     cylinderTimesHeads = totalSectors / sectorsPerTrack;
                 }
-                if (cylinderTimesHeads >= (heads * 1024))
+                if (cylinderTimesHeads >= heads * 1024)
                 {
                     sectorsPerTrack = 63;
                     heads = 16;

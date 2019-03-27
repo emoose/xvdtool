@@ -8,7 +8,7 @@ namespace LibXboxOne
     {
         internal static string GetApplicationBaseDirectory()
         {
-            var baseDir = String.Empty;
+            string baseDir;
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 /*
@@ -35,7 +35,7 @@ namespace LibXboxOne
                  * Result: /home/<username>/.config
                  */
                 baseDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                Path.Combine(baseDir, ".config");
+                baseDir = Path.Combine(baseDir, ".config");
             }
 
             return baseDir;

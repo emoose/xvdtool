@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Text;
 using LibXboxOne.Keys;
 
@@ -103,7 +102,7 @@ namespace LibXboxOne
         /* 0x298 */ public ushort RequiredSystemVersion3;
         /* 0x29A */ public ushort RequiredSystemVersion4;
 
-        /* 0x29C */ public Keys.OdkIndex ODKKeyslotID; // 0x2 for test ODK, 0x0 for retail ODK? (makepkg doesn't set this for test ODK crypted packages?)
+        /* 0x29C */ public OdkIndex ODKKeyslotID; // 0x2 for test ODK, 0x0 for retail ODK? (makepkg doesn't set this for test ODK crypted packages?)
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0xB54)]
         /* 0x2A0 */ public byte[] Reserved2A0;
@@ -118,8 +117,8 @@ namespace LibXboxOne
         public ulong EmbeddedXvdPageCount => XvdMath.BytesToPages(EmbeddedXVDLength);
         public ulong DynamicHeaderPageCount => XvdMath.BytesToPages(DynamicHeaderLength);
         public ulong DrivePageCount => XvdMath.BytesToPages(DriveSize);
-        public ulong NumberOfHashedPages => (DrivePageCount + UserDataPageCount + XvcInfoPageCount + DynamicHeaderPageCount);
-        public ulong NumberOfMetadataPages => (UserDataPageCount + XvcInfoPageCount + DynamicHeaderPageCount);
+        public ulong NumberOfHashedPages => DrivePageCount + UserDataPageCount + XvcInfoPageCount + DynamicHeaderPageCount;
+        public ulong NumberOfMetadataPages => UserDataPageCount + XvcInfoPageCount + DynamicHeaderPageCount;
         public ulong SectorSize => VolumeFlags.HasFlag(XvdVolumeFlags.LegacySectorSize) ?
                                         XvdFile.LEGACY_SECTOR_SIZE :
                                         XvdFile.SECTOR_SIZE;
@@ -170,7 +169,7 @@ namespace LibXboxOne
 
         public bool ResignWithRedKey()
         {
-            DurangoKeyEntry key = (DurangoKeyEntry)DurangoKeys.GetSignkeyByName("RedXvdPrivateKey");
+            var key = DurangoKeys.GetSignkeyByName("RedXvdPrivateKey");
             if (key == null || !key.HasKeyData)
                 throw new InvalidOperationException("Private Xvd Red key is not loaded, cannot resign xvd header");
 
@@ -239,7 +238,7 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + $"XVC Data Length: 0x{XvcDataLength:X}");
             b.AppendLineSpace(fmt + $"Dynamic Header Length: 0x{DynamicHeaderLength:X}");
             b.AppendLineSpace(fmt + $"BlockSize: 0x{BlockSize:X}");
-            b.AppendLineSpace(fmt + $"Ext Entries: {ExtEntries.Where(e => !e.IsEmpty).Count()}");
+            b.AppendLineSpace(fmt + $"Ext Entries: {ExtEntries.Count(e => !e.IsEmpty)}");
             foreach(XvdExtEntry entry in ExtEntries.Where(e => !e.IsEmpty))
                 b.AppendLineSpace(fmt + entry.ToString(true));
 
@@ -362,7 +361,7 @@ namespace LibXboxOne
 
             string fmt = formatted ? "    " : "";
 
-            b.AppendLineSpace(fmt + $"Region ID: 0x{((uint)RegionId):X} {RegionId})");
+            b.AppendLineSpace(fmt + $"Region ID: 0x{(uint)RegionId:X} {RegionId})");
             b.AppendLineSpace(fmt + $"Key: {Key}");
             b.AppendLineSpace(fmt + $"Value: {Key}");
 
@@ -402,7 +401,7 @@ namespace LibXboxOne
         public string ToString(bool formatted)
         {
             var b = new StringBuilder();
-            b.AppendLine($"XvcRegionHeader (ID/EncryptionIV: 0x{((uint)Id):X} {Id}):");
+            b.AppendLine($"XvcRegionHeader (ID/EncryptionIV: 0x{(uint)Id:X} {Id}):");
 
             string fmt = formatted ? "    " : "";
 
@@ -458,10 +457,7 @@ namespace LibXboxOne
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
     public struct XvcEncryptionKeyId
     {
-        public bool IsKeyNulled
-        {
-            get { return KeyId == null || KeyId.IsArrayEmpty(); }
-        }
+        public bool IsKeyNulled => KeyId == null || KeyId.IsArrayEmpty();
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x10)]
         public byte[] KeyId;
@@ -504,8 +500,7 @@ namespace LibXboxOne
             get
             {
                 Guid testCik = new Guid("33EC8436-5A0E-4F0D-B1CE-3F29C3955039");
-                return testCik != null &&
-                       EncryptionKeyIds != null &&
+                return EncryptionKeyIds != null &&
                        EncryptionKeyIds.Length > 0 &&
                        EncryptionKeyIds[0].KeyId.IsEqualTo(testCik.ToByteArray());
             }

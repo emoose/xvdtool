@@ -1,5 +1,3 @@
-using System;
-
 namespace LibXboxOne
 {
     public enum XvcRegionId : uint
