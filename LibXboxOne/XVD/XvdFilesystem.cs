@@ -79,7 +79,7 @@ namespace LibXboxOne
 
             var disk = OpenDisk();
 
-            if (disk.Partitions.Count <= 0)
+            if (disk.Partitions == null || disk.Partitions.Count <= 0)
                 throw new InvalidDataException("No filesystem partitions detected");
             else if (disk.Partitions.Count > 1)
                 throw new NotSupportedException("More than one filesystem partition detected");
@@ -260,11 +260,10 @@ namespace LibXboxOne
             var disk = OpenDisk();
             b.AppendLineSpace(fmt + "General Disk info:");
             b.AppendLineSpace(fmt + fmt + $"Capacity: {disk.Capacity} (0x{disk.Capacity:X})");
-            b.AppendLineSpace(fmt + fmt + $"DiskClass: {disk.DiskClass} (0x{disk.DiskClass:X})");
-            b.AppendLineSpace(fmt + fmt + $"SectorSize: {disk.SectorSize} (0x{disk.SectorSize:X})");
+            b.AppendLineSpace(fmt + fmt + $"Partition table present: {disk.IsPartitioned}");
             b.AppendLine();
 
-            if (disk.Partitions == null)
+            if (disk.Partitions == null || disk.Partitions.Count == 0)
             {
                 b.AppendLineSpace(fmt + "No partition table found on disk!");
                 disk.Dispose();
@@ -277,19 +276,12 @@ namespace LibXboxOne
             b.AppendLineSpace(fmt + fmt + $"Partition count: {pTable.Count}");
             b.AppendLine();
 
-            if (pTable.Count == 0)
-            {
-                b.AppendLineSpace(fmt + fmt + "No partitions found on disk!");
-                disk.Dispose();
-                return b.ToString();
-            }
-
             b.AppendLineSpace(fmt + fmt + "Partitions:");
 
-            int partitionIndex = 0;
-            foreach (var part in pTable.Partitions)
+            for (int i = 0; i < pTable.Count; i++)
             {
-                b.AppendLineSpace(fmt + fmt + $"- Partition {partitionIndex}:");
+                var part = pTable[i];
+                b.AppendLineSpace(fmt + fmt + $"- Partition {i}:");
 
                 b.AppendLineSpace(fmt + fmt + fmt + $"  BIOS-type: {part.TypeAsString} ({part.BiosType} / 0x{part.BiosType:X})");
                 b.AppendLineSpace(fmt + fmt + fmt + $"  GUID-type: {part.GuidType}");
@@ -297,15 +289,20 @@ namespace LibXboxOne
                 b.AppendLineSpace(fmt + fmt + fmt + $"  Last sector: {part.LastSector} (0x{part.LastSector:X})");
                 b.AppendLineSpace(fmt + fmt + fmt + $"  Sector count: {part.SectorCount} (0x{part.SectorCount:X})");
                 b.AppendLine();
-
-                partitionIndex++;
             }
             disk.Dispose();
 
             b.AppendLineSpace(fmt + "Filesystem content:");
-            foreach (var file in IterateFilesystem())
+            try
             {
-                b.AppendLineSpace(fmt + fmt + FileInfoToString(file));
+                foreach (var file in IterateFilesystem())
+                {
+                    b.AppendLineSpace(fmt + fmt + FileInfoToString(file));
+                }
+            }
+            catch (Exception e)
+            {
+                b.AppendLineSpace(fmt + fmt + $"Failed to list filesystem content. Error: {e}");
             }
 
             return b.ToString();
