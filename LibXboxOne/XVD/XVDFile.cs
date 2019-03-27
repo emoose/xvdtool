@@ -1080,12 +1080,9 @@ namespace LibXboxOne
             b.AppendLine();
             b.Append(Header.ToString(formatted));
 
-            if (XvcInfo.ContentID == null)
-                return b.ToString();
-
-            b.AppendLine();
-            if (formatted)
+            if (IsXvcFile && XvcInfo.ContentID != null)
             {
+                b.AppendLine();
                 byte[] decryptKey;
                 bool xvcKeyFound = GetXvcKey(0, out decryptKey);
                 if (xvcKeyFound)
@@ -1094,8 +1091,9 @@ namespace LibXboxOne
                     b.AppendLine("(key is wrong though until the obfuscation/encryption on it is figured out)");
                     b.AppendLine();
                 }
-            } 
-            b.AppendLine(XvcInfo.ToString(formatted));
+
+                b.AppendLine(XvcInfo.ToString(formatted));
+            }
 
             if(RegionHeaders != null)
                 for (int i = 0; i < RegionHeaders.Count; i++)
@@ -1155,9 +1153,9 @@ namespace LibXboxOne
                       a => a.Item1, a => $"0x{a.Item2.RegionId:X}", a => a.Item2.Key, a => a.Item2.Value));
             }
 
-            b.AppendLine();
             if (!IsEncrypted)
             {
+                b.AppendLine();
                 try
                 {
                     b.Append(Filesystem.ToString(formatted));
