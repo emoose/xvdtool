@@ -123,6 +123,11 @@ namespace LibXboxOne
 
         public uint DataHashEntryLength => IsEncrypted ? HASH_ENTRY_LENGTH_ENCRYPTED : HASH_ENTRY_LENGTH;
 
+        // Used to calculate absolute offset for dynamic data
+        public ulong DynamicBaseOffset => XvcInfoOffset;
+
+        public ulong StaticDataLength { get; private set; }
+
         public XvdFile(string path)
         {
             FilePath = path;
@@ -202,6 +207,32 @@ namespace LibXboxOne
             }
 
             return true;
+        }
+
+        uint[] GetAllBATEntries()
+        {
+            var batEntryCount = XvdMath.BytesToBlocks(Header.DriveSize);
+            uint[] BatEntries = new uint[batEntryCount];
+
+            for (ulong i=0; i < batEntryCount; i++)
+                BatEntries[i] = ReadBat(i);
+
+            return BatEntries;
+        }
+
+        ulong CalculateStaticDataLength()
+        {
+            if (Header.Type == XvdType.Dynamic)
+            {
+                var smallestPage = GetAllBATEntries().Min();
+                return XvdMath.PageNumberToOffset(smallestPage)
+                       - XvdMath.PageNumberToOffset(Header.DynamicHeaderPageCount)
+                       - XvdMath.PageNumberToOffset(Header.XvcInfoPageCount);
+            }
+            else if (Header.Type == XvdType.Fixed)
+                return 0;
+            else
+                throw new InvalidProgramException("Unsupported XvdType");
         }
 
         private void CryptHeaderCik(bool encrypt)
@@ -536,6 +567,7 @@ namespace LibXboxOne
             }
 
             XvcDataHashValid = VerifyXvcHash();
+            StaticDataLength = CalculateStaticDataLength();
             Filesystem = new XvdFilesystem(this);
             return true;
         }
@@ -1112,6 +1144,8 @@ namespace LibXboxOne
                     b.AppendLine($"Failed to get XvdFilesystem info, error: {e}");
                 }
             }
+            else
+                b.AppendLine($"Cannot get XvdFilesystem from encrypted package");
 
             return b.ToString();
         }

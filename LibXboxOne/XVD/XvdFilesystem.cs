@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Diagnostics;
 using DiscUtils;
 using DiscUtils.Ntfs;
 using DiscUtils.Partitions;
@@ -12,31 +13,89 @@ namespace LibXboxOne
     public class XvdFilesystem
     {
         XvdFile _xvdFile { get; }
-        XvdDiskGeometry _geometry { get; }
         XvdFilesystemStream _fs { get; }
 
         XvdType XvdFsType => _xvdFile.Header.Type;
         uint SectorSize => (uint)_xvdFile.Header.SectorSize;
         ulong FilesystemSize => _xvdFile.Header.DriveSize;
+        Geometry DiskGeometry =>
+            Geometry.FromCapacity((long)FilesystemSize, (int)SectorSize);
         
 
         public XvdFilesystem(XvdFile file)
         {
             _xvdFile = file;
-            _geometry = XvdMath.CalculateDiskGeometry(FilesystemSize, SectorSize);
             _fs = new XvdFilesystemStream(_xvdFile);
         }
 
-        DiscUtils.Raw.Disk OpenDisk()
+        bool GetGptPartitionTable(out GuidPartitionTable partitionTable)
         {
-            var geometry = new DiscUtils.Geometry(_geometry.Cylinder,
-                                                  _geometry.Heads,
-                                                  _geometry.SectorsPerCylinder,
-                                                  (int)SectorSize);
+            try
+            {
+                partitionTable = new GuidPartitionTable(_fs, DiskGeometry);
+            }
+            catch (Exception)
+            {
+                partitionTable = null;
+            }
 
-            return new DiscUtils.Raw.Disk(_fs,
-                                          DiscUtils.Streams.Ownership.None,
-                                          geometry);
+            // CHECKME: Count refers to the number of PARTITION TABLES, not partitions?
+            if (partitionTable == null || partitionTable.Count <= 0)
+            {
+                Debug.WriteLine("No GPT partition table detected");
+                return false;
+            }
+
+            return true;
+        }
+
+        bool GetMbrPartitionTable(out BiosPartitionTable partitionTable)
+        {
+            try
+            {
+                partitionTable = new BiosPartitionTable(_fs, DiskGeometry);
+            }
+            catch (Exception)
+            {
+                partitionTable = null;
+            }
+
+            // CHECKME: Count refers to the number of PARTITION TABLES, not partitions?
+            if (partitionTable == null || partitionTable.Count <= 0)
+            {
+                Debug.WriteLine("No MBR partition table detected");
+                return false;
+            }
+
+            return true;
+        }
+
+        PartitionTable OpenDisk()
+        {
+            // Gathering partitions manually so Geometry can be provided
+            // explicitly. This ensures that 4k sectors are properly set.
+            PartitionTable partitionTable;
+            if (GetGptPartitionTable(out GuidPartitionTable gptTable))
+            {
+                partitionTable = (PartitionTable)gptTable;
+            }
+            else if (GetMbrPartitionTable(out BiosPartitionTable mbrTable))
+            {
+                partitionTable = (PartitionTable)mbrTable;
+            }
+            else
+            {
+                Debug.WriteLine("No valid partition table detected");
+                return null;
+            }
+
+            if (partitionTable.Partitions == null || partitionTable.Partitions.Count <= 0)
+            {
+                Debug.WriteLine("Partition table holds no partitions");
+                return null;
+            }
+
+            return partitionTable;
         }
 
         Stream GetPatchedNtfsPartitionStream(Stream inStream)
@@ -58,7 +117,7 @@ namespace LibXboxOne
             return snapshotStream;
         }
 
-        IEnumerable<DiscUtils.DiscFileInfo> IterateFilesystem()
+        IEnumerable<DiscUtils.DiscFileInfo> IterateFilesystem(int partitionNumber)
         {
             IEnumerable<DiscUtils.DiscFileInfo> IterateSubdir(DiscUtils.DiscDirectoryInfo subdir)
             {
@@ -77,17 +136,22 @@ namespace LibXboxOne
                 }
             }
 
-            var disk = OpenDisk();
+            PartitionTable disk = OpenDisk();
+            if (disk == null)
+            {
+                Debug.WriteLine("IterateFilesystem: Failed to open disk");
+                yield break;
+            }
+            else if (disk.Partitions.Count - 1 < partitionNumber)
+            {
+                Debug.WriteLine($"IterateFilesystem: Partition {partitionNumber} does not exist");
+                yield break;
+            }
 
-            if (disk.Partitions == null || disk.Partitions.Count <= 0)
-                throw new InvalidDataException("No filesystem partitions detected");
-            else if (disk.Partitions.Count > 1)
-                throw new NotSupportedException("More than one filesystem partition detected");
-
-            using (var fsStream = disk.Partitions[0].Open())
+            using (var fsStream = disk.Partitions[partitionNumber].Open())
             {
                 var partitionStream = GetPatchedNtfsPartitionStream(fsStream);
-                var fs = new DiscUtils.Ntfs.NtfsFileSystem(partitionStream);
+                NtfsFileSystem fs = new DiscUtils.Ntfs.NtfsFileSystem(partitionStream);
 
                 foreach(var file in IterateSubdir(fs.Root))
                 {
@@ -97,13 +161,11 @@ namespace LibXboxOne
                 fs.Dispose();
                 partitionStream.Dispose();
             }
-
-            disk.Dispose();
         }
 
-        public bool ExtractFilesystem(string outputDirectory)
+        public bool ExtractFilesystem(string outputDirectory, int partitionNumber=0)
         {
-            foreach (var file in IterateFilesystem())
+            foreach (var file in IterateFilesystem(partitionNumber))
             {
                 Console.WriteLine(file.DirectoryName + file.Name);
                 /* Assemble destination path and create directory */
@@ -164,7 +226,8 @@ namespace LibXboxOne
             {
                 destNtfs.NtfsOptions.ShortNameCreation = ShortFileNameOption.Disabled;
 
-                foreach (var file in IterateFilesystem())
+                // NOTE: For VHD creation we just assume a single partition
+                foreach (var file in IterateFilesystem(partitionNumber: 0))
                 {
                     var fh = file.OpenRead();
 
@@ -258,29 +321,17 @@ namespace LibXboxOne
             }
 
             var disk = OpenDisk();
-            b.AppendLineSpace(fmt + "General Disk info:");
-            b.AppendLineSpace(fmt + fmt + $"Capacity: {disk.Capacity} (0x{disk.Capacity:X})");
-            b.AppendLineSpace(fmt + fmt + $"Partition table present: {disk.IsPartitioned}");
-            b.AppendLine();
-
-            if (disk.Partitions == null || disk.Partitions.Count == 0)
+            if (disk == null)
             {
                 b.AppendLineSpace(fmt + "No partition table found on disk!");
-                disk.Dispose();
                 return b.ToString();
             }
 
-            var pTable = disk.Partitions;
-            b.AppendLineSpace(fmt + "Partition table info:");
-            b.AppendLineSpace(fmt + fmt + $"Disk GUID: {pTable.DiskGuid}");
-            b.AppendLineSpace(fmt + fmt + $"Partition count: {pTable.Count}");
-            b.AppendLine();
-
-            b.AppendLineSpace(fmt + fmt + "Partitions:");
-
-            for (int i = 0; i < pTable.Count; i++)
+            b.AppendLineSpace(fmt + "Partitions:");
+            var partitions = disk.Partitions;
+            for (int i = 0; i < partitions.Count; i++)
             {
-                var part = pTable[i];
+                var part = partitions[i];
                 b.AppendLineSpace(fmt + fmt + $"- Partition {i}:");
 
                 b.AppendLineSpace(fmt + fmt + fmt + $"  BIOS-type: {part.TypeAsString} ({part.BiosType} / 0x{part.BiosType:X})");
@@ -290,14 +341,17 @@ namespace LibXboxOne
                 b.AppendLineSpace(fmt + fmt + fmt + $"  Sector count: {part.SectorCount} (0x{part.SectorCount:X})");
                 b.AppendLine();
             }
-            disk.Dispose();
 
             b.AppendLineSpace(fmt + "Filesystem content:");
             try
             {
-                foreach (var file in IterateFilesystem())
+                for (int partitionNumber = 0; partitionNumber < partitions.Count; partitionNumber++)
                 {
-                    b.AppendLineSpace(fmt + fmt + FileInfoToString(file));
+                    b.AppendLineSpace(fmt + fmt + $":: Partition {partitionNumber}:");
+                    foreach (var file in IterateFilesystem(partitionNumber))
+                    {
+                        b.AppendLineSpace(fmt + fmt + FileInfoToString(file));
+                    }
                 }
             }
             catch (Exception e)

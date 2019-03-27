@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 
 namespace LibXboxOne
@@ -7,30 +8,24 @@ namespace LibXboxOne
     {
         readonly XvdFile _xvdFile;
 
-        // Absolute offset in Xvd of DriveData start
-        readonly long DriveBaseOffset;
-        // Absolute offset to use for calculation BAT target offset
-        readonly long DynamicBaseOffset;
-        // Length of static data for XvdType.Dynamic
-        readonly long StaticDataLength;
-
         public override bool CanRead => true;
         public override bool CanSeek => true;
         // Disable writing for now
         public override bool CanWrite => false;
 
         public override long Length => (long)_xvdFile.Header.DriveSize;
-
         public override long Position { get; set; }
+
+        // Absolute offset in Xvd of DriveData start
+        long DriveBaseOffset => (long)_xvdFile.DriveDataOffset;
+        // Absolute offset to use for calculation BAT target offset
+        long DynamicBaseOffset => (long)_xvdFile.DynamicBaseOffset;
+        // Length of static data for XvdType.Dynamic
+        long StaticDataLength => (long)_xvdFile.StaticDataLength;
 
         public XvdFilesystemStream(XvdFile file)
         {
             _xvdFile = file;
-            DriveBaseOffset = (long)_xvdFile.DriveDataOffset;
-            DynamicBaseOffset = (long)(_xvdFile.UserDataOffset +
-                                XvdMath.PageNumberToOffset(_xvdFile.Header.UserDataPageCount));
-
-            StaticDataLength = (long)(XvdFile.BLOCK_SIZE - (DriveBaseOffset - DynamicBaseOffset));
             Position = 0;
         }
 
@@ -40,20 +35,18 @@ namespace LibXboxOne
 
         byte[] InternalRead(int count)
         {
-            var data = _xvdFile.ReadBytes(DriveBaseOffset + Position, count);
-            if (data.Length <= 0)
-                throw new IOException("InternalRead got nothing...");
-
-            Position += data.Length;
-            return data;
+            var offset = DriveBaseOffset + Position;
+            return InternalReadAbsolute(offset, count);
         }
 
         byte[] InternalReadAbsolute(long offset, int count)
         {
+            Debug.WriteLine($"InternalReadAbsolute: Reading 0x{count:X} @ 0x{offset:X}");
             var data = _xvdFile.ReadBytes(offset, count);
             if (data.Length <= 0)
                 throw new IOException("InternalReadAbsolute got nothing...");
 
+            // Debug.WriteLine($"Got {data.Length:X} bytes: {data.ToHexString("")}");
             Position += data.Length;
             return data;
         }
@@ -92,9 +85,9 @@ namespace LibXboxOne
                     }
                     else
                     {
-                        long targetPhysicalOffset = DynamicBaseOffset +
-                                                    (long)XvdMath.PageNumberToOffset(targetPage) +
-                                                    inBlockOffset;
+                        long targetPhysicalOffset = DynamicBaseOffset
+                                                    + (long)XvdMath.PageNumberToOffset(targetPage)
+                                                    + inBlockOffset;
 
                         data = InternalReadAbsolute(targetPhysicalOffset, length);
                     }
