@@ -65,6 +65,8 @@ namespace XVDTool
 
             var disableDataExtract = false;
 
+            XvdFile.PrintProgressToConsole = true;
+
             var p = new OptionSet {
                 { "h|?|help", v => printHelp = v != null },
                 { "i|info", v => printInfo = v != null },
@@ -371,8 +373,7 @@ namespace XVDTool
             }
 
             Console.WriteLine($"Loading file from {filePath}...");
-            if (!XvdFile.DisableDataHashChecking)
-                Console.WriteLine("(and verifying hash table, use -nd to disable)");
+            Console.WriteLine();
 
             var file = new XvdFile(filePath)
             {
@@ -380,6 +381,7 @@ namespace XVDTool
             };
 
             file.Load();
+
             if (printInfo || writeInfo)
             {
                 string info = file.ToString(true);

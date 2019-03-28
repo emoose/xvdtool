@@ -37,6 +37,7 @@ namespace LibXboxOne
         #endregion
 
         public static bool DisableDataHashChecking = false;
+        public static bool PrintProgressToConsole = false;
 
         public XvdHeader Header;
         public XvcInfo XvcInfo;
@@ -222,17 +223,21 @@ namespace LibXboxOne
 
         ulong CalculateStaticDataLength()
         {
-            if (Header.Type == XvdType.Dynamic)
+            switch (Header.Type)
             {
-                var smallestPage = GetAllBATEntries().Min();
-                return XvdMath.PageNumberToOffset(smallestPage)
-                       - XvdMath.PageNumberToOffset(Header.DynamicHeaderPageCount)
-                       - XvdMath.PageNumberToOffset(Header.XvcInfoPageCount);
+                case XvdType.Dynamic:
+                {
+                    var smallestPage = GetAllBATEntries().Min();
+                    return XvdMath.PageNumberToOffset(smallestPage)
+                           - XvdMath.PageNumberToOffset(Header.DynamicHeaderPageCount)
+                           - XvdMath.PageNumberToOffset(Header.XvcInfoPageCount);
+                }
+                case XvdType.Fixed:
+                    return 0;
+
+                default:
+                    throw new InvalidProgramException("Unsupported XvdType");
             }
-            else if (Header.Type == XvdType.Fixed)
-                return 0;
-            else
-                throw new InvalidProgramException("Unsupported XvdType");
         }
 
         private void CryptHeaderCik(bool encrypt)
@@ -326,9 +331,23 @@ namespace LibXboxOne
             var cipher = new AesXtsTransform(tweak, dataAesKey, tweakAesKey, encrypt);
 
             // Perform crypto!
+            if (PrintProgressToConsole)
+                Console.WriteLine($"\r\nCrypting section 0x{offset:X} - 0x{offset + length:X} (headerId: 0x{headerId}):");
+
             _io.Stream.Position = (long)offset;
+            var prevProgress = "";
             for (uint page = 0; page < numPages; page++)
-            { 
+            {
+                if (PrintProgressToConsole)
+                {
+                    var res = $"{(double)(page + 1) / numPages:0.00%}";
+                    if (res != prevProgress || page + 1 == numPages) // we don't need to print every page, only print when the percentage has actually changed
+                    {
+                        Console.Write($"\r  {res} {page + 1}/{numPages}");
+                        prevProgress = res;
+                    }
+                }
+
                 var transformedData = new byte[PAGE_SIZE];
 
                 var pageOffset = _io.Stream.Position;
@@ -338,6 +357,12 @@ namespace LibXboxOne
 
                 _io.Stream.Position = pageOffset;
                 _io.Writer.Write(transformedData);
+            }
+
+            if (PrintProgressToConsole)
+            {
+                Console.WriteLine();
+                Console.WriteLine();
             }
 
             return true;
@@ -498,6 +523,9 @@ namespace LibXboxOne
 
             if (IsDataIntegrityEnabled)
             {
+                if (PrintProgressToConsole)
+                    Console.WriteLine("Calculating data hashes:");
+
 // ReSharper disable once UnusedVariable
                 ulong[] invalidBlocks = VerifyDataHashTree(true);
 // ReSharper disable once UnusedVariable
@@ -560,6 +588,9 @@ namespace LibXboxOne
             {
                 if (!DisableDataHashChecking)
                 {
+                    if(PrintProgressToConsole)
+                        Console.WriteLine("Verifying data hashes, use -nd to disable:");
+
                     ulong[] invalidBlocks = VerifyDataHashTree();
                     DataHashTreeValid = invalidBlocks.Length <= 0;
                 }
@@ -790,8 +821,19 @@ namespace LibXboxOne
             ulong dataBlockCount = XvdMath.OffsetToPageNumber((ulong)_io.Stream.Length - UserDataOffset);
             var invalidBlocks = new List<ulong>();
 
+            var prevProgress = "";
             for (ulong i = 0; i < dataBlockCount; i++)
             {
+                if (PrintProgressToConsole)
+                {
+                    var res = $"{(double)(i + 1) / dataBlockCount:0.0%}";
+                    if (res != prevProgress || i + 1 == dataBlockCount) // we don't need to print every page, only print when the percentage has actually changed
+                    {
+                        Console.Write($"\r  {res} {i+1}/{dataBlockCount}");
+                        prevProgress = res;
+                    }
+                }
+
                 var hashEntryOffset = CalculateHashEntryOffsetForBlock(i, 0);
                 _io.Stream.Position = (long)hashEntryOffset;
 
@@ -812,6 +854,12 @@ namespace LibXboxOne
                     continue;
                 _io.Stream.Position = (long)hashEntryOffset;
                 _io.Writer.Write(hash);
+            }
+
+            if (PrintProgressToConsole)
+            {
+                Console.WriteLine();
+                Console.WriteLine();
             }
 
             return invalidBlocks.ToArray();
