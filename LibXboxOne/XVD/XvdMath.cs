@@ -88,46 +88,70 @@ namespace LibXboxOne
             return dataPageNumber + hashPageCount;
         }
 
-        public static ulong CalculateHashBlockNumForBlockNum(XvdType type, ulong hashTreeLevels, ulong numberOfHashedPages,
+        public static ulong ComputeHashBackingBlockNumber(XvdType type, ulong hashTreeLevels, ulong numberOfHashedPages,
                                                                 ulong blockNum, uint hashLevel, out ulong entryNumInBlock,
                                                                 bool resilient=false, bool unknown=false)
         {
-            ulong HashBlockExponent(ulong blockCount)
-            {
-                return (ulong)Math.Pow(0xAA, blockCount);
-            }
-            
-            ulong result = 0xFFFF;
+            ulong result = 0xFFFFFFFFFFFFFFFF;
             entryNumInBlock = 0;
 
-            if ((uint)type > 1 || hashLevel > 3)
-                return result; // Invalid data
+            if (type > XvdType.Dynamic)
+                return result;
 
             if (hashLevel == 0)
-                entryNumInBlock = blockNum % 0xAA;
-            else
-                entryNumInBlock = blockNum / HashBlockExponent(hashLevel) % 0xAA;
+            {
+                result = blockNum / XvdFile.DATA_BLOCKS_IN_LEVEL0_HASHTREE;
 
+                entryNumInBlock = blockNum % XvdFile.HASH_ENTRIES_IN_PAGE;
+                hashTreeLevels--;
+
+                if (hashTreeLevels == 0)
+                    return result;
+
+                result += (numberOfHashedPages
+                           + XvdFile.DATA_BLOCKS_IN_LEVEL1_HASHTREE - 1)
+                           / XvdFile.DATA_BLOCKS_IN_LEVEL1_HASHTREE;
+                hashTreeLevels--;
+            }
+            if (hashLevel == 1)
+            {
+                entryNumInBlock = (blockNum / XvdFile.DATA_BLOCKS_IN_LEVEL0_HASHTREE)
+                                            % XvdFile.HASH_ENTRIES_IN_PAGE;
+
+                result = blockNum / XvdFile.DATA_BLOCKS_IN_LEVEL1_HASHTREE;
+                hashTreeLevels -= 2;
+            }
+            if (hashLevel == 2)
+            {
+                entryNumInBlock = (blockNum / XvdFile.DATA_BLOCKS_IN_LEVEL1_HASHTREE)
+                                   % XvdFile.HASH_ENTRIES_IN_PAGE;
+
+                result = blockNum / XvdFile.DATA_BLOCKS_IN_LEVEL2_HASHTREE;
+                hashTreeLevels -= 3;
+            }
+            if (hashLevel == 0 || hashLevel == 1)
+            {
+                if (hashTreeLevels == 0)
+                    return result;
+
+                result += (numberOfHashedPages + XvdFile.DATA_BLOCKS_IN_LEVEL2_HASHTREE - 1)
+                                               / XvdFile.DATA_BLOCKS_IN_LEVEL2_HASHTREE;
+                hashTreeLevels--;
+            }
+            if (hashLevel == 0 || hashLevel == 1 || hashLevel == 2)
+            {
+                if (hashTreeLevels == 0)
+                    return result;
+
+                return result + (numberOfHashedPages + XvdFile.DATA_BLOCKS_IN_LEVEL3_HASHTREE - 1)
+                                                     / XvdFile.DATA_BLOCKS_IN_LEVEL3_HASHTREE;
+            }
             if (hashLevel == 3)
-                return 0;
-
-            result = blockNum / HashBlockExponent(hashLevel + 1);
-            hashTreeLevels -= hashLevel + 1;
-
-            if (hashLevel == 0 && hashTreeLevels > 0)
             {
-                result += (numberOfHashedPages + HashBlockExponent(2) - 1) / HashBlockExponent(2);
-                hashTreeLevels--;
+                result = 0;
+                entryNumInBlock = (blockNum / XvdFile.DATA_BLOCKS_IN_LEVEL2_HASHTREE)
+                                            % XvdFile.HASH_ENTRIES_IN_PAGE;
             }
-
-            if ((hashLevel == 0 || hashLevel == 1) && hashTreeLevels > 0)
-            {
-                result += (numberOfHashedPages + HashBlockExponent(3) - 1) / HashBlockExponent(3);
-                hashTreeLevels--;
-            }
-
-            if (hashTreeLevels > 0)
-                result += (numberOfHashedPages + HashBlockExponent(4) - 1) / HashBlockExponent(4);
 
             if (resilient)
                 result *= 2;

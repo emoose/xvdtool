@@ -31,11 +31,11 @@ namespace LibXboxOne.Tests
         [InlineData((XvdType)1, 0x3, 0x5F653, 0xAB2, 0x0, 0x12, 0x1F)]
         [InlineData((XvdType)1, 0x3, 0x5F653, 0xF20B, 0x0, 0x53, 0x17B)]
         [InlineData((XvdType)1, 0x3, 0x5F653, 0xF60A, 0x0, 0x56, 0x181)]
-        public void TestCalculateHashBlockNumForBlockNum(XvdType xvdType, ulong hashTreeLevels, ulong xvdDataBlockCount,
-                                                         ulong blockNum, uint index,
-                                                         ulong expectedEntryNum, ulong expectedResult)
+        public void TestComputeHashBackingBlockNumber(XvdType xvdType, ulong hashTreeLevels, ulong xvdDataBlockCount,
+                                                      ulong blockNum, uint index,
+                                                      ulong expectedEntryNum, ulong expectedResult)
         {
-            ulong result = XvdMath.CalculateHashBlockNumForBlockNum(xvdType, hashTreeLevels, xvdDataBlockCount,
+            ulong result = XvdMath.ComputeHashBackingBlockNumber(xvdType, hashTreeLevels, xvdDataBlockCount,
                                                                     blockNum, index, out ulong entryNumInBlock);
             
             Assert.Equal(expectedEntryNum, entryNumInBlock);

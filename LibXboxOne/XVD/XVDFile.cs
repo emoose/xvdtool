@@ -781,7 +781,7 @@ namespace LibXboxOne
 
         public ulong CalculateHashEntryOffsetForBlock(ulong blockNum, uint hashLevel)
         {
-            var hashBlock = XvdMath.CalculateHashBlockNumForBlockNum(Header.Type, HashTreeLevels, Header.NumberOfHashedPages, blockNum, hashLevel, out var entryNum);
+            var hashBlock = XvdMath.ComputeHashBackingBlockNumber(Header.Type, HashTreeLevels, Header.NumberOfHashedPages, blockNum, hashLevel, out var entryNum);
             return HashTreeOffset + XvdMath.PageNumberToOffset(hashBlock) + (entryNum * HASH_ENTRY_LENGTH);
         }
 
