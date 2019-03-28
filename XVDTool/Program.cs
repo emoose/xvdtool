@@ -339,15 +339,10 @@ namespace XVDTool
                 return;
             }
 
-            if (!String.IsNullOrEmpty(outputFile))
+            if (!String.IsNullOrEmpty(outputFile) && File.Exists(outputFile))
             {
-                if (File.Exists(outputFile))
-                {
-                    Console.WriteLine(@"Error: output file already exists.");
-                    return;
-                }
-                File.Copy(filePath, outputFile);
-                filePath = outputFile;
+                Console.WriteLine(@"Error: output file already exists.");
+                return;
             }
 
             if (mountPackage)
@@ -608,6 +603,18 @@ namespace XVDTool
                         : "Error: there was a problem extracting the files from the XVD.");
                     if (!success)
                         return;
+                }
+            }
+
+            if (!String.IsNullOrEmpty(outputFile))
+            {
+                using (FileStream outStream = File.Open(outputFile, FileMode.Create, FileAccess.ReadWrite))
+                {
+                    Console.WriteLine($"Saving output xvd to {outputFile}...");
+                    bool success = file.SaveNewFile(outStream);
+                    Console.WriteLine(success
+                        ? "Saved file successfully."
+                        : "Error: there was a problem saving the new XVD.");
                 }
             }
 

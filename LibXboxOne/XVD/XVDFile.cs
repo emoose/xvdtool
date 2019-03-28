@@ -472,6 +472,131 @@ namespace LibXboxOne
             return true;
         }
 
+        public bool SaveNewFile(Stream outStream)
+        {
+            IO ioOut = new IO(outStream);
+
+            // Reserve space for header
+            ioOut.Writer.Write(new byte[XVD_HEADER_INCL_SIGNATURE_SIZE]);
+
+            // Embedded XVD
+            if (Header.EmbeddedXVDLength > 0)
+            {
+                long embeddedXvdLength = Header.EmbeddedXVDLength;
+                _io.Stream.Seek((long)EmbeddedXvdOffset, SeekOrigin.Begin);
+
+                while (embeddedXvdLength > 0)
+                {
+                    int readLength = Math.Min((int)PAGE_SIZE, (int)embeddedXvdLength);
+                    var data = _io.Reader.ReadBytes(readLength);
+                    ioOut.Writer.Write(data);
+                    embeddedXvdLength -= readLength;
+                }
+            }
+            ioOut.AddPadding((int)PAGE_SIZE);
+
+            // Mutable data
+            if (RegionPresenceInfo != null && RegionPresenceInfo.Count > 0)
+                foreach (var presenceInfo in RegionPresenceInfo)
+                    ioOut.Writer.WriteStruct<XvcRegionPresenceInfo>(presenceInfo);
+            ioOut.AddPadding((int)PAGE_SIZE);
+
+            // Hashtree
+            if (IsDataIntegrityEnabled)
+            {
+                long hashtreeLength = (long)XvdMath.PageNumberToOffset(HashTreePageCount);
+                _io.Stream.Seek((long)HashTreeOffset, SeekOrigin.Begin);
+
+                while (hashtreeLength > 0)
+                {
+                    int readLength = Math.Min((int)PAGE_SIZE, (int)hashtreeLength);
+                    var data = _io.Reader.ReadBytes((int)readLength);
+                    ioOut.Writer.Write(data);
+                    hashtreeLength -= readLength;
+                }
+            }
+            ioOut.AddPadding((int)PAGE_SIZE);
+
+            // Userdata
+            if (Header.UserDataLength > 0)
+            {
+                long userdataLength = Header.UserDataLength;
+                _io.Stream.Seek((long)UserDataOffset, SeekOrigin.Begin);
+
+                while (userdataLength > 0)
+                {
+                    int readLength = Math.Min((int)PAGE_SIZE, (int)userdataLength);
+                    var data = _io.Reader.ReadBytes(readLength);
+                    ioOut.Writer.Write(data);
+                    userdataLength -= readLength;
+                }
+            }
+            ioOut.AddPadding((int)PAGE_SIZE);
+
+            // XVC data
+            if (IsXvcFile && XvcInfo.ContentID != null)
+            {
+                XvcInfo.RegionCount = (uint)RegionHeaders.Count;
+                XvcInfo.UpdateSegmentCount = (uint)UpdateSegments.Count;
+
+                if (RegionSpecifiers != null)
+                    XvcInfo.RegionSpecifierCount = (uint)RegionSpecifiers.Count;
+                else
+                    XvcInfo.RegionSpecifierCount = 0;
+                
+                ioOut.Writer.WriteStruct(XvcInfo);
+
+                for (int i = 0; i < XvcInfo.RegionCount; i++)
+                    ioOut.Writer.WriteStruct(RegionHeaders[i]);
+
+                for (int i = 0; i < XvcInfo.UpdateSegmentCount; i++)
+                    ioOut.Writer.WriteStruct(UpdateSegments[i]);
+
+                for (int i = 0; i < XvcInfo.RegionSpecifierCount; i++)
+                    ioOut.Writer.WriteStruct(RegionSpecifiers[i]);
+            }
+            ioOut.AddPadding((int)PAGE_SIZE);
+
+            // Dynamic header, if any
+            if (Header.Type == XvdType.Dynamic)
+            {
+                long dynamicHeaderLength = Header.DynamicHeaderLength;
+                _io.Stream.Seek((long)DynamicHeaderOffset, SeekOrigin.Begin);
+
+                while (dynamicHeaderLength > 0)
+                {
+                    int readLength = Math.Min((int)PAGE_SIZE, (int)dynamicHeaderLength);
+                    var data = _io.Reader.ReadBytes(readLength);
+                    ioOut.Writer.Write(data);
+                    dynamicHeaderLength -= readLength;
+                }
+            }
+            ioOut.AddPadding((int)PAGE_SIZE);
+
+            // Drive data
+            if (Header.DriveSize > 0)
+            {
+                ulong driveSize = Header.DriveSize;
+                _io.Stream.Seek((long)DriveDataOffset, SeekOrigin.Begin);
+
+                while (driveSize > 0)
+                {
+                    var data = _io.Reader.ReadBytes((int)PAGE_SIZE);
+                    ioOut.Writer.Write(data);
+                    driveSize -= PAGE_SIZE;
+                }
+                // No padding needed
+            }
+
+            // Write header
+            ioOut.Stream.Seek(0, SeekOrigin.Begin);
+            ioOut.Writer.WriteStruct<XvdHeader>(Header);
+
+            ioOut.Dispose();
+
+            return true;
+        }
+
         public bool Save()
         {
             if (Header.XvcDataLength > 0 && IsXvcFile)

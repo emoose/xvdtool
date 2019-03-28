@@ -93,6 +93,17 @@ namespace LibXboxOne
             Writer.Dispose();
         }
 
+        public int AddPadding(int alignmentSize)
+        {
+            var oldPosition = Stream.Position;
+            var padCount = alignmentSize - (Stream.Position % alignmentSize);
+            
+            if (padCount > 0 && padCount < alignmentSize)
+                Writer.Write(new byte[padCount]);
+
+            return (int)padCount;
+        }
+
         public bool AddBytes(long numBytes)
         {
             const int blockSize = 0x1000;
