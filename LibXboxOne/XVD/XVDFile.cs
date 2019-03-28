@@ -155,6 +155,23 @@ namespace LibXboxOne
             return _io.Reader.ReadBytes(length);
         }
 
+        public int WriteBytes(long offset, byte[] data)
+        {
+            _io.Stream.Seek(offset, SeekOrigin.Begin);
+            _io.Writer.Write(data);
+            return data.Length;
+        }
+
+        public byte[] ReadPage(ulong pageNumber)
+        {
+            return ReadBytes((long)XvdMath.PageNumberToOffset(pageNumber), (int)PAGE_SIZE);
+        }
+
+        public int WritePage(ulong pageNumber, byte[] data)
+        {
+            return WriteBytes((long)XvdMath.PageNumberToOffset(pageNumber), data); 
+        }
+
         public bool VirtualToLogicalDriveOffset(ulong virtualOffset, out ulong logicalOffset)
         {
             logicalOffset = 0;
@@ -290,13 +307,13 @@ namespace LibXboxOne
 
         internal bool CryptSectionXts(bool encrypt, byte[] key, uint headerId, ulong offset, ulong length)
         {
-            var startPage = XvdMath.OffsetToPageNumber(offset - UserDataOffset);
             ulong numPages = XvdMath.BytesToPages(length);
 
             // Pre-read data unit numbers to minimize needing to seek around the file
             List<uint> dataUnits = null;
             if (IsDataIntegrityEnabled)
             {
+                var startHashPage = XvdMath.OffsetToPageNumber(offset - UserDataOffset);
                 dataUnits = new List<uint>();
                 for (uint page = 0; page < numPages; page++)
                 {
@@ -304,7 +321,7 @@ namespace LibXboxOne
                     // TODO: seems we'll have to insert dataUnit when re-adding hashtables...
 
                     // last 4 bytes of hash entry = dataUnit
-                    _io.Stream.Position = (long)CalculateHashEntryOffsetForBlock(startPage + page, 0) + 0x14;
+                    _io.Stream.Position = (long)CalculateHashEntryOffsetForBlock(startHashPage + page, 0) + 0x14;
                     dataUnits.Add(_io.Reader.ReadUInt32());
                 }
             }
@@ -326,18 +343,15 @@ namespace LibXboxOne
             var cipher = new AesXtsTransform(tweak, dataAesKey, tweakAesKey, encrypt);
 
             // Perform crypto!
-            _io.Stream.Position = (long)offset;
+            var startPage = XvdMath.OffsetToPageNumber(offset);
             for (uint page = 0; page < numPages; page++)
             { 
                 var transformedData = new byte[PAGE_SIZE];
-
-                var pageOffset = _io.Stream.Position;
-                var origData = _io.Reader.ReadBytes((int)PAGE_SIZE);
+                var origData = ReadPage(startPage + page);
 
                 cipher.TransformDataUnit(origData, 0, origData.Length, transformedData, 0, dataUnits?[(int)page] ?? page);
 
-                _io.Stream.Position = pageOffset;
-                _io.Writer.Write(transformedData);
+                WritePage(startPage + page, transformedData);
             }
 
             return true;
@@ -347,16 +361,16 @@ namespace LibXboxOne
         {
             if (Header.EmbeddedXVDLength == 0)
                 return null;
-            _io.Stream.Position = (long)EmbeddedXvdOffset;
-            return _io.Reader.ReadBytes((int)Header.EmbeddedXVDLength);
+
+            return ReadBytes((long)EmbeddedXvdOffset, (int)Header.EmbeddedXVDLength);
         }
 
         public byte[] ExtractUserData()
         {
             if (Header.UserDataLength == 0)
                 return null;
-            _io.Stream.Position = (long)UserDataOffset;
-            return _io.Reader.ReadBytes((int)Header.UserDataLength);
+
+            return ReadBytes((long)UserDataOffset, (int)Header.UserDataLength);
         }
 
         public bool Decrypt()
@@ -1139,12 +1153,6 @@ namespace LibXboxOne
                 return true;
             }
             return false;
-        }
-
-        public byte[] Read(long offset, int count)
-        {
-            _io.Stream.Position = offset;
-            return _io.Reader.ReadBytes(count);
         }
 
         #region ToString
