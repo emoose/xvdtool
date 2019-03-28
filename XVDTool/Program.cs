@@ -58,6 +58,7 @@ namespace XVDTool
             var resignPackage = false;
             var addHashTree = false;
             var removeHashTree = false;
+            var addMdu = false;
             var removeMdu = false;
             var printInfo = false;
             var writeInfo = false;
@@ -103,6 +104,7 @@ namespace XVDTool
                 { "hd|removehash|removehashtree", v => removeHashTree = v != null },
                 { "he|addhash|addhashtree", v => addHashTree = v != null },
                 { "md|removemdu", v => removeMdu = v != null },
+                { "ma|addmdu", v => addMdu = v != null },
 
                 { "xe|extractembedded=", v => exvdDest = v },
                 { "xu|extractuserdata=", v => userDataDest = v },
@@ -164,6 +166,7 @@ namespace XVDTool
                 Console.WriteLine(fmt + "-he (-addhash) - add hash tree/data integrity to package");
                 Console.WriteLine();
                 Console.WriteLine(fmt + "-md (-removemdu) - remove mutable data (MDU) from package");
+                Console.WriteLine(fmt + "-ma (-addmdu) - add mutable data (MDU) to package");
                 Console.WriteLine();
                 Console.WriteLine(fmt + "-r (-rehash) - fix data integrity hashes inside package");
                 Console.WriteLine(fmt + "-rs (-resign) - sign package using the private key from rsa3_key.bin");
@@ -484,6 +487,22 @@ namespace XVDTool
                     Console.WriteLine(success
                         ? "Mutable data removed successfully and header updated."
                         : "Failed to remove mutable data?");
+                    if (!success)
+                        return;
+                }
+            }
+
+            if(addMdu)
+            {
+                if (file.Header.MutableDataPageCount > 0)
+                    Console.WriteLine("Warning: -addmdu failed as package already has mutable data.");
+                else
+                {
+                    Console.WriteLine("Adding mutable data to package...");
+                    bool success = file.AddMutableData();
+                    Console.WriteLine(success
+                        ? "Mutable data added successfully and header updated."
+                        : "Failed to add mutable data?");
                     if (!success)
                         return;
                 }
