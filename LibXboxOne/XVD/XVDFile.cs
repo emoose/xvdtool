@@ -71,6 +71,7 @@ namespace LibXboxOne
 
         public readonly string FilePath;
 
+        public long FileSize => _io.Stream.Length;
         public DateTime TimeCreated => DateTime.FromFileTime(Header.FileTimeCreated);
 
         public bool IsXvcFile => XvcContentTypes.Contains(Header.ContentType);
@@ -145,7 +146,12 @@ namespace LibXboxOne
                     $"Dynamic header range: 0x{DynamicHeaderOffset:X}-0x{DynamicHeaderOffset+Header.DynamicHeaderLength:X}");
             }
 
-            _io.Stream.Position = (long)absoluteAddress;
+            return ReadUInt32((long)absoluteAddress);
+        }
+
+        public uint ReadUInt32(long offset)
+        {
+            _io.Stream.Seek(offset, SeekOrigin.Begin);
             return _io.Reader.ReadUInt32();
         }
 
@@ -321,8 +327,8 @@ namespace LibXboxOne
                     // TODO: seems we'll have to insert dataUnit when re-adding hashtables...
 
                     // last 4 bytes of hash entry = dataUnit
-                    _io.Stream.Position = (long)CalculateHashEntryOffsetForBlock(startHashPage + page, 0) + 0x14;
-                    dataUnits.Add(_io.Reader.ReadUInt32());
+                    var dataUnitOffset = (long)CalculateHashEntryOffsetForBlock(startHashPage + page, 0) + 0x14;
+                    dataUnits.Add(ReadUInt32(dataUnitOffset));
                 }
             }
 
@@ -400,7 +406,7 @@ namespace LibXboxOne
             {
                 // todo: check with more non-xvc xvds and see if they use any other headerId besides 0x1
                 success = CryptSectionXts(false, Header.KeyMaterial, 0x1, UserDataOffset,
-                    (ulong)_io.Stream.Length - UserDataOffset);
+                    (ulong)FileSize - UserDataOffset);
             }
 
             if (!success)
@@ -431,7 +437,7 @@ namespace LibXboxOne
 
                 // todo: check with more non-xvc xvds and see if they use any other headerId besides 0x1
                 success = CryptSectionXts(true, Header.KeyMaterial, 0x1, UserDataOffset,
-                    (ulong)_io.Stream.Length - UserDataOffset);
+                    (ulong)FileSize - UserDataOffset);
             }
             else
             {
@@ -656,7 +662,7 @@ namespace LibXboxOne
 
             CikIsDecrypted = !IsEncrypted;
 
-            if (DriveDataOffset >= (ulong)_io.Stream.Length)
+            if (DriveDataOffset >= (ulong)FileSize)
                 return false;
 
             if (Header.XvcDataLength > 0 && IsXvcFile)
@@ -926,34 +932,31 @@ namespace LibXboxOne
 
         public ulong[] VerifyDataHashTree(bool rehash = false)
         {
-            ulong dataBlockCount = XvdMath.OffsetToPageNumber((ulong)_io.Stream.Length - UserDataOffset);
-            var invalidBlocks = new List<ulong>();
+            ulong dataPageCount = XvdMath.OffsetToPageNumber((ulong)FileSize - UserDataOffset);
+            var invalidPages = new List<ulong>();
 
-            for (ulong i = 0; i < dataBlockCount; i++)
+            for (ulong page = 0; page < dataPageCount; page++)
             {
-                var hashEntryOffset = CalculateHashEntryOffsetForBlock(i, 0);
-                _io.Stream.Position = (long)hashEntryOffset;
+                var hashEntryOffset = CalculateHashEntryOffsetForBlock(page, 0);
+                byte[] oldhash = ReadBytes((long)hashEntryOffset, (int)DataHashEntryLength);
 
-                byte[] oldhash = _io.Reader.ReadBytes((int)DataHashEntryLength);
+                var dataPageNumber = page + XvdMath.BytesToPages(UserDataOffset);
 
-                var dataToHashOffset = XvdMath.PageNumberToOffset(i) + UserDataOffset;
-                _io.Stream.Position = (long)dataToHashOffset;
-
-                byte[] data = _io.Reader.ReadBytes((int)PAGE_SIZE);
+                byte[] data = ReadPage(dataPageNumber);
                 byte[] hash = HashUtils.ComputeSha256(data);
                 Array.Resize(ref hash, (int)DataHashEntryLength);
 
                 if (hash.IsEqualTo(oldhash))
                     continue;
 
-                invalidBlocks.Add(i);
+                invalidPages.Add(page);
                 if (!rehash)
                     continue;
-                _io.Stream.Position = (long)hashEntryOffset;
-                _io.Writer.Write(hash);
+
+                WriteBytes((long)hashEntryOffset, hash);
             }
 
-            return invalidBlocks.ToArray();
+            return invalidPages.ToArray();
         }
 
         public bool CalculateHashTree()
@@ -967,17 +970,18 @@ namespace LibXboxOne
                 {
                     while (dataBlockNum < Header.NumberOfHashedPages)
                     {
-                        _io.Stream.Position = (long)CalculateHashEntryOffsetForBlock(dataBlockNum, hashTreeLevel - 1);
-                        byte[] blockHash = HashUtils.ComputeSha256(_io.Reader.ReadBytes((int)PAGE_SIZE));
+                        long hashEntryOffset = (long)CalculateHashEntryOffsetForBlock(dataBlockNum, hashTreeLevel - 1);
+                        byte[] pageData = ReadBytes(hashEntryOffset, (int)PAGE_SIZE);
+                        byte[] blockHash = HashUtils.ComputeSha256(pageData);
                         Array.Resize(ref blockHash, (int)HASH_ENTRY_LENGTH);
 
-                        _io.Stream.Position = (long)CalculateHashEntryOffsetForBlock(dataBlockNum, hashTreeLevel);
+                        hashEntryOffset = (long)CalculateHashEntryOffsetForBlock(dataBlockNum, hashTreeLevel);
 
-                        byte[] oldHash = _io.Reader.ReadBytes((int)HASH_ENTRY_LENGTH);
+                        byte[] oldHash = ReadBytes(hashEntryOffset, (int)HASH_ENTRY_LENGTH);
                         if (!blockHash.IsEqualTo(oldHash))
                         {
-                            _io.Stream.Position -= (int)HASH_ENTRY_LENGTH; // todo: maybe return a list of blocks that needed rehashing
-                            _io.Writer.Write(blockHash);
+                            // TODO: Maybe return a list of blocks that needed rehashing
+                            WriteBytes(hashEntryOffset, blockHash);
                         }
 
                         dataBlockNum += blocksPerLevel;
@@ -986,8 +990,9 @@ namespace LibXboxOne
                 hashTreeLevel++;
                 blocksPerLevel = blocksPerLevel * 0xAA;
             }
-            _io.Stream.Position = (long)HashTreeOffset;
-            byte[] hash = HashUtils.ComputeSha256(_io.Reader.ReadBytes((int)PAGE_SIZE));
+
+            byte[] topHashBlockData = ReadBytes((long)HashTreeOffset, (int)PAGE_SIZE);
+            byte[] hash = HashUtils.ComputeSha256(topHashBlockData);
             Header.TopHashBlockHash = hash;
 
             return true;
@@ -998,8 +1003,8 @@ namespace LibXboxOne
             if (!IsDataIntegrityEnabled)
                 return true;
 
-            _io.Stream.Position = (long)HashTreeOffset;
-            byte[] hash = HashUtils.ComputeSha256(_io.Reader.ReadBytes((int)PAGE_SIZE));
+            byte[] topHashBlockData = ReadBytes((long)HashTreeOffset, (int)PAGE_SIZE);
+            byte[] hash = HashUtils.ComputeSha256(topHashBlockData);
             if (!Header.TopHashBlockHash.IsEqualTo(hash))
                 return false;
 
@@ -1016,15 +1021,15 @@ namespace LibXboxOne
                 {
                     while (dataBlockNum < Header.NumberOfHashedPages)
                     {
-                        _io.Stream.Position = (long)CalculateHashEntryOffsetForBlock(dataBlockNum, hashTreeLevel - 1);
-                        byte[] blockHash = HashUtils.ComputeSha256(_io.Reader.ReadBytes((int)PAGE_SIZE));
+                        long offset = (long)CalculateHashEntryOffsetForBlock(dataBlockNum, hashTreeLevel - 1);
+                        byte[] data = ReadBytes(offset, (int)PAGE_SIZE);
+                        byte[] blockHash = HashUtils.ComputeSha256(data);
                         Array.Resize(ref blockHash, (int)HASH_ENTRY_LENGTH);
 
                         var upperHashBlockOffset = CalculateHashEntryOffsetForBlock(dataBlockNum, hashTreeLevel);
                         topHashTreeBlock = XvdMath.OffsetToPageNumber(upperHashBlockOffset - HashTreeOffset);
-                        _io.Stream.Position = (long)upperHashBlockOffset;
 
-                        byte[] expectedHash = _io.Reader.ReadBytes((int)HASH_ENTRY_LENGTH);
+                        byte[] expectedHash = ReadBytes((long)upperHashBlockOffset, (int)HASH_ENTRY_LENGTH);
                         if (!expectedHash.IsEqualTo(blockHash))
                         {
                             // wrong hash
