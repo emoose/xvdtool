@@ -348,6 +348,7 @@ namespace XVDTool
                     Console.WriteLine(@"Error: output file already exists.");
                     return;
                 }
+                Console.WriteLine("Copying original file to output destination...");
                 File.Copy(filePath, outputFile);
                 filePath = outputFile;
             }
