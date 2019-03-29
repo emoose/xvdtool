@@ -34,6 +34,7 @@ namespace LibXboxOne
         public static readonly uint DATA_BLOCKS_IN_LEVEL1_HASHTREE = HASH_ENTRIES_IN_PAGE * DATA_BLOCKS_IN_LEVEL0_HASHTREE; // 0x70E4
         public static readonly uint DATA_BLOCKS_IN_LEVEL2_HASHTREE = HASH_ENTRIES_IN_PAGE * DATA_BLOCKS_IN_LEVEL1_HASHTREE; // 0x4AF768
         public static readonly uint DATA_BLOCKS_IN_LEVEL3_HASHTREE = HASH_ENTRIES_IN_PAGE * DATA_BLOCKS_IN_LEVEL2_HASHTREE; // 0x31C84B10
+        public static readonly int SHA256_HASH_LENGTH = 256 / 8;
         #endregion
 
         public static bool DisableDataHashChecking = false;
@@ -218,6 +219,27 @@ namespace LibXboxOne
                 BatEntries[i] = ReadBat(i);
 
             return BatEntries;
+        }
+
+        public byte[] GetHashPageFromBuffer(ulong hashLevel, bool resilient, bool unknownFlag)
+        {
+            ulong offsetInHashBlock = HashTreeOffset + (hashLevel * XvdFile.PAGE_SIZE);
+            if (resilient)
+            {
+                _io.Stream.Seek((long)offsetInHashBlock + 0xFF0, SeekOrigin.Begin);
+                ulong previousSequenceNum = _io.Reader.ReadUInt64();
+                _io.Stream.Seek((long)offsetInHashBlock + 0x1FF0, SeekOrigin.Begin);
+                ulong currentSequenceNum = _io.Reader.ReadUInt64();
+
+                if ((unknownFlag && previousSequenceNum > currentSequenceNum)
+                    || !unknownFlag && previousSequenceNum <= currentSequenceNum)
+                {
+                    offsetInHashBlock += XvdFile.PAGE_SIZE;
+                }
+            }
+
+            _io.Stream.Seek((long)offsetInHashBlock, SeekOrigin.Begin);
+            return _io.Reader.ReadBytes((int)XvdFile.PAGE_SIZE);
         }
 
         ulong CalculateStaticDataLength()
@@ -558,6 +580,7 @@ namespace LibXboxOne
 
             if (IsDataIntegrityEnabled)
             {
+                VerifyHashTreeResilient();
                 if (!DisableDataHashChecking)
                 {
                     ulong[] invalidBlocks = VerifyDataHashTree();
@@ -815,6 +838,90 @@ namespace LibXboxOne
             }
 
             return invalidBlocks.ToArray();
+        }
+
+        public bool VerifyResilientHashChain(ulong[] entryNumberInLevels, ulong hashLevels, byte[] rootHash, bool resilient)
+        {
+            for (ulong level=1; level < hashLevels; level++)
+            {
+                byte[] hashPage = GetHashPageFromBuffer(level, true, resilient);
+                byte[] prevHashPage = GetHashPageFromBuffer(level - 1, true, resilient);
+                byte[] hash = HashUtils.ComputeSha256(prevHashPage);
+                ulong hashEntryOffset = entryNumberInLevels[level] * HASH_ENTRY_LENGTH;
+
+                byte[] hashToVerify = new byte[SHA256_HASH_LENGTH];
+                Array.Copy(hashPage, (int)hashEntryOffset, hashToVerify, 0, hashToVerify.Length);
+
+                if (!hashToVerify.IsEqualTo(hash))
+                    return false;
+            }
+
+            byte[] rootHashPage = GetHashPageFromBuffer(hashLevels - 1, true, resilient);
+            byte[] calculatedRootHash = HashUtils.ComputeSha256(rootHashPage);
+
+            if (!calculatedRootHash.IsEqualTo(rootHash))
+                return false;
+
+            return true;
+        }
+
+        public bool VerifyResilientSequence()
+        {
+            Console.WriteLine($"Header Seq: {Header.SequenceNumber}");
+            long sequenceNumber = 0;
+            for (ulong hashLevel=0; hashLevel < HashTreeLevels; hashLevel++)
+            {
+                ulong offset = hashLevel * XvdFile.PAGE_SIZE;
+                ulong hashLevelBuffPtr = 2 * offset;
+
+                _io.Stream.Seek((long)(HashTreeOffset + hashLevelBuffPtr + 0xFF0), SeekOrigin.Begin);
+                ulong prevSequenceNumber = _io.Reader.ReadUInt64();
+                _io.Stream.Seek((long)(HashTreeOffset + hashLevelBuffPtr + 0x1FF0), SeekOrigin.Begin);
+                ulong currentSequenceNumber = _io.Reader.ReadUInt64();
+
+                if (prevSequenceNumber < currentSequenceNumber)
+                    hashLevelBuffPtr += XvdFile.PAGE_SIZE;
+
+                Console.WriteLine($"PrevSeq: {prevSequenceNumber} CurrentSeq: {currentSequenceNumber}");
+            }
+            return (sequenceNumber == Header.SequenceNumber);
+        }
+
+        public bool VerifyHashTreeResilient()
+        {
+            VerifyResilientSequence();
+
+            ulong[] resilientHashData = new ulong[HashTreeLevels];
+            if (HashTreeLevels < 1)
+                return false;
+
+            ulong pageNumber = XvdMath.OffsetToPageNumber(Header.ResilientDataOffset);
+            ulong numHashedPages = XvdMath.CalculateNumberHashPages(out ulong _, Header.DrivePageCount, true);
+            for (ulong level=0; level < HashTreeLevels; level++)
+            {
+                ulong blockNum = XvdMath.ComputeHashBackingBlockNumber(
+                    Header.Type,
+                    HashTreeLevels,
+                    pageNumber - numHashedPages,
+                    level,
+                    (uint)Header.DrivePageCount,
+                    out resilientHashData[level],
+                    true,
+                    false);
+
+                blockNum = XvdMath.ComputeHashBackingBlockNumber(
+                    Header.Type,
+                    HashTreeLevels,
+                    pageNumber - numHashedPages,
+                    level,
+                    (uint)Header.DrivePageCount,
+                    out resilientHashData[level],
+                    true,
+                    true);
+            }
+
+            return (VerifyResilientHashChain(resilientHashData, HashTreeLevels, Header.TopHashBlockHash, false)
+                    && VerifyResilientHashChain(resilientHashData, HashTreeLevels, Header.TopHashBlockHash, true));
         }
 
         public bool CalculateHashTree()
