@@ -357,37 +357,27 @@ namespace LibXboxOne
 
             // Perform crypto!
             if (PrintProgressToConsole)
-                Console.WriteLine($"\r\nCrypting section 0x{offset:X} - 0x{offset + length:X} (headerId: 0x{headerId}):");
+                Console.WriteLine($"\r\nCrypting section 0x{offset:X} - 0x{offset + length:X} (HeaderId: 0x{headerId:X}):");
 
             _io.Stream.Position = (long)offset;
-            var prevProgress = "";
-            for (uint page = 0; page < numPages; page++)
+
+            using (var progress = new ProgressBar((long)numPages, "pages"))
             {
-                if (PrintProgressToConsole)
+                for (uint page = 0; page < numPages; page++)
                 {
-                    var res = $"{(double)(page + 1) / numPages:0.00%}";
-                    if (res != prevProgress || page + 1 == numPages) // we don't need to print every page, only print when the percentage has actually changed
-                    {
-                        Console.Write($"\r  {res} {page + 1}/{numPages}");
-                        prevProgress = res;
-                    }
+                    if (PrintProgressToConsole)
+                        progress.Report((long)page);
+
+                    var transformedData = new byte[PAGE_SIZE];
+
+                    var pageOffset = _io.Stream.Position;
+                    var origData = _io.Reader.ReadBytes((int)PAGE_SIZE);
+
+                    cipher.TransformDataUnit(origData, 0, origData.Length, transformedData, 0, dataUnits?[(int)page] ?? page);
+
+                    _io.Stream.Position = pageOffset;
+                    _io.Writer.Write(transformedData);
                 }
-
-                var transformedData = new byte[PAGE_SIZE];
-
-                var pageOffset = _io.Stream.Position;
-                var origData = _io.Reader.ReadBytes((int)PAGE_SIZE);
-
-                cipher.TransformDataUnit(origData, 0, origData.Length, transformedData, 0, dataUnits?[(int)page] ?? page);
-
-                _io.Stream.Position = pageOffset;
-                _io.Writer.Write(transformedData);
-            }
-
-            if (PrintProgressToConsole)
-            {
-                Console.WriteLine();
-                Console.WriteLine();
             }
 
             return true;
@@ -879,45 +869,34 @@ namespace LibXboxOne
             ulong dataBlockCount = XvdMath.OffsetToPageNumber((ulong)_io.Stream.Length - UserDataOffset);
             var invalidBlocks = new List<ulong>();
 
-            var prevProgress = "";
-            for (ulong i = 0; i < dataBlockCount; i++)
+            using (var progress = new ProgressBar((long)dataBlockCount, "blocks"))
             {
-                if (PrintProgressToConsole)
+                for (ulong i = 0; i < dataBlockCount; i++)
                 {
-                    var res = $"{(double)(i + 1) / dataBlockCount:0.0%}";
-                    if (res != prevProgress || i + 1 == dataBlockCount) // we don't need to print every page, only print when the percentage has actually changed
-                    {
-                        Console.Write($"\r  {res} {i+1}/{dataBlockCount}");
-                        prevProgress = res;
-                    }
+                    if (PrintProgressToConsole)
+                        progress.Report((long)i);
+
+                    var hashEntryOffset = CalculateHashEntryOffsetForBlock(i, 0);
+                    _io.Stream.Position = (long)hashEntryOffset;
+
+                    byte[] oldhash = _io.Reader.ReadBytes((int)DataHashEntryLength);
+
+                    var dataToHashOffset = XvdMath.PageNumberToOffset(i) + UserDataOffset;
+                    _io.Stream.Position = (long)dataToHashOffset;
+
+                    byte[] data = _io.Reader.ReadBytes((int)PAGE_SIZE);
+                    byte[] hash = HashUtils.ComputeSha256(data);
+                    Array.Resize(ref hash, (int)DataHashEntryLength);
+
+                    if (hash.IsEqualTo(oldhash))
+                        continue;
+
+                    invalidBlocks.Add(i);
+                    if (!rehash)
+                        continue;
+                    _io.Stream.Position = (long)hashEntryOffset;
+                    _io.Writer.Write(hash);
                 }
-
-                var hashEntryOffset = CalculateHashEntryOffsetForBlock(i, 0);
-                _io.Stream.Position = (long)hashEntryOffset;
-
-                byte[] oldhash = _io.Reader.ReadBytes((int)DataHashEntryLength);
-
-                var dataToHashOffset = XvdMath.PageNumberToOffset(i) + UserDataOffset;
-                _io.Stream.Position = (long)dataToHashOffset;
-
-                byte[] data = _io.Reader.ReadBytes((int)PAGE_SIZE);
-                byte[] hash = HashUtils.ComputeSha256(data);
-                Array.Resize(ref hash, (int)DataHashEntryLength);
-
-                if (hash.IsEqualTo(oldhash))
-                    continue;
-
-                invalidBlocks.Add(i);
-                if (!rehash)
-                    continue;
-                _io.Stream.Position = (long)hashEntryOffset;
-                _io.Writer.Write(hash);
-            }
-
-            if (PrintProgressToConsole)
-            {
-                Console.WriteLine();
-                Console.WriteLine();
             }
 
             return invalidBlocks.ToArray();
