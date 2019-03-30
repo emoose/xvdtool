@@ -884,7 +884,7 @@ namespace LibXboxOne
 
                 Console.WriteLine($"PrevSeq: {prevSequenceNumber} CurrentSeq: {currentSequenceNumber}");
             }
-            return (sequenceNumber == Header.SequenceNumber);
+            return (++sequenceNumber == Header.SequenceNumber);
         }
 
         public bool VerifyHashTreeResilient()
@@ -918,7 +918,19 @@ namespace LibXboxOne
                     out resilientHashData[level],
                     true,
                     true);
+                
+                ulong offsetInHashBlock = HASH_ENTRY_LENGTH * resilientHashData[level];
+                byte[] hash = ReadBytes((long)(HashTreeOffset + offsetInHashBlock), SHA256_HASH_LENGTH);
+                byte[] resilientData = ReadBytes((long)(Header.ResilientDataOffset
+                                                 + (XvdFile.PAGE_SIZE * level)),
+                                                 (int)XvdFile.PAGE_SIZE);
+                byte[] hashToVerify = HashUtils.ComputeSha256(resilientData, 0, (int)XvdFile.PAGE_SIZE);
+                
+                if (!hashToVerify.IsEqualTo(hash))
+                    return false;
             }
+
+            Console.WriteLine($"Hash check success");
 
             return (VerifyResilientHashChain(resilientHashData, HashTreeLevels, Header.TopHashBlockHash, false)
                     && VerifyResilientHashChain(resilientHashData, HashTreeLevels, Header.TopHashBlockHash, true));
