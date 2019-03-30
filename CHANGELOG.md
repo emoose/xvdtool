@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - XvdFile: Move duplicated "get hash entry offset" code to its own function
 - XvdFile: Improve VerifyXvcHash & fix AddHashTree
 - XvdFile: Remove unneeded copy constructors for structs
-- XvdFile: Add RemoveMutableData function & -removemdu tool option
+- XvdFile: Add Add/RemoveMutableData function & -addmdu/-removemdu tool option
 - XvdFile: Move data-removal logic from RemoveHashTree into seperate RemoveData function
 - XvdFile: Add fixups for XvdUpdateSegments
 - XvdFile: Allow fetching dataUnit from hashtables during CryptSectionXts
