@@ -2,7 +2,6 @@
 using System.IO;
 using System.Collections.Generic;
 using NDesk.Options;
-using LibXboxOne;
 
 namespace DurangoKeyExtractor
 {
@@ -49,7 +48,7 @@ namespace DurangoKeyExtractor
 
             if (outputFolder == String.Empty)
             {
-                outputFolder = Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "extracted");
+                outputFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "extracted");
             }
 
             var filePath = extraArgs[0];

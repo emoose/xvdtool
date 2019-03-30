@@ -1,6 +1,5 @@
 using System;
 using System.Text;
-using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace LibXboxOne.Nand
@@ -33,29 +32,11 @@ namespace LibXboxOne.Nand
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x20)]
         /* 0x3E0 */ public byte[] XbfsHash; // SHA256 hash of 0x0 - 0x3E0
 
-        public string MagicString
-        {
-            get
-            {
-                return new string(Magic);
-            }
-        }
+        public string MagicString => new string(Magic);
 
-        public bool IsValid
-        {
-            get
-            {
-                return MagicString == XbfsMagic;
-            }
-        }
+        public bool IsValid => MagicString == XbfsMagic;
 
-        public bool IsHashValid
-        {
-            get
-            {
-                return XbfsHash.IsEqualTo(CalculateHash());
-            }
-        }
+        public bool IsHashValid => XbfsHash.IsEqualTo(CalculateHash());
 
         byte[] CalculateHash()
         {
@@ -78,16 +59,16 @@ namespace LibXboxOne.Nand
             string fmt = formatted ? "    " : "";
 
             var b = new StringBuilder();
-            b.AppendLineSpace(fmt + "Magic: " + new string(Magic));
-            b.AppendLineSpace(fmt + "Format Version: 0x" + FormatVersion.ToString("X"));
-            b.AppendLineSpace(fmt + "Sequence Number: 0x" + SequenceNumber.ToString("X"));
-            b.AppendLineSpace(fmt + "Layout Version: 0x" + LayoutVersion.ToString("X"));
-            b.AppendLineSpace(fmt + "Reserved08: 0x" + Reserved08.ToString("X"));
-            b.AppendLineSpace(fmt + "Reserved10: 0x" + Reserved10.ToString("X"));
-            b.AppendLineSpace(fmt + "Reserved18: 0x" + Reserved18.ToString("X"));
-            b.AppendLineSpace(fmt + "Reserved3C0: " + Reserved3C0.ToHexString());
-            b.AppendLineSpace(fmt + "System XVID: " + SystemXVID);
-            b.AppendLineSpace(fmt + "XBFS header hash: " + Environment.NewLine + fmt + XbfsHash.ToHexString());
+            b.AppendLineSpace(fmt + $"Magic: {new string(Magic)}");
+            b.AppendLineSpace(fmt + $"Format Version: 0x{FormatVersion:X}");
+            b.AppendLineSpace(fmt + $"Sequence Number: 0x{SequenceNumber:X}");
+            b.AppendLineSpace(fmt + $"Layout Version: 0x{LayoutVersion:X}");
+            b.AppendLineSpace(fmt + $"Reserved08: 0x{Reserved08:X}");
+            b.AppendLineSpace(fmt + $"Reserved10: 0x{Reserved10:X}");
+            b.AppendLineSpace(fmt + $"Reserved18: 0x{Reserved18:X}");
+            b.AppendLineSpace(fmt + $"Reserved3C0: {Reserved3C0.ToHexString()}");
+            b.AppendLineSpace(fmt + $"System XVID: {SystemXVID}");
+            b.AppendLineSpace(fmt + $"XBFS header hash: {Environment.NewLine}{fmt}{XbfsHash.ToHexString()}");
             b.AppendLine();
 
             for(int i = 0; i < Files.Length; i++)

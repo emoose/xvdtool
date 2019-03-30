@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 
@@ -8,10 +7,7 @@ namespace LibXboxOne
     class AesXtsTransform : IDisposable
     {
         public int BlockSize;
-        private readonly bool _encrypt;
         private readonly byte[] _tweakBytes;
-        private readonly byte[] _dataAesKey;
-        private readonly byte[] _tweakAesKey;
         private readonly ICryptoTransform _tweakEncryptor;
         private readonly ICryptoTransform _dataTransform;
         private readonly SymmetricAlgorithm _symmetricAlgorithm;
@@ -19,25 +15,22 @@ namespace LibXboxOne
         public AesXtsTransform(byte[] tweakBytes, byte[] dataAesKey, byte[] tweakAesKey, bool encrypt)
         {
             if (tweakBytes == null) throw new InvalidDataException("Tweak bytes not provided");
-            else if (dataAesKey == null) throw new InvalidDataException("Data AES key not provided");
-            else if (tweakAesKey == null) throw new InvalidDataException("Tweak AES key not provided");
-            else if (tweakBytes.Length != 16) throw new InvalidDataException("Tweak bytes not 16 bytes");
-            else if (dataAesKey.Length != 16) throw new InvalidDataException("Data AES key not 16 bytes");
-            else if (tweakAesKey.Length != 16) throw new InvalidDataException("Tweak AES not 16 bytes");
-
-            _encrypt = encrypt;
+            if (dataAesKey == null) throw new InvalidDataException("Data AES key not provided");
+            if (tweakAesKey == null) throw new InvalidDataException("Tweak AES key not provided");
+            if (tweakBytes.Length != 16) throw new InvalidDataException("Tweak bytes not 16 bytes");
+            if (dataAesKey.Length != 16) throw new InvalidDataException("Data AES key not 16 bytes");
+            if (tweakAesKey.Length != 16) throw new InvalidDataException("Tweak AES not 16 bytes");
+            
             _tweakBytes = tweakBytes;
-            _dataAesKey = dataAesKey;
-            _tweakAesKey = tweakAesKey;
 
             _symmetricAlgorithm = Aes.Create();
             _symmetricAlgorithm.Padding = PaddingMode.None;
             _symmetricAlgorithm.Mode = CipherMode.ECB;
 
             byte[] nullIv = new byte[16];
-            _tweakEncryptor = _symmetricAlgorithm.CreateEncryptor(_tweakAesKey, nullIv);
-            _dataTransform = _encrypt ? _symmetricAlgorithm.CreateEncryptor(_dataAesKey, nullIv) :
-                                        _symmetricAlgorithm.CreateDecryptor(_dataAesKey, nullIv);
+            _tweakEncryptor = _symmetricAlgorithm.CreateEncryptor(tweakAesKey, nullIv);
+            _dataTransform = encrypt ? _symmetricAlgorithm.CreateEncryptor(dataAesKey, nullIv) :
+                                        _symmetricAlgorithm.CreateDecryptor(dataAesKey, nullIv);
 
             BlockSize = _symmetricAlgorithm.BlockSize / 8;
         }
@@ -64,7 +57,6 @@ namespace LibXboxOne
 
         public int TransformDataUnit(byte[] inputBuffer, int inputOffset, int inputCount, byte[] outputBuffer, int outputOffset, uint dataUnit)
         {
-            int transformedBytes = 0;
             byte[] encryptedTweak = new byte[0x10];
             byte[] tweak = _tweakBytes;
 
@@ -89,7 +81,7 @@ namespace LibXboxOne
             }
 
             // AES transform the data...
-            transformedBytes = _dataTransform.TransformBlock(outputBuffer, outputOffset, inputCount, outputBuffer, outputOffset);
+            var transformedBytes = _dataTransform.TransformBlock(outputBuffer, outputOffset, inputCount, outputBuffer, outputOffset);
 
             // Reset tweak back to original encrypted tweak and then apply output-tweak
             Array.Copy(encryptedTweakOrig, encryptedTweak, 0x10);

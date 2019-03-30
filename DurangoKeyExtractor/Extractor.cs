@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using LibXboxOne;
 using LibXboxOne.Keys;
@@ -8,7 +7,7 @@ namespace DurangoKeyExtractor
 {
     public class KeyExtractor
     {
-        public string FilePath { get; private set; }
+        public string FilePath { get; }
 
         public KeyExtractor(string filePath)
         {
@@ -22,11 +21,11 @@ namespace DurangoKeyExtractor
         {
             var exeData = File.ReadAllBytes(FilePath);
 
-            DurangoKeyEntry keyEntry;
             int foundCount = 0;
             for (int i = 0; i < exeData.Length - 32; i++)
             {
                 byte[] hash32 = HashUtils.ComputeSha256(exeData, i, 32);
+                DurangoKeyEntry keyEntry;
                 foreach(var kvp in DurangoKeys.GetAllXvdSigningKeys())
                 {
                     string keyName = kvp.Key;
@@ -34,21 +33,21 @@ namespace DurangoKeyExtractor
 
                     if (keyEntry.HasKeyData)
                         continue;
-                    else if (keyEntry.DataSize > (exeData.Length - i))
+                    if (keyEntry.DataSize > exeData.Length - i)
                         continue;
-                    
+
                     byte[] signKeyHash = HashUtils.ComputeSha256(exeData, i, keyEntry.DataSize);
 
-                    if(keyEntry.SHA256Hash.IsEqualTo(signKeyHash))
-                    {
-                        Console.WriteLine($"Found {keyEntry.KeyType} \"{keyName}\" at offset 0x{i:X}");
-                        
-                        byte[] keyData = new byte[keyEntry.DataSize];
-                        Array.Copy(exeData, i, keyData, 0, keyData.Length);
+                    if (!keyEntry.SHA256Hash.IsEqualTo(signKeyHash))
+                        continue;
 
-                        DurangoKeys.LoadSignKey(keyName, keyData, out bool newKey, out keyName);
-                        foundCount++;
-                    }
+                    Console.WriteLine($"Found {keyEntry.KeyType} \"{keyName}\" at offset 0x{i:X}");
+                        
+                    byte[] keyData = new byte[keyEntry.DataSize];
+                    Array.Copy(exeData, i, keyData, 0, keyData.Length);
+
+                    DurangoKeys.LoadSignKey(keyName, keyData, out bool newKey, out keyName);
+                    foundCount++;
                 }
 
                 foreach(var kvp in DurangoKeys.GetAllODK())
@@ -59,16 +58,16 @@ namespace DurangoKeyExtractor
                     if (keyEntry.HasKeyData)
                         continue;
 
-                    if (hash32.IsEqualTo(keyEntry.SHA256Hash))
-                    {
-                        Console.WriteLine($"Found {keyEntry.KeyType} \"{keyId}\" at offset 0x{i:X}");
-                        
-                        byte[] keyData = new byte[keyEntry.DataSize];
-                        Array.Copy(exeData, i, keyData, 0, keyData.Length);
+                    if (!hash32.IsEqualTo(keyEntry.SHA256Hash))
+                        continue;
 
-                        DurangoKeys.LoadOdkKey(keyId, keyData, out bool newKey);
-                        foundCount++;
-                    }
+                    Console.WriteLine($"Found {keyEntry.KeyType} \"{keyId}\" at offset 0x{i:X}");
+                        
+                    byte[] keyData = new byte[keyEntry.DataSize];
+                    Array.Copy(exeData, i, keyData, 0, keyData.Length);
+
+                    DurangoKeys.LoadOdkKey(keyId, keyData, out bool newKey);
+                    foundCount++;
                 }
 
                 foreach(var kvp in DurangoKeys.GetAllCIK())
@@ -79,17 +78,17 @@ namespace DurangoKeyExtractor
                     if (keyEntry.HasKeyData)
                         continue;
 
-                    if (hash32.IsEqualTo(keyEntry.SHA256Hash))
-                    {
-                        Console.WriteLine($"Found {keyEntry.KeyType} \"{keyId}\" at offset 0x{i:X}");
-                        
-                        byte[] keyData = new byte[0x10 + keyEntry.DataSize];
-                        Array.Copy(keyId.ToByteArray(), 0, keyData, 0, 0x10);
-                        Array.Copy(exeData, i, keyData, 0x10, keyEntry.DataSize);
+                    if (!hash32.IsEqualTo(keyEntry.SHA256Hash))
+                        continue;
 
-                        DurangoKeys.LoadCikKeys(keyData, out Guid[] keyGuid);
-                        foundCount++;
-                    }
+                    Console.WriteLine($"Found {keyEntry.KeyType} \"{keyId}\" at offset 0x{i:X}");
+                        
+                    byte[] keyData = new byte[0x10 + keyEntry.DataSize];
+                    Array.Copy(keyId.ToByteArray(), 0, keyData, 0, 0x10);
+                    Array.Copy(exeData, i, keyData, 0x10, keyEntry.DataSize);
+
+                    DurangoKeys.LoadCikKeys(keyData, out Guid[] keyGuid);
+                    foundCount++;
                 }
             }
 
@@ -98,7 +97,7 @@ namespace DurangoKeyExtractor
 
         public bool SaveFoundKeys(string destinationDirectory)
         {
-            var path = String.Empty;
+            string path;
 
             foreach (var keyType in Enum.GetNames(typeof(KeyType)))
             {

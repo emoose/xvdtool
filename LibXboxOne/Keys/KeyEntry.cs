@@ -1,6 +1,4 @@
 using System;
-using System.IO;
-using System.Security.Cryptography;
 
 namespace LibXboxOne.Keys
 {
@@ -18,7 +16,7 @@ namespace LibXboxOne.Keys
 
     public class DurangoKeyEntry : IKeyEntry
     {
-        public bool HasKeyData => (KeyData != null && KeyData.Length == DataSize);
+        public bool HasKeyData => KeyData != null && KeyData.Length == DataSize;
         public byte[] SHA256Hash { get; }
         public int DataSize { get; }
         public byte[] KeyData { get; private set; }
@@ -44,16 +42,16 @@ namespace LibXboxOne.Keys
         public void SetKey(byte[] newKeyData)
         {
             if (HasKeyData)
-                throw new InvalidOperationException($"KeyData is already filled!");
-            else if (newKeyData.Length != DataSize)
+                throw new InvalidOperationException("KeyData is already filled!");
+            if (newKeyData.Length != DataSize)
                 throw new InvalidProgramException($"Unexpected keydata of length: {newKeyData.Length} bytes");
-            
+
             KeyData = newKeyData;
         }
 
         public override string ToString()
         {
-            return $"Loaded: {HasKeyData} Hash: {SHA256Hash.ToHexString(false)} Size: {DataSize}";
+            return $"Loaded: {HasKeyData} Hash: {SHA256Hash.ToHexString("")} Size: {DataSize}";
         }
     }
 }

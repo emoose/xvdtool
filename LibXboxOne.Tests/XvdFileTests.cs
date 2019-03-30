@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-using System.IO;
-using System.Security.Cryptography;
+﻿using System.IO;
 using Xunit;
 
 namespace LibXboxOne.Tests
@@ -82,7 +80,7 @@ namespace LibXboxOne.Tests
                 Assert.True(invalid.Length == 0);
                 Assert.True(file.VerifyHashTree());
 
-                byte[] ntfsString = file.Read(0x87003, 4);
+                byte[] ntfsString = file.ReadBytes(0x87003, 4);
                 byte[] expectedString = { 0x4E, 0x54, 0x46, 0x53 };
                 Assert.True(ntfsString.IsEqualTo(expectedString));
             }
@@ -171,7 +169,7 @@ namespace LibXboxOne.Tests
                 Assert.True(invalid.Length == 0);
                 Assert.True(file.VerifyHashTree());
 
-                byte[] ntfsString = file.Read(0x75003, 4);
+                byte[] ntfsString = file.ReadBytes(0x75003, 4);
                 byte[] expectedString = { 0x4E, 0x54, 0x46, 0x53 };
                 Assert.True(ntfsString.IsEqualTo(expectedString));
             }

@@ -1,6 +1,6 @@
 # xvdtool [![Build status](https://api.travis-ci.com/emoose/xvdtool.svg?branch=master)](https://travis-ci.com/emoose/xvdtool)
 
-xvdtool is a C# command-line utility for manipulating Xbox One XVD/XVC packages. It can print detailed info about package headers, resign, rehash, en/decrypt and verify data integrity of a package, it can also convert (some, but not all) decrypted XVD files to VHD.
+xvdtool is a C# command-line utility for manipulating Xbox One XVD/XVC packages. It can print detailed info about package headers, resign, rehash, en/decrypt and verify data integrity of a package, it can also convert decrypted XVD files to VHD or extract the filesystem itself.
 
 So far it's only been tested with dev-crypted packages (which use a different 256-bit **Offline Distribution Key (ODK)** to retail packages), as the retail key is still unknown. **This currently makes the tool useless for 90% of people**, but developers looking into how XVD files work will find a detailed mapping of the XVD structures and near-complete methods for manipulating them.
 
@@ -22,6 +22,7 @@ Parameters:
 
     -m (-mount) - mount package
     -um (-unmount) - unmount package
+    -mp (-mountpoint) - Mount point for package (e.g. "X:")
 
     -lk (-listkeys) - List known keys including their hashes / availability
 
@@ -38,28 +39,28 @@ Parameters:
 
     -eu (-decrypt) - decrypt output xvd
     -ee (-encrypt) - encrypt output xvd
-        XVDs will have a new CIK generated (if CIK in XVD header is empty), which
-        will be encrypted with the ODK and stored in the XVD header
+        XVDs will have a new CIK generated (if CIK in XVD header is empty), which will be encrypted with the ODK and stored in the XVD header
 
     -hd (-removehash) - remove hash tree/data integrity from package
     -he (-addhash) - add hash tree/data integrity to package
+
+    -md (-removemdu) - remove mutable data (MDU) from package
 
     -r (-rehash) - fix data integrity hashes inside package
     -rs (-resign) - sign package using the private key from rsa3_key.bin
 
     -xe (-extractembedded) <output-file> - extract embedded XVD from package
     -xu (-extractuserdata) <output-file> - extract user data from package
-    -xv (-extractvhd) <output-vhd> - extracts filesystem from XVD into a VHD file. 
-    doesn't seem to work properly with XVC packages yet (also removes NTFS 
-    compression from output VHD so Windows can mount it)
+    -xv (-extractvhd) <output-vhd> - extracts filesystem from XVD into a VHD file
+    -xi (-extractimage) <output-file> - extract raw filesystem image
+    -xf (-extractfiles) <output-folder> - extract files from XVD filesystem
 
     The next two commands will write info about each package found to [filename].txt
     also extracts embedded XVD and user data to [filename].exvd.bin / [filename].userdata.bin
     -l (-filelist) <path-to-file-list> - use each XVD specified in the list
     -f (-folder) <path-to-folder> - scan folder for XVD files
 
-    Note that to mount an XVD/XVC in Windows you'll have to decrypt it and remove
-    the hash tables first (-eu -hd)
+To mount a package in Windows you'll have to decrypt it and remove the hash tables & mutable data first (-eu -hd -md)
 ```
 
 To decrypt non-XVC packages you'll need the correct ODK. The devkit ODK is "widely known" and a hashes are provided below, but as mentioned above the retail key is currently unknown.
@@ -134,6 +135,7 @@ For a more detailed explanation of XVD files see xvd_info.md
 ### Third party libraries used
 * BouncyCastle (https://www.bouncycastle.org/csharp/)
 * NDesk.Options (http://www.ndesk.org/Options)
+* DiscUtils (https://github.com/DiscUtils/DiscUtils)
 
 ### Help / Support
 xvdtool has been tested on Windows and MacOS but it should work on all systems supported by .NET Core.

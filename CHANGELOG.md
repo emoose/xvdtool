@@ -5,13 +5,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-- XvdFile: Move duplicated "get hash entry offset" code to its own function
-- XvdFile: Improve VerifyXvcHash & fix AddHashTree, remove unneeded copy constructors for structs
-- XvdFile: Add RemoveMutableData function & -removemdu tool option
-- XvdFile: Move data-removal logic from RemoveHashTree into seperate RemoveData function + add fixups for XvdUpdateSegments
-- XvdFile: Allow fetching dataUnit from hashtables during CryptSectionXts
 - General: Start using CHANGELOG.md
+- XVDTool: Fix AppDirs path creation for Linux
 - XVDTool: For XVC decryption, iterate through all loaded CIKs to find a matching one
+- XVDTool: Support supplying mountpoint to xvd mounting (-mp / -mountpoint)
+- XvdMath: Fix InBlockOffset calculation
+- XvdStructs: Add new XvdHeader fields -> resilient data
+- XvdStructs: Skip signature verification on console-signed xvds
+- XvdFilesystem: Implement XvdFilesystem operations via XvdFilesystemStream
+- XvdFilesystem: Utilize DiscUtils for vhd conversion
+- XvdFile: Print UpdateSegments/RegionSpecifiers as table, fix reading RegionSpecifiers
+- XvdFile: Print filesystem info
+- XvdFile: Move duplicated "get hash entry offset" code to its own function
+- XvdFile: Improve VerifyXvcHash & fix AddHashTree
+- XvdFile: Remove unneeded copy constructors for structs
+- XvdFile: Add Add/RemoveMutableData function & -addmdu/-removemdu tool option
+- XvdFile: Move data-removal logic from RemoveHashTree into seperate RemoveData function
+- XvdFile: Add fixups for XvdUpdateSegments
+- XvdFile: Allow fetching dataUnit from hashtables during CryptSectionXts
 
 ## [0.51] - 2019-03-21
 ### Added

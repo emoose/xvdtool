@@ -1,4 +1,3 @@
-using System.IO;
 using Xunit;
 using LibXboxOne.Nand;
 

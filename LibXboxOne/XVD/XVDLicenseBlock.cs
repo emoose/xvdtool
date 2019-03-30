@@ -39,31 +39,19 @@ namespace LibXboxOne
         public uint BlockSize;
         public byte[] BlockData;
 
-        public XvcLicenseBlock BlockDataAsBlock
-        {
-            get
-            {
-                return BlockData.Length < MinBlockLength ? null : new XvcLicenseBlock(BlockData, IsEkbFile);
-            }
-        }
+        public XvcLicenseBlock BlockDataAsBlock => BlockData.Length < MinBlockLength ? null : new XvcLicenseBlock(BlockData, IsEkbFile);
 
         public byte[] NextBlockData;
-        public XvcLicenseBlock NextBlockDataAsBlock
-        {
-            get
-            {
-                return NextBlockData.Length < MinBlockLength ? null : new XvcLicenseBlock(NextBlockData, IsEkbFile);
-            }
-        }
+        public XvcLicenseBlock NextBlockDataAsBlock => NextBlockData.Length < MinBlockLength ? null : new XvcLicenseBlock(NextBlockData, IsEkbFile);
 
-        public bool IsEkbFile = false;
+        public bool IsEkbFile;
 
         public int MinBlockLength = 8;
 
         public XvcLicenseBlock(byte[] data, bool isEkbFile = false)
         {
             IsEkbFile = isEkbFile;
-            int idLen = (IsEkbFile ? 2 : 4);
+            int idLen = IsEkbFile ? 2 : 4;
             int szLen = 4;
 
             if (data.Length >= idLen)
@@ -84,14 +72,14 @@ namespace LibXboxOne
                 BlockId = (XvcLicenseBlockId)BitConverter.ToUInt16(data, 2);
             }
 
-            if (data.Length >= (idLen + szLen))
+            if (data.Length >= idLen + szLen)
                 BlockSize = BitConverter.ToUInt32(data, idLen);
 
             if (data.Length < BlockSize + (idLen + szLen))
                 return;
 
             BlockData = new byte[BlockSize];
-            Array.Copy(data, (idLen + szLen), BlockData, 0, BlockSize);
+            Array.Copy(data, idLen + szLen, BlockData, 0, BlockSize);
 
             if (data.Length - (BlockSize + (idLen + szLen)) <= 0)
                 return;
@@ -99,34 +87,31 @@ namespace LibXboxOne
             NextBlockData = new byte[data.Length - (BlockSize + (idLen + szLen))];
             Array.Copy(data, BlockSize + (idLen + szLen), NextBlockData, 0, NextBlockData.Length);
 
-            idLen = (IsEkbFile ? 2 : 4);
+            idLen = IsEkbFile ? 2 : 4;
             szLen = 4;
             MinBlockLength = idLen + szLen;
         }
         public XvcLicenseBlock GetBlockWithId(XvcLicenseBlockId id)
         {
-            int idLen = (IsEkbFile ? 2 : 4);
+            int idLen = IsEkbFile ? 2 : 4;
             int szLen = 4;
 
             if (BlockId == id)
                 return this;
 
             XvcLicenseBlock block;
-            if (BlockSize > (idLen + szLen) && BlockSize >= (idLen + szLen) + BlockDataAsBlock.BlockSize)
+            if (BlockSize > idLen + szLen && BlockSize >= idLen + szLen + BlockDataAsBlock.BlockSize)
             {
                 block = BlockDataAsBlock.GetBlockWithId(id);
                 if (block != null)
                     return block;
             }
 
-            if (NextBlockData.Length <= (idLen + szLen) || NextBlockData.Length < (idLen + szLen) + NextBlockDataAsBlock.BlockSize)
+            if (NextBlockData.Length <= idLen + szLen || NextBlockData.Length < idLen + szLen + NextBlockDataAsBlock.BlockSize)
                 return null;
 
             block = NextBlockDataAsBlock.GetBlockWithId(id);
-            if (block != null)
-                return block;
-
-            return null;
+            return block;
         }
     }
 }

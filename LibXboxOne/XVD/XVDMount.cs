@@ -3,7 +3,7 @@ using System;
 namespace LibXboxOne
 {
     [Flags]
-    public enum XvdMountFlags : int
+    public enum XvdMountFlags
     {
         None = 0x0,
         ReadOnly = 0x1,
@@ -14,11 +14,10 @@ namespace LibXboxOne
 
     public class XvdMount
     {
-        public static bool MountXvd(string filepath)
+        public static bool MountXvd(string filepath, string mountPoint, XvdMountFlags flags=0)
         {
             // Setup Xvd handle
-            IntPtr pHandle = IntPtr.Zero;
-            ulong result = Natives.XvdOpenAdapter(out pHandle);
+            ulong result = Natives.XvdOpenAdapter(out var pHandle);
             
             if (result != 0x10000000)
             {
@@ -26,9 +25,7 @@ namespace LibXboxOne
                 return false;
             }
             
-            IntPtr pDiskHandle = IntPtr.Zero;
-            int diskNum = 0;
-            result = Natives.XvdMount(out pDiskHandle, out diskNum, pHandle, filepath, 0, null, (int)XvdMountFlags.None);
+            result = Natives.XvdMount(out var pDiskHandle, out var diskNum, pHandle, filepath, 0, mountPoint, (int)flags);
 
             // Check for errors
             if (result == 0x80070002)
@@ -49,14 +46,13 @@ namespace LibXboxOne
             }
 
             Natives.XvdCloseAdapter(pHandle);
-            return (result == 0);
+            return result == 0;
         }
 
         public static bool UnmountXvd(string filepath)
         {
             // Setup XVD Handle
-            IntPtr pHandle = IntPtr.Zero;
-            ulong result = Natives.XvdOpenAdapter(out pHandle);
+            ulong result = Natives.XvdOpenAdapter(out var pHandle);
 
             if (result != 0x10000000)
             {
@@ -78,7 +74,7 @@ namespace LibXboxOne
             }
 
             Natives.XvdCloseAdapter(pHandle);
-            return (result == 0);
+            return result == 0;
         }
     }
 }

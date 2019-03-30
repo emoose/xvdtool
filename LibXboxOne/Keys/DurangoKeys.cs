@@ -50,11 +50,11 @@ namespace LibXboxOne.Keys
         {
             foreach (var kvp in SignkeyStorage)
             {
-                if (kvp.Value.SHA256Hash.IsEqualTo(sha256Hash))
-                {
-                    keyName = kvp.Key;
-                    return true;
-                }
+                if (!kvp.Value.SHA256Hash.IsEqualTo(sha256Hash))
+                    continue;
+
+                keyName = kvp.Key;
+                return true;
             }
             keyName = "<UNKNOWN>";
             return false;
@@ -64,11 +64,11 @@ namespace LibXboxOne.Keys
         {
             foreach (var kvp in OdkStorage)
             {
-                if (kvp.Value.SHA256Hash.IsEqualTo(sha256Hash))
-                {
-                    keyId = kvp.Key;
-                    return true;
-                }
+                if (!kvp.Value.SHA256Hash.IsEqualTo(sha256Hash))
+                    continue;
+
+                keyId = kvp.Key;
+                return true;
             }
             keyId = OdkIndex.Invalid;
             return false;
@@ -78,11 +78,11 @@ namespace LibXboxOne.Keys
         {
             foreach (var kvp in CikStorage)
             {
-                if (kvp.Value.SHA256Hash.IsEqualTo(sha256Hash))
-                {
-                    keyGuid = kvp.Key;
-                    return true;
-                }
+                if (!kvp.Value.SHA256Hash.IsEqualTo(sha256Hash))
+                    continue;
+
+                keyGuid = kvp.Key;
+                return true;
             }
             keyGuid = Guid.Empty;
             return false;
@@ -91,16 +91,16 @@ namespace LibXboxOne.Keys
         public static bool GetOdkIndexFromString(string name, out OdkIndex odkIndex)
         {
             // First, try to convert to know Enum values
-            var success = Enum.TryParse<OdkIndex>(name, true, out odkIndex);
-            if (!success)
-            {
-                odkIndex = OdkIndex.Invalid;
-                success = UInt32.TryParse(name, out uint odkUint);
-                if (success)
-                    // Odk Id is valid uint but we don't know its Enum name yet
-                    odkIndex = (OdkIndex)odkUint;
-            }
-            
+            var success = Enum.TryParse(name, true, out odkIndex);
+            if (success)
+                return true;
+
+            odkIndex = OdkIndex.Invalid;
+            success = UInt32.TryParse(name, out uint odkUint);
+            if (success)
+                // Odk Id is valid uint but we don't know its Enum name yet
+                odkIndex = (OdkIndex)odkUint;
+
             return success;
         }
 
@@ -120,14 +120,15 @@ namespace LibXboxOne.Keys
                     var cikKeyData = br.ReadBytes(0x20);
                     var sha256Hash = HashUtils.ComputeSha256(cikKeyData);
                     bool hashMatches = KnowsCikSHA256(sha256Hash, out Guid verifyGuid);
-                    var hashString = sha256Hash.ToHexString(false);
+                    var hashString = sha256Hash.ToHexString("");
 
                     if (hashMatches && verifyGuid != guid)
                     {
                         Console.WriteLine($"CIK {guid} with hash {hashString} is known as {verifyGuid}");
                         continue;
                     }
-                    else if (hashMatches && CikStorage[guid].HasKeyData)
+
+                    if (hashMatches && CikStorage[guid].HasKeyData)
                     {
                         // Duplicate key, already loaded
                         Console.WriteLine($"CIK {guid} is already loaded");
@@ -152,17 +153,19 @@ namespace LibXboxOne.Keys
                 bool hashMatches = KnowsOdkSHA256(sha256Hash, out OdkIndex verifyKeyId);
                 if (hashMatches && verifyKeyId != keyId)
                 {
-                    var hashString = sha256Hash.ToHexString(false);
+                    var hashString = sha256Hash.ToHexString("");
                     Console.WriteLine($"ODK {keyId} with hash {hashString} is known as ODK {verifyKeyId}");
                     return false;
                 }
-                else if (hashMatches && OdkStorage[keyId].HasKeyData)
+
+                if (hashMatches && OdkStorage[keyId].HasKeyData)
                 {
                     // Duplicate key, already loaded
                     Console.WriteLine($"ODK {keyId} is already loaded");
                     return false;
                 }
-                else if (!hashMatches)
+
+                if (!hashMatches)
                 {
                     Console.WriteLine($"ODK {keyId} does not match expected hash");
                     return false;
@@ -189,7 +192,8 @@ namespace LibXboxOne.Keys
                 Console.WriteLine($"SignKey {keyName} is already loaded");
                 return false;
             }
-            else if (hashMatches)
+
+            if (hashMatches)
             {
                 SignkeyStorage[keyName].SetKey(keyData);
                 return true;
@@ -206,7 +210,7 @@ namespace LibXboxOne.Keys
             if (keyFilePath == String.Empty)
                 return false;
 
-            var success = false;
+            bool success;
             var isNewKey = false;
             var keyName = String.Empty;
             var filename = Path.GetFileNameWithoutExtension(keyFilePath);
@@ -282,19 +286,19 @@ namespace LibXboxOne.Keys
         public static bool IsSignkeyLoaded(string keyName)
         {
             var key = GetSignkeyByName(keyName);
-            return (key != null && key.HasKeyData);
+            return key != null && key.HasKeyData;
         }
 
         public static bool IsCikLoaded(Guid keyId)
         {
             var key = GetCikByGuid(keyId);
-            return (key != null && key.HasKeyData);
+            return key != null && key.HasKeyData;
         }
 
         public static bool IsOdkLoaded(OdkIndex keyId)
         {
             var key = GetOdkById(keyId);
-            return (key != null && key.HasKeyData);
+            return key != null && key.HasKeyData;
         }
     }
 }

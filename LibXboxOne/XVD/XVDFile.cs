@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Xml;
 using LibXboxOne.Keys;
+using LibXboxOne.ThirdParty;
 
 namespace LibXboxOne
 {
@@ -33,11 +34,11 @@ namespace LibXboxOne
         public static readonly uint DATA_BLOCKS_IN_LEVEL1_HASHTREE = HASH_ENTRIES_IN_PAGE * DATA_BLOCKS_IN_LEVEL0_HASHTREE; // 0x70E4
         public static readonly uint DATA_BLOCKS_IN_LEVEL2_HASHTREE = HASH_ENTRIES_IN_PAGE * DATA_BLOCKS_IN_LEVEL1_HASHTREE; // 0x4AF768
         public static readonly uint DATA_BLOCKS_IN_LEVEL3_HASHTREE = HASH_ENTRIES_IN_PAGE * DATA_BLOCKS_IN_LEVEL2_HASHTREE; // 0x31C84B10
-
-        public static readonly uint VHD_BLOCK_SIZE = 2 * 1024 * 1024; // 2 MB
         #endregion
 
         public static bool DisableDataHashChecking = false;
+        public static bool PrintProgressToConsole = false;
+        public static bool DisableSaveAfterModification = false;
 
         public XvdHeader Header;
         public XvcInfo XvcInfo;
@@ -47,11 +48,11 @@ namespace LibXboxOne
         public List<XvcRegionSpecifier> RegionSpecifiers;
         public List<XvcRegionPresenceInfo> RegionPresenceInfo;
 
-        public bool HashTreeValid = false;
-        public bool DataHashTreeValid = false;
-        public bool XvcDataHashValid = false;
+        public bool HashTreeValid;
+        public bool DataHashTreeValid;
+        public bool XvcDataHashValid;
 
-        public bool CikIsDecrypted = false;
+        public bool CikIsDecrypted;
 
         public static XvdContentType[] XvcContentTypes = 
         { // taken from bit test 0x07018042 (00000111000000011000000001000010)
@@ -66,44 +67,25 @@ namespace LibXboxOne
         };
 
         public OdkIndex OverrideOdk { get; set; }
+        public XvdFilesystem Filesystem { get; private set; }
 
         private readonly IO _io;
-        private readonly string _filePath;
 
-        public string FilePath
-        {
-            get { return _filePath; }
-        }
+        public readonly string FilePath;
 
-        public DateTime TimeCreated
-        {
-            get { return DateTime.FromFileTime(Header.FileTimeCreated); }
-        }
+        public long FileSize => _io.Stream.Length;
 
-        public bool IsXvcFile
-        {
-            get { return XvcContentTypes.Contains(Header.ContentType); }
-        }
+        public DateTime TimeCreated => DateTime.FromFileTime(Header.FileTimeCreated);
 
-        public bool IsEncrypted
-        {
-            get { return !Header.VolumeFlags.HasFlag(XvdVolumeFlags.EncryptionDisabled); }
-        }
+        public bool IsXvcFile => XvcContentTypes.Contains(Header.ContentType);
 
-        public bool IsDataIntegrityEnabled
-        {
-            get { return !Header.VolumeFlags.HasFlag(XvdVolumeFlags.DataIntegrityDisabled); }
-        }
+        public bool IsEncrypted => !Header.VolumeFlags.HasFlag(XvdVolumeFlags.EncryptionDisabled);
 
-        public bool IsResiliencyEnabled
-        {
-            get { return Header.VolumeFlags.HasFlag(XvdVolumeFlags.ResiliencyEnabled); }
-        }
+        public bool IsDataIntegrityEnabled => !Header.VolumeFlags.HasFlag(XvdVolumeFlags.DataIntegrityDisabled);
 
-        public bool UsesLegacySectorSize
-        {
-            get { return Header.VolumeFlags.HasFlag(XvdVolumeFlags.LegacySectorSize); }
-        }
+        public bool IsResiliencyEnabled => Header.VolumeFlags.HasFlag(XvdVolumeFlags.ResiliencyEnabled);
+
+        public bool UsesLegacySectorSize => Header.VolumeFlags.HasFlag(XvdVolumeFlags.LegacySectorSize);
 
         public ulong EmbeddedXvdOffset => XVD_HEADER_INCL_SIGNATURE_SIZE;
 
@@ -112,14 +94,10 @@ namespace LibXboxOne
 
         public ulong HashTreeOffset => Header.MutableDataLength + MduOffset;
 
-        public ulong HashTreePageCount {
-            get
-            {
-                return XvdMath.CalculateNumberHashPages(out ulong HashTreeLevels,
-                                                Header.NumberOfHashedPages,
-                                                IsResiliencyEnabled);
-            }
-        }
+        public ulong HashTreePageCount =>
+            XvdMath.CalculateNumberHashPages(out _,
+                Header.NumberOfHashedPages,
+                IsResiliencyEnabled);
 
         public ulong HashTreeLevels {
             get
@@ -131,54 +109,37 @@ namespace LibXboxOne
             }
         }
 
-        public ulong UserDataOffset {
-            get
-            {
-                return (IsDataIntegrityEnabled ? XvdMath.PageNumberToOffset(HashTreePageCount) : 0) +
-                       HashTreeOffset;
-            }
-        }
+        public ulong UserDataOffset =>
+            (IsDataIntegrityEnabled ? XvdMath.PageNumberToOffset(HashTreePageCount) : 0) +
+            HashTreeOffset;
 
-        public ulong XvcInfoOffset {
-            get
-            {
-                return XvdMath.PageNumberToOffset(Header.UserDataPageCount) +
-                       UserDataOffset;
-            }
-        }
+        public ulong XvcInfoOffset =>
+            XvdMath.PageNumberToOffset(Header.UserDataPageCount) +
+            UserDataOffset;
 
-        public ulong DynamicHeaderOffset {
-            get
-            {
-                return XvdMath.PageNumberToOffset(Header.XvcInfoPageCount) +
-                       XvcInfoOffset;
-            }
-        }
+        public ulong DynamicHeaderOffset =>
+            XvdMath.PageNumberToOffset(Header.XvcInfoPageCount) +
+            XvcInfoOffset;
 
-        public ulong DriveDataOffset {
-            get
-            {
-                return XvdMath.PageNumberToOffset(Header.DynamicHeaderPageCount) +
-                       DynamicHeaderOffset;
-            }
-        }
+        public ulong DriveDataOffset =>
+            XvdMath.PageNumberToOffset(Header.DynamicHeaderPageCount) +
+            DynamicHeaderOffset;
 
-        public uint DataHashEntryLength
-        {
-            get
-            {
-                return IsEncrypted ? HASH_ENTRY_LENGTH_ENCRYPTED : HASH_ENTRY_LENGTH;
-            }
-        }
+        public uint DataHashEntryLength => IsEncrypted ? HASH_ENTRY_LENGTH_ENCRYPTED : HASH_ENTRY_LENGTH;
+
+        // Used to calculate absolute offset for dynamic data
+        public ulong DynamicBaseOffset => XvcInfoOffset;
+
+        public ulong StaticDataLength { get; private set; }
 
         public XvdFile(string path)
         {
-            _filePath = path;
+            FilePath = path;
             _io = new IO(path);
             OverrideOdk = OdkIndex.Invalid;
         }
 
-        ulong ReadBat(ulong requestedBlock)
+        public uint ReadBat(ulong requestedBlock)
         {
             ulong absoluteAddress = DynamicHeaderOffset + (requestedBlock * sizeof(uint));
             if (absoluteAddress > (DynamicHeaderOffset + Header.DynamicHeaderLength - sizeof(uint)))
@@ -192,6 +153,35 @@ namespace LibXboxOne
             return _io.Reader.ReadUInt32();
         }
 
+        public uint ReadUInt32(long offset)
+        {
+            _io.Stream.Seek(offset, SeekOrigin.Begin);
+            return _io.Reader.ReadUInt32();
+        }
+
+        public byte[] ReadBytes(long offset, int length)
+        {
+            _io.Stream.Seek(offset, SeekOrigin.Begin);
+            return _io.Reader.ReadBytes(length);
+        }
+
+        public int WriteBytes(long offset, byte[] data)
+        {
+            _io.Stream.Seek(offset, SeekOrigin.Begin);
+            _io.Writer.Write(data);
+            return data.Length;
+        }
+
+        public byte[] ReadPage(ulong pageNumber)
+        {
+            return ReadBytes((long)XvdMath.PageNumberToOffset(pageNumber), (int)PAGE_SIZE);
+        }
+
+        public int WritePage(ulong pageNumber, byte[] data)
+        {
+            return WriteBytes((long)XvdMath.PageNumberToOffset(pageNumber), data);
+        }
+
         public bool VirtualToLogicalDriveOffset(ulong virtualOffset, out ulong logicalOffset)
         {
             logicalOffset = 0;
@@ -199,7 +189,7 @@ namespace LibXboxOne
             if (virtualOffset >= Header.DriveSize)
                 throw new InvalidOperationException(
                     $"Virtual offset 0x{virtualOffset:X} is outside drivedata length 0x{Header.DriveSize:X}");
-            else if (Header.Type > XvdType.Dynamic)
+            if (Header.Type > XvdType.Dynamic)
                 throw new NotSupportedException($"Xvd type {Header.Type} is unhandled");
 
 
@@ -246,6 +236,36 @@ namespace LibXboxOne
             return true;
         }
 
+        uint[] GetAllBATEntries()
+        {
+            var batEntryCount = XvdMath.BytesToBlocks(Header.DriveSize);
+            uint[] BatEntries = new uint[batEntryCount];
+
+            for (ulong i=0; i < batEntryCount; i++)
+                BatEntries[i] = ReadBat(i);
+
+            return BatEntries;
+        }
+
+        ulong CalculateStaticDataLength()
+        {
+            switch (Header.Type)
+            {
+                case XvdType.Dynamic:
+                {
+                    var smallestPage = GetAllBATEntries().Min();
+                    return XvdMath.PageNumberToOffset(smallestPage)
+                           - XvdMath.PageNumberToOffset(Header.DynamicHeaderPageCount)
+                           - XvdMath.PageNumberToOffset(Header.XvcInfoPageCount);
+                }
+                case XvdType.Fixed:
+                    return 0;
+
+                default:
+                    throw new InvalidProgramException("Unsupported XvdType");
+            }
+        }
+
         private void CryptHeaderCik(bool encrypt)
         {
             if ((!encrypt && CikIsDecrypted) || IsXvcFile)
@@ -256,17 +276,14 @@ namespace LibXboxOne
 
             var odkToUse = OverrideOdk == OdkIndex.Invalid ? Header.ODKKeyslotID : OverrideOdk;
 
-            var odkKey = Keys.DurangoKeys.GetOdkById(odkToUse);
+            var odkKey = DurangoKeys.GetOdkById(odkToUse);
             if (odkKey == null)
-            {
                 throw new InvalidOperationException(
                     $"ODK with Id \'{Header.ODKKeyslotID}\' not found! Cannot crypt CIK in header");
-            }
-            else if (!odkKey.HasKeyData)
-            {
+
+            if (!odkKey.HasKeyData)
                 throw new InvalidOperationException(
                     $"ODK with Id \'{Header.ODKKeyslotID}\' is known but not loaded! Cannot crypt CIK in header");
-            }
 
             byte[] nullIv = new byte[16];
 
@@ -274,7 +291,7 @@ namespace LibXboxOne
             cipher.Mode = CipherMode.ECB;
             cipher.Padding = PaddingMode.None;
 
-            ICryptoTransform transform = encrypt ? cipher.CreateEncryptor(odkKey.KeyData, nullIv) :
+            var transform = encrypt ? cipher.CreateEncryptor(odkKey.KeyData, nullIv) :
                                                    cipher.CreateDecryptor(odkKey.KeyData, nullIv);
 
             transform.TransformBlock(Header.KeyMaterial, 0, Header.KeyMaterial.Length, Header.KeyMaterial, 0);
@@ -291,11 +308,10 @@ namespace LibXboxOne
             if (encrypt && header.KeyId == XvcConstants.XVC_KEY_NONE)
                 header.KeyId = 0;
 
-            if (header.Length <= 0 || header.Offset <= 0 || header.KeyId == XvcConstants.XVC_KEY_NONE || (header.KeyId+1) > XvcInfo.KeyCount)
+            if (header.Length <= 0 || header.Offset <= 0 || header.KeyId == XvcConstants.XVC_KEY_NONE || header.KeyId + 1 > XvcInfo.KeyCount)
                 return false;
 
-            byte[] key;
-            GetXvcKey(header.KeyId, out key);
+            GetXvcKey(header.KeyId, out var key);
 
             if (key == null)
                 return false;
@@ -341,18 +357,28 @@ namespace LibXboxOne
             var cipher = new AesXtsTransform(tweak, dataAesKey, tweakAesKey, encrypt);
 
             // Perform crypto!
+            if (PrintProgressToConsole)
+                Console.WriteLine($"\r\nCrypting section 0x{offset:X} - 0x{offset + length:X} (HeaderId: 0x{headerId:X}):");
+
             _io.Stream.Position = (long)offset;
-            for (uint page = 0; page < numPages; page++)
-            { 
-                var transformedData = new byte[PAGE_SIZE];
 
-                var pageOffset = _io.Stream.Position;
-                var origData = _io.Reader.ReadBytes((int)PAGE_SIZE);
+            using (var progress = new ProgressBar((long)numPages, "pages"))
+            {
+                for (uint page = 0; page < numPages; page++)
+                {
+                    if (PrintProgressToConsole)
+                        progress.Report((long)page);
 
-                cipher.TransformDataUnit(origData, 0, origData.Length, transformedData, 0, dataUnits == null ? page : dataUnits[(int)page]);
+                    var transformedData = new byte[PAGE_SIZE];
 
-                _io.Stream.Position = pageOffset;
-                _io.Writer.Write(transformedData);
+                    var pageOffset = _io.Stream.Position;
+                    var origData = _io.Reader.ReadBytes((int)PAGE_SIZE);
+
+                    cipher.TransformDataUnit(origData, 0, origData.Length, transformedData, 0, dataUnits?[(int)page] ?? page);
+
+                    _io.Stream.Position = pageOffset;
+                    _io.Writer.Write(transformedData);
+                }
             }
 
             return true;
@@ -390,7 +416,7 @@ namespace LibXboxOne
                 for (int i = 0; i < RegionHeaders.Count; i++)
                 {
                     XvcRegionHeader header = RegionHeaders[i];
-                    if (header.Length <= 0 || header.Offset <= 0 || header.KeyId == XvcConstants.XVC_KEY_NONE || (header.KeyId + 1) > XvcInfo.KeyCount)
+                    if (header.Length <= 0 || header.Offset <= 0 || header.KeyId == XvcConstants.XVC_KEY_NONE || header.KeyId + 1 > XvcInfo.KeyCount)
                         continue;
                     if (!CryptXvcRegion(i, false))
                         return false;
@@ -408,7 +434,9 @@ namespace LibXboxOne
                 return false;
 
             Header.VolumeFlags ^= XvdVolumeFlags.EncryptionDisabled;
-            Save();
+
+            if (!DisableSaveAfterModification)
+                return Save();
 
             return true;
         }
@@ -436,14 +464,15 @@ namespace LibXboxOne
             }
             else
             {
-                if (cikKeyId != null && cikKeyId != Guid.Empty) // if cikKeyId is set, set the XvcInfo key accordingly
+                if (cikKeyId != Guid.Empty) // if cikKeyId is set, set the XvcInfo key accordingly
                 {
                     var key = DurangoKeys.GetCikByGuid(cikKeyId);
                     if (key == null)
                     {
                         throw new InvalidOperationException($"Desired CIK with GUID {cikKeyId} is unknown");
                     }
-                    else if (!key.HasKeyData)
+
+                    if (!key.HasKeyData)
                     {
                         throw new InvalidOperationException($"Desired CIK with GUID {cikKeyId} is known but not loaded");
                     }
@@ -453,8 +482,8 @@ namespace LibXboxOne
 
                 for (int i = 0; i < RegionHeaders.Count; i++)
                 {
-                    XvcRegionHeader header = RegionHeaders[i];
-                    if (header.Length <= 0 || header.Offset <= 0 || ((header.KeyId + 1) > XvcInfo.KeyCount && header.KeyId != XvcConstants.XVC_KEY_NONE))
+                    var header = RegionHeaders[i];
+                    if (header.Length <= 0 || header.Offset <= 0 || header.KeyId + 1 > XvcInfo.KeyCount && header.KeyId != XvcConstants.XVC_KEY_NONE)
                         continue;
 
                     if (header.Id == XvcRegionId.Header ||
@@ -481,7 +510,8 @@ namespace LibXboxOne
                 Header.VolumeFlags ^= XvdVolumeFlags.ReadOnly;
             }
 
-            Save();
+            if (!DisableSaveAfterModification)
+                return Save();
 
             return true;
         }
@@ -512,6 +542,9 @@ namespace LibXboxOne
 
             if (IsDataIntegrityEnabled)
             {
+                if (PrintProgressToConsole)
+                    Console.WriteLine("Calculating data hashes:");
+
 // ReSharper disable once UnusedVariable
                 ulong[] invalidBlocks = VerifyDataHashTree(true);
 // ReSharper disable once UnusedVariable
@@ -574,6 +607,9 @@ namespace LibXboxOne
             {
                 if (!DisableDataHashChecking)
                 {
+                    if(PrintProgressToConsole)
+                        Console.WriteLine("Verifying data hashes, use -nd to disable:");
+
                     ulong[] invalidBlocks = VerifyDataHashTree();
                     DataHashTreeValid = invalidBlocks.Length <= 0;
                 }
@@ -581,6 +617,8 @@ namespace LibXboxOne
             }
 
             XvcDataHashValid = VerifyXvcHash();
+            StaticDataLength = CalculateStaticDataLength();
+            Filesystem = new XvdFilesystem(this);
             return true;
         }
 
@@ -603,7 +641,7 @@ namespace LibXboxOne
 
                 if (IsDataIntegrityEnabled)
                 {
-                    if (HashTreeOffset >= region.Offset && (region.Offset + region.Length) > HashTreeOffset)
+                    if (HashTreeOffset >= region.Offset && region.Offset + region.Length > HashTreeOffset)
                         region.Length -= hashTreeSize;
                     else if (region.Offset > HashTreeOffset)
                         region.Offset -= hashTreeSize;
@@ -671,7 +709,10 @@ namespace LibXboxOne
 
             // todo: calculate hash tree
 
-            return Save();
+            if (!DisableSaveAfterModification)
+                return Save();
+
+            return true;
         }
 
         internal bool AddData(ulong offset, ulong numPages)
@@ -697,7 +738,7 @@ namespace LibXboxOne
                 var region = RegionHeaders[i];
                 region.Hash = 0; // ???
 
-                if (offset >= region.Offset && (region.Offset + region.Length) > offset)
+                if (offset >= region.Offset && region.Offset + region.Length > offset)
                     region.Length += length; // offset is part of region, add to length
                 else if (region.Offset > offset)
                     region.Offset += length; // offset is before region, add to offset
@@ -741,7 +782,7 @@ namespace LibXboxOne
                 var region = RegionHeaders[i];
                 region.Hash = 0; // ???
 
-                if (offset >= region.Offset && (region.Offset + region.Length) > offset)
+                if (offset >= region.Offset && region.Offset + region.Length > offset)
                     region.Length -= length; // offset is part of region, reduce length
                 else if (region.Offset > offset)
                     region.Offset -= length; // offset is before region, reduce offset
@@ -762,6 +803,42 @@ namespace LibXboxOne
             return true;
         }
 
+        public bool AddMutableData()
+        {
+            if (!IsXvcFile || XvcInfo.ContentID == null || RegionHeaders == null)
+            {
+                Console.WriteLine("Package is not XVC or has no Xvc data");
+                return false;
+            }
+
+            ulong pageCount = XvdMath.BytesToPages((ulong)RegionHeaders.Count);
+            byte[] mutableData = new byte[XvdMath.PageNumberToOffset(pageCount)];
+
+            if (Header.MutableDataPageCount > 0)
+                return true;
+
+            if (!AddData(MduOffset, pageCount))
+                return false;
+
+            for (int i=0; i < RegionHeaders.Count; i++)
+            {
+                XvcRegionHeader region = RegionHeaders[i];
+                bool isPresent = (long)(region.Offset + region.Length) <= FileSize;
+                // Assume that every Xvc region is available (probably means downloadable)
+                mutableData[i] = (byte)(XvcRegionPresenceInfo.IsAvailable
+                                        | (isPresent ? XvcRegionPresenceInfo.IsPresent : 0));
+            }
+
+
+            WriteBytes((long)MduOffset, mutableData);
+            Header.MutableDataPageCount = (byte)pageCount;
+
+            if (!DisableSaveAfterModification)
+                return Save();
+
+            return true;
+        }
+
         public bool RemoveMutableData()
         {
             if (Header.MutableDataPageCount <= 0)
@@ -772,7 +849,10 @@ namespace LibXboxOne
 
             Header.MutableDataPageCount = 0;
 
-            return Save();
+            if (!DisableSaveAfterModification)
+                return Save();
+
+            return true;
         }
 
         public bool RemoveHashTree()
@@ -788,13 +868,15 @@ namespace LibXboxOne
             for (int i = 0; i < Header.TopHashBlockHash.Length; i++)
                 Header.TopHashBlockHash[i] = 0;
 
-            return Save();
+            if (!DisableSaveAfterModification)
+                return Save();
+
+            return true;
         }
 
         public ulong CalculateHashEntryOffsetForBlock(ulong blockNum, uint hashLevel)
         {
-            ulong entryNum = 0;
-            var hashBlock = XvdMath.CalculateHashBlockNumForBlockNum(Header.Type, HashTreeLevels, Header.NumberOfHashedPages, blockNum, hashLevel, out entryNum);
+            var hashBlock = XvdMath.CalculateHashBlockNumForBlockNum(Header.Type, HashTreeLevels, Header.NumberOfHashedPages, blockNum, hashLevel, out var entryNum);
             return HashTreeOffset + XvdMath.PageNumberToOffset(hashBlock) + (entryNum * HASH_ENTRY_LENGTH);
         }
 
@@ -803,28 +885,34 @@ namespace LibXboxOne
             ulong dataBlockCount = XvdMath.OffsetToPageNumber((ulong)_io.Stream.Length - UserDataOffset);
             var invalidBlocks = new List<ulong>();
 
-            for (ulong i = 0; i < dataBlockCount; i++)
+            using (var progress = new ProgressBar((long)dataBlockCount, "blocks"))
             {
-                var hashEntryOffset = CalculateHashEntryOffsetForBlock(i, 0);
-                _io.Stream.Position = (long)hashEntryOffset;
+                for (ulong i = 0; i < dataBlockCount; i++)
+                {
+                    if (PrintProgressToConsole)
+                        progress.Report((long)i);
 
-                byte[] oldhash = _io.Reader.ReadBytes((int)DataHashEntryLength);
+                    var hashEntryOffset = CalculateHashEntryOffsetForBlock(i, 0);
+                    _io.Stream.Position = (long)hashEntryOffset;
 
-                var dataToHashOffset = XvdMath.PageNumberToOffset(i) + UserDataOffset;
-                _io.Stream.Position = (long)dataToHashOffset;
+                    byte[] oldhash = _io.Reader.ReadBytes((int)DataHashEntryLength);
 
-                byte[] data = _io.Reader.ReadBytes((int)PAGE_SIZE);
-                byte[] hash = HashUtils.ComputeSha256(data);
-                Array.Resize(ref hash, (int)DataHashEntryLength);
+                    var dataToHashOffset = XvdMath.PageNumberToOffset(i) + UserDataOffset;
+                    _io.Stream.Position = (long)dataToHashOffset;
 
-                if (hash.IsEqualTo(oldhash))
-                    continue;
+                    byte[] data = _io.Reader.ReadBytes((int)PAGE_SIZE);
+                    byte[] hash = HashUtils.ComputeSha256(data);
+                    Array.Resize(ref hash, (int)DataHashEntryLength);
 
-                invalidBlocks.Add(i);
-                if (!rehash)
-                    continue;
-                _io.Stream.Position = (long)hashEntryOffset;
-                _io.Writer.Write(hash);
+                    if (hash.IsEqualTo(oldhash))
+                        continue;
+
+                    invalidBlocks.Add(i);
+                    if (!rehash)
+                        continue;
+                    _io.Stream.Position = (long)hashEntryOffset;
+                    _io.Writer.Write(hash);
+                }
             }
 
             return invalidBlocks.ToArray();
@@ -917,63 +1005,6 @@ namespace LibXboxOne
             return true;
         }
 
-        public bool ExtractFilesystem(string targetFile, bool createVhd)
-        {
-            using (var fs = File.Open(targetFile, FileMode.Create))
-            {
-                if (Header.Type == XvdType.Fixed)
-                {
-                    for (ulong offset = DriveDataOffset; offset < Header.DriveSize; offset += PAGE_SIZE)
-                    {
-                        _io.Stream.Seek((int)offset, SeekOrigin.Begin);
-                        var pageBytes = _io.Reader.ReadBytes((int)PAGE_SIZE);
-                        fs.Write(pageBytes, 0, pageBytes.Length);
-                    }
-                }
-                else if (Header.Type == XvdType.Dynamic)
-                {
-                    var chunkSize = BLOCK_SIZE;
-                    byte[] emptyChunk = new byte[chunkSize];
-
-                    /* Write first block, which includes partition table */
-                    ulong batBaseAddress = UserDataOffset + XvdMath.PageNumberToOffset(Header.UserDataPageCount);
-                    ulong diffInitialWrite = DriveDataOffset - batBaseAddress;
-
-                    _io.Stream.Seek((int)DriveDataOffset, SeekOrigin.Begin);
-                    var ptBytes = _io.Reader.ReadBytes((int)(chunkSize - diffInitialWrite));
-                    fs.Write(ptBytes, 0, ptBytes.Length);
-
-                    ulong blockCount = XvdMath.BytesToBlocks(Header.DriveSize);
-                    /* Write rest of data, according to block allocation table */
-                    for (ulong block = 0; block < blockCount; block++)
-                    {
-                        ulong batEntry = ReadBat(block);
-                        if (batEntry != INVALID_SECTOR)
-                        {
-                            long targetOffset = (long)(batBaseAddress + XvdMath.PageNumberToOffset(batEntry));
-                            _io.Stream.Seek(targetOffset, SeekOrigin.Begin);
-                            var data = _io.Reader.ReadBytes((int)chunkSize);
-                            fs.Write(data, 0, data.Length);
-                        }
-                        else
-                        {
-                            fs.Write(emptyChunk, 0, emptyChunk.Length);
-                        }
-                    }
-                }
-                else
-                    throw new NotSupportedException($"Invalid xvd type: {Header.Type}");
-
-                if (createVhd)
-                {
-                    var footer = Vhd.VhdFooter.CreateForFixedDisk((ulong)fs.Length, Header.VDUID);
-                    var footerBytes = Shared.StructToBytes<Vhd.VhdFooter>(footer);
-                    fs.Write(footerBytes, 0, footerBytes.Length);
-                }
-            }
-            return true;
-        }
-
         public bool GetXvcKey(ushort keyIndex, out byte[] keyOutput)
         {
             keyOutput = null;
@@ -997,7 +1028,7 @@ namespace LibXboxOne
             bool keyFound = false;
             foreach(var xvcKey in XvcInfo.EncryptionKeyIds)
             {
-                if ((new Guid(xvcKey.KeyId) == keyGuid))
+                if (new Guid(xvcKey.KeyId) == keyGuid)
                 {
                     keyFound = true;
                 }
@@ -1086,12 +1117,6 @@ namespace LibXboxOne
             return false;
         }
 
-        public byte[] Read(long offset, int count)
-        {
-            _io.Stream.Position = offset;
-            return _io.Reader.ReadBytes(count);
-        }
-
         #region ToString
         public override string ToString()
         {
@@ -1105,47 +1130,44 @@ namespace LibXboxOne
             string fmt = formatted ? "    " : "";
 
             b.AppendLine("XvdMiscInfo:");
-            b.AppendLineSpace(fmt + "Page Count: 0x" + Header.NumberOfHashedPages.ToString("X"));
-            b.AppendLineSpace(fmt + "Embedded XVD Offset: 0x" + EmbeddedXvdOffset.ToString("X"));
-            b.AppendLineSpace(fmt + "MDU Offset: 0x" + MduOffset.ToString("X"));
-            b.AppendLineSpace(fmt + "HashTree Offset: 0x" + HashTreeOffset.ToString("X"));
-            b.AppendLineSpace(fmt + "User Data Offset: 0x" + UserDataOffset.ToString("X"));
-            b.AppendLineSpace(fmt + "XVC Data Offset: 0x" + XvcInfoOffset.ToString("X"));
-            b.AppendLineSpace(fmt + "Dynamic Header Offset: 0x" + DynamicHeaderOffset.ToString("X"));
-            b.AppendLineSpace(fmt + "Drive Data Offset: 0x" + DriveDataOffset.ToString("X"));
+            b.AppendLineSpace(fmt + $"Page Count: 0x{Header.NumberOfHashedPages:X}");
+            b.AppendLineSpace(fmt + $"Embedded XVD Offset: 0x{EmbeddedXvdOffset:X}");
+            b.AppendLineSpace(fmt + $"MDU Offset: 0x{MduOffset:X}");
+            b.AppendLineSpace(fmt + $"HashTree Offset: 0x{HashTreeOffset:X}");
+            b.AppendLineSpace(fmt + $"User Data Offset: 0x{UserDataOffset:X}");
+            b.AppendLineSpace(fmt + $"XVC Data Offset: 0x{XvcInfoOffset:X}");
+            b.AppendLineSpace(fmt + $"Dynamic Header Offset: 0x{DynamicHeaderOffset:X}");
+            b.AppendLineSpace(fmt + $"Drive Data Offset: 0x{DriveDataOffset:X}");
 
             if (IsDataIntegrityEnabled)
             {
-                b.AppendLineSpace(fmt + "Hash Tree Page Count: 0x" + HashTreePageCount.ToString("X"));
-                b.AppendLineSpace(fmt + "Hash Tree Levels: 0x" + HashTreeLevels.ToString("X"));
-                b.AppendLineSpace(fmt + "Hash Tree Valid: " + (HashTreeValid ? "true" : "false"));
+                b.AppendLineSpace(fmt + $"Hash Tree Page Count: 0x{HashTreePageCount:X}");
+                b.AppendLineSpace(fmt + $"Hash Tree Levels: 0x{HashTreeLevels:X}");
+                b.AppendLineSpace(fmt + $"Hash Tree Valid: {HashTreeValid}");
 
                 if (!DisableDataHashChecking)
-                    b.AppendLineSpace(fmt + "Data Hash Tree Valid: " + (DataHashTreeValid ? "true" : "false"));
+                    b.AppendLineSpace(fmt + $"Data Hash Tree Valid: {DataHashTreeValid}");
             }
 
             if(IsXvcFile)
-                b.AppendLineSpace(fmt + "XVC Data Hash Valid: " + (XvcDataHashValid ? "true" : "false"));
+                b.AppendLineSpace(fmt + $"XVC Data Hash Valid: {XvcDataHashValid}");
 
             b.AppendLine();
             b.Append(Header.ToString(formatted));
 
-            if (XvcInfo.ContentID == null)
-                return b.ToString();
-
-            b.AppendLine();
-            if (formatted)
+            if (IsXvcFile && XvcInfo.ContentID != null)
             {
-                byte[] decryptKey;
-                bool xvcKeyFound = GetXvcKey(0, out decryptKey);
+                b.AppendLine();
+                bool xvcKeyFound = GetXvcKey(0, out var decryptKey);
                 if (xvcKeyFound)
                 {
-                    b.AppendLine($"Decrypt key for xvc keyslot 0:" + decryptKey.ToHexString());
+                    b.AppendLine($"Decrypt key for xvc keyslot 0: {decryptKey.ToHexString()}");
                     b.AppendLine("(key is wrong though until the obfuscation/encryption on it is figured out)");
                     b.AppendLine();
                 }
-            } 
-            b.AppendLine(XvcInfo.ToString(formatted));
+
+                b.AppendLine(XvcInfo.ToString(formatted));
+            }
 
             if(RegionHeaders != null)
                 for (int i = 0; i < RegionHeaders.Count; i++)
@@ -1168,23 +1190,57 @@ namespace LibXboxOne
                     b.Append(RegionHeaders[i].ToString(formatted));
                 }
 
-            if (UpdateSegments != null)
+            if (UpdateSegments != null && UpdateSegments.Count > 0)
+            {
+                // have to add segments to a seperate List so we can store the index of them...
+                var segments = new List<Tuple<int, XvcUpdateSegment>>();
                 for (int i = 0; i < UpdateSegments.Count; i++)
                 {
                     if (UpdateSegments[i].Hash == 0)
                         break;
-                    b.AppendLine();
-                    b.AppendLine("Update Segment " + i);
-                    b.Append(UpdateSegments[i].ToString(formatted));
+                    segments.Add(Tuple.Create(i, UpdateSegments[i]));
                 }
 
-            if (RegionSpecifiers != null)
+                b.AppendLine();
+                b.AppendLine("Update Segments:");
+                b.AppendLine();
+                b.AppendLine(segments.ToStringTable(
+                      new[] { "Id", "PageNum (Offset)", "Hash" },
+                      a => a.Item1, a => $"0x{a.Item2.PageNum:X} (0x{XvdMath.PageNumberToOffset(a.Item2.PageNum):X})", a => $"0x{a.Item2.Hash:X}"));
+            }
+
+
+            if (RegionSpecifiers != null && RegionSpecifiers.Count > 0)
+            {
+                // have to add specifiers to a seperate List so we can store the index of them...
+                var specs = new List<Tuple<int, XvcRegionSpecifier>>();
                 for (int i = 0; i < RegionSpecifiers.Count; i++)
                 {
-                    b.AppendLine();
-                    b.AppendLine("RegionSpecifier " + i);
-                    b.Append(RegionSpecifiers[i].ToString(formatted));
+                    specs.Add(Tuple.Create(i, RegionSpecifiers[i]));
                 }
+
+                b.AppendLine();
+                b.AppendLine("Region Specifiers:");
+                b.AppendLine();
+                b.AppendLine(specs.ToStringTable(
+                      new[] { "Id", "RegionId", "Key", "Value" },
+                      a => a.Item1, a => $"0x{a.Item2.RegionId:X}", a => a.Item2.Key, a => a.Item2.Value));
+            }
+
+            if (!IsEncrypted)
+            {
+                b.AppendLine();
+                try
+                {
+                    b.Append(Filesystem.ToString(formatted));
+                }
+                catch (Exception e)
+                {
+                    b.AppendLine($"Failed to get XvdFilesystem info, error: {e}");
+                }
+            }
+            else
+                b.AppendLine($"Cannot get XvdFilesystem from encrypted package");
 
             return b.ToString();
         }

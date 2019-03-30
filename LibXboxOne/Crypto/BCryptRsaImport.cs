@@ -1,4 +1,3 @@
-using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -47,21 +46,21 @@ namespace LibXboxOne
             parameters.Exponent = reader.ReadBytes((int)header.cbPublicExp);
             parameters.Modulus = reader.ReadBytes((int)header.cbModulus);
 
-            if (header.Magic != BCRYPT_RSABLOB_MAGIC.RSAPUBLIC)
-            {
-                // RSAPRIVATEBLOB
-                parameters.P = reader.ReadBytes((int)header.cbPrime1);
-                parameters.Q = reader.ReadBytes((int)header.cbPrime2);
+            if (header.Magic == BCRYPT_RSABLOB_MAGIC.RSAPUBLIC)
+                return parameters;
 
-                if (header.Magic != BCRYPT_RSABLOB_MAGIC.RSAPRIVATE)
-                {
-                    // RSAFULLPRIVATEBLOB
-                    parameters.DP = reader.ReadBytes((int)header.cbPrime1);
-                    parameters.DQ = reader.ReadBytes((int)header.cbPrime2);
-                    parameters.InverseQ = reader.ReadBytes((int)header.cbPrime1);
-                    parameters.D = reader.ReadBytes((int)header.cbModulus);
-                }
-            }
+            // RSAPRIVATEBLOB
+            parameters.P = reader.ReadBytes((int)header.cbPrime1);
+            parameters.Q = reader.ReadBytes((int)header.cbPrime2);
+
+            if (header.Magic == BCRYPT_RSABLOB_MAGIC.RSAPRIVATE)
+                return parameters;
+
+            // RSAFULLPRIVATEBLOB
+            parameters.DP = reader.ReadBytes((int)header.cbPrime1);
+            parameters.DQ = reader.ReadBytes((int)header.cbPrime2);
+            parameters.InverseQ = reader.ReadBytes((int)header.cbPrime1);
+            parameters.D = reader.ReadBytes((int)header.cbModulus);
 
             return parameters;
         }

@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace LibXboxOne
 {
@@ -18,7 +16,7 @@ namespace LibXboxOne
 
         public static ulong InBlockOffset(ulong offset)
         {
-            return offset & (XvdFile.BLOCK_SIZE - 1);
+            return offset - ((offset / XvdFile.BLOCK_SIZE) * XvdFile.BLOCK_SIZE);
         }
 
         public static ulong InPageOffset(ulong offset)
@@ -79,7 +77,7 @@ namespace LibXboxOne
 
         public static ulong QueryFirstDynamicPage(ulong metaDataPagesCount)
         {
-            return (ulong)XvdFile.PAGES_PER_BLOCK * PagesToBlocks(metaDataPagesCount);
+            return XvdFile.PAGES_PER_BLOCK * PagesToBlocks(metaDataPagesCount);
         }
 
         public static ulong ComputeDataBackingPageNumber(XvdType type, ulong numHashLevels, ulong hashPageCount, ulong dataPageNumber)
@@ -91,14 +89,14 @@ namespace LibXboxOne
         }
 
         public static ulong CalculateHashBlockNumForBlockNum(XvdType type, ulong hashTreeLevels, ulong numberOfHashedPages,
-                                                                ulong blockNum, uint hashLevel, out ulong entryNumInBlock)
+                                                                ulong blockNum, uint hashLevel, out ulong entryNumInBlock,
+                                                                bool resilient=false, bool unknown=false)
         {
             ulong HashBlockExponent(ulong blockCount)
             {
                 return (ulong)Math.Pow(0xAA, blockCount);
             }
-
-            long _hashTreeLevels = (long)hashTreeLevels;
+            
             ulong result = 0xFFFF;
             entryNumInBlock = 0;
 
@@ -130,6 +128,11 @@ namespace LibXboxOne
 
             if (hashTreeLevels > 0)
                 result += (numberOfHashedPages + HashBlockExponent(4) - 1) / HashBlockExponent(4);
+
+            if (resilient)
+                result *= 2;
+            if (unknown)
+                result++;
 
             return result;
         }

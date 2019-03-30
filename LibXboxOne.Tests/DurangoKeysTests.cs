@@ -1,4 +1,3 @@
-using System;
 using Xunit;
 using LibXboxOne.Keys;
 
@@ -9,10 +8,10 @@ namespace LibXboxOne.Tests
         [Fact]
         public void TestOdkIndexEnumConversion()
         {
-            var redSuccess0 = DurangoKeys.GetOdkIndexFromString("RedOdk", out OdkIndex redODK);
-            var redSuccess1 = DurangoKeys.GetOdkIndexFromString("redodk", out OdkIndex redODKlower);
-            var redSuccess2 = DurangoKeys.GetOdkIndexFromString("2", out OdkIndex redODKnumber);
-            var standardSuccess = DurangoKeys.GetOdkIndexFromString("0", out OdkIndex standardODKnumber);
+            var redSuccess0 = DurangoKeys.GetOdkIndexFromString("RedOdk", out OdkIndex redOdk);
+            var redSuccess1 = DurangoKeys.GetOdkIndexFromString("redodk", out OdkIndex redOdkLower);
+            var redSuccess2 = DurangoKeys.GetOdkIndexFromString("2", out OdkIndex redOdkNumber);
+            var standardSuccess = DurangoKeys.GetOdkIndexFromString("0", out OdkIndex standardOdkNumber);
             var unknownNumberSuccess = DurangoKeys.GetOdkIndexFromString("42", out OdkIndex unknownOdkNumber);
 
             var invalidNameFail = DurangoKeys.GetOdkIndexFromString("redodkblabla", out OdkIndex nameFail);
@@ -25,9 +24,9 @@ namespace LibXboxOne.Tests
 
             Assert.False(invalidNameFail);
 
-            Assert.Equal(OdkIndex.RedOdk, redODK);
-            Assert.Equal(OdkIndex.RedOdk, redODKlower);
-            Assert.Equal(OdkIndex.RedOdk, redODKnumber);
+            Assert.Equal(OdkIndex.RedOdk, redOdk);
+            Assert.Equal(OdkIndex.RedOdk, redOdkLower);
+            Assert.Equal(OdkIndex.RedOdk, redOdkNumber);
             Assert.Equal((OdkIndex)42, unknownOdkNumber);
 
             Assert.Equal(OdkIndex.Invalid, nameFail);
