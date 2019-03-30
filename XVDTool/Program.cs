@@ -67,6 +67,7 @@ namespace XVDTool
             var disableDataExtract = false;
 
             XvdFile.PrintProgressToConsole = true;
+            XvdFile.DisableSaveAfterModification = true;
 
             var p = new OptionSet {
                 { "h|?|help", v => printHelp = v != null },
@@ -379,261 +380,289 @@ namespace XVDTool
             Console.WriteLine($"Loading file from {filePath}...");
             Console.WriteLine();
 
-            var file = new XvdFile(filePath)
+            bool PerformActions(XvdFile file)
+            {
+                bool fileModified = false;
+                if (printInfo || writeInfo)
+                {
+                    string info = file.ToString(true);
+                    if (writeInfo)
+                    {
+                        File.WriteAllText(filePath + ".txt", info);
+                        Console.WriteLine($"Wrote package info to \"{filePath}.txt\"");
+                    }
+                    else
+                        Console.WriteLine(info);
+                }
+
+                if (addHashTree)
+                {
+                    if (file.IsDataIntegrityEnabled)
+                        Console.WriteLine("Warning: -addhashtree failed as package already has a hash tree.");
+                    else
+                    {
+                        Console.WriteLine("Attempting to add hash tree to package...");
+                        bool success = file.AddHashTree();
+                        Console.WriteLine(success
+                            ? "Hash tree added successfully and header updated."
+                            : "Error: failed to extend package to make room for hash tree, is there enough disk space?");
+                        if (!success)
+                            return fileModified;
+                        fileModified = true;
+                    }
+                }
+
+                if (encryptPackage)
+                {
+                    if (file.IsEncrypted)
+                        Console.WriteLine("Warning: -encrypt failed as package is already encrypted");
+                    else
+                    {
+                        string keyToUse = "ODK";
+                        if (file.IsXvcFile)
+                        {
+                            var cikKeys = DurangoKeys.GetAllCIK();
+                            var chosenKey = cikKeys.Single(kvp => kvp.Key == cikToUse).Value;
+                            if (chosenKey == null)
+                            {
+                                Console.WriteLine(
+                                    "Error: Invalid CIK key \"{encryptKeyId}\" specified, make sure said key exists!");
+                                return fileModified;
+                            }
+
+                            keyToUse = $"CIK:{cikToUse}";
+                        }
+
+                        Console.WriteLine($"Encrypting package using \"{keyToUse}\" key...");
+                        bool success = file.Encrypt(cikToUse);
+                        Console.WriteLine(success
+                            ? "Package encrypted successfully!"
+                            : "Error during encryption!");
+                        if (!success)
+                            return fileModified;
+                        fileModified = true;
+                    }
+                }
+
+                if (decryptPackage)
+                {
+                    if (!file.IsEncrypted)
+                        Console.WriteLine(@"Warning: -decrypt failed as package is already decrypted");
+                    else
+                    {
+                        if (file.IsXvcFile)
+                        {
+                            Console.WriteLine("Decrypting XVC...");
+                        }
+                        else
+                        {
+                            string keyToUse = odkToUse != OdkIndex.Invalid
+                                ? odkToUse.ToString()
+                                : "<ODK indicated by XVD header>";
+                            Console.WriteLine($"Decrypting XVD using \"{keyToUse}\" key...");
+                        }
+
+                        bool success = file.Decrypt();
+                        Console.WriteLine(success
+                            ? "Package decrypted successfully!"
+                            : "Error during decryption!");
+                        if (!success)
+                            return fileModified;
+                        fileModified = true;
+                    }
+                }
+
+                if (removeHashTree)
+                {
+                    if (!file.IsDataIntegrityEnabled)
+                        Console.WriteLine("Warning: -removehashtree failed as package doesn't have a hash tree.");
+                    else
+                    {
+                        Console.WriteLine("Attempting to remove hash tree from package...");
+                        bool success = file.RemoveHashTree();
+                        Console.WriteLine(success
+                            ? "Hash tree removed successfully and header updated."
+                            : "Error: hash tree is larger than input package (???)");
+                        if (!success)
+                            return fileModified;
+                        fileModified = true;
+                    }
+                }
+
+                if (removeMdu)
+                {
+                    if (file.Header.MutableDataPageCount <= 0)
+                        Console.WriteLine("Warning: -removemdu failed as package doesn't have any mutable data.");
+                    else
+                    {
+                        Console.WriteLine("Removing mutable data from package...");
+                        bool success = file.RemoveMutableData();
+                        Console.WriteLine(success
+                            ? "Mutable data removed successfully and header updated."
+                            : "Failed to remove mutable data?");
+                        if (!success)
+                            return fileModified;
+                        fileModified = true;
+                    }
+                }
+
+                if (addMdu)
+                {
+                    if (file.Header.MutableDataPageCount > 0)
+                        Console.WriteLine("Warning: -addmdu failed as package already has mutable data.");
+                    else
+                    {
+                        Console.WriteLine("Adding mutable data to package...");
+                        bool success = file.AddMutableData();
+                        Console.WriteLine(success
+                            ? "Mutable data added successfully and header updated."
+                            : "Failed to add mutable data?");
+                        if (!success)
+                            return fileModified;
+                        fileModified = true;
+                    }
+                }
+
+                if (rehashPackage)
+                {
+                    if (!file.IsDataIntegrityEnabled)
+                        Console.WriteLine("Warning: -rehash failed as package doesn't have a hash tree.");
+                    else
+                    {
+                        Console.WriteLine($"Old top hash block hash: {file.Header.TopHashBlockHash.ToHexString()}");
+                        Console.WriteLine("Rehashing package...");
+                        ulong[] fixedHashes = file.VerifyDataHashTree(true);
+                        bool success = file.CalculateHashTree();
+                        if (success)
+                        {
+                            Console.WriteLine($"New top hash block hash: {file.Header.TopHashBlockHash.ToHexString()}");
+                        }
+
+                        Console.WriteLine(success
+                            ? $"Successfully rehashed {fixedHashes.Length} invalid data hashes inside package."
+                            : "Error: there was a problem rehashing the package.");
+                        if (!success)
+                            return fileModified;
+                        fileModified = true;
+                    }
+                }
+
+                if (resignPackage)
+                {
+                    var key = DurangoKeys.GetSignkeyByName(signKeyToUse);
+                    bool success = file.Header.Resign(key.KeyData, "RSAFULLPRIVATEBLOB");
+                    Console.WriteLine(success
+                        ? "Successfully resigned package."
+                        : "Error: there was a problem resigning the package.");
+                    if (!success)
+                        return fileModified;
+                    fileModified = true;
+                }
+
+                if (!String.IsNullOrEmpty(exvdDest))
+                {
+                    byte[] exvd = file.ExtractEmbeddedXvd();
+                    if (exvd == null || exvd.Length <= 0)
+                        Console.WriteLine(
+                            "Warning: -extractembedded failed as package doesn't contain an embedded XVD.");
+                    else
+                    {
+                        try
+                        {
+                            File.WriteAllBytes(exvdDest, exvd);
+                            Console.WriteLine(
+                                $"Extracted embedded XVD to \"{exvdDest}\" successfully (0x{exvd.Length:X} bytes)");
+                        }
+                        catch
+                        {
+                            Console.WriteLine("Error: failed to extract embedded XVD.");
+                        }
+                    }
+                }
+
+
+                if (!String.IsNullOrEmpty(userDataDest))
+                {
+                    byte[] userData = file.ExtractUserData();
+                    if (userData == null || userData.Length <= 0)
+                        Console.WriteLine("Warning: -extractuserdata failed as package doesn't contain user data.");
+                    else
+                    {
+                        try
+                        {
+                            File.WriteAllBytes(userDataDest, userData);
+                            Console.WriteLine(
+                                $"Extracted XVD user data to \"{userDataDest}\" successfully (0x{userData.Length:X} bytes)");
+                        }
+                        catch
+                        {
+                            Console.WriteLine("Error: failed to extract XVD user data.");
+                        }
+                    }
+                }
+
+                if (!String.IsNullOrEmpty(vhdDest))
+                {
+                    if (file.IsEncrypted)
+                        Console.WriteLine("Warning: -extractvhd failed as package is still encrypted.");
+                    else
+                    {
+                        Console.WriteLine($"Extracting XVD filesystem to VHD file \"{vhdDest}\"...");
+                        bool success = file.Filesystem.ConvertToVhd(vhdDest);
+                        Console.WriteLine(success
+                            ? "Wrote VHD successfully."
+                            : "Error: there was a problem extracting the filesystem from the XVD.");
+                        if (!success)
+                            return fileModified;
+                    }
+                }
+
+                if (!String.IsNullOrEmpty(rawimageDest))
+                {
+                    if (file.IsEncrypted)
+                        Console.WriteLine("Warning: -extractimage failed as package is still encrypted.");
+                    else
+                    {
+                        Console.WriteLine($"Extracting raw filesystem image to file \"{rawimageDest}\"...");
+                        bool success = file.Filesystem.ExtractFilesystemImage(rawimageDest, false);
+                        Console.WriteLine(success
+                            ? "Extracted raw image successfully."
+                            : "Error: there was a problem extracting raw image from the XVD.");
+                        if (!success)
+                            return fileModified;
+                    }
+                }
+
+                if (!String.IsNullOrEmpty(fsDest))
+                {
+                    if (file.IsEncrypted)
+                        Console.WriteLine("Warning: -extractfiles failed as package is still encrypted.");
+                    else
+                    {
+                        Console.WriteLine($"Extracting XVD files to folder \"{fsDest}\"...");
+                        bool success = file.Filesystem.ExtractFilesystem(fsDest);
+                        Console.WriteLine(success
+                            ? "Extracted files successfully."
+                            : "Error: there was a problem extracting the files from the XVD.");
+                        if (!success)
+                            return fileModified;
+                    }
+                }
+
+                return fileModified;
+            }
+
+            var xvdFile = new XvdFile(filePath)
             {
                 OverrideOdk = odkToUse
             };
 
-            file.Load();
+            xvdFile.Load();
 
-            if (printInfo || writeInfo)
-            {
-                string info = file.ToString(true);
-                if (writeInfo)
-                {
-                    File.WriteAllText(filePath + ".txt", info);
-                    Console.WriteLine($"Wrote package info to \"{filePath}.txt\"");
-                }
-                else
-                    Console.WriteLine(info);
-            }
+            if (PerformActions(xvdFile)) // PerformActions returns true if file has been modified
+                xvdFile.Save();
 
-            if (addHashTree)
-            {
-                if (file.IsDataIntegrityEnabled)
-                    Console.WriteLine("Warning: -addhashtree failed as package already has a hash tree.");
-                else
-                {
-                    Console.WriteLine("Attempting to add hash tree to package...");
-                    bool success = file.AddHashTree() && file.Save();
-                    Console.WriteLine(success
-                        ? "Hash tree added successfully and header updated."
-                        : "Error: failed to extend package to make room for hash tree, is there enough disk space?");
-                    if (!success)
-                        return;
-                }
-            }
-
-            if (encryptPackage)
-            {
-                if (file.IsEncrypted)
-                    Console.WriteLine("Warning: -encrypt failed as package is already encrypted");
-                else
-                {
-                    string keyToUse = "ODK";
-                    if (file.IsXvcFile)
-                    {
-                        var cikKeys = DurangoKeys.GetAllCIK();
-                        var chosenKey = cikKeys.Single(kvp => kvp.Key == cikToUse).Value;
-                        if (chosenKey == null)
-                        {
-                            Console.WriteLine("Error: Invalid CIK key \"{encryptKeyId}\" specified, make sure said key exists!");
-                            return;
-                        }
-                        keyToUse = $"CIK:{cikToUse}";
-                    }
-                    Console.WriteLine($"Encrypting package using \"{keyToUse}\" key...");
-                    bool success = file.Encrypt(cikToUse);
-                    Console.WriteLine(success ? "Package encrypted successfully!" : "Error during encryption!");
-                    if (!success)
-                        return;
-                }
-            }
-
-            if (decryptPackage)
-            {
-                if (!file.IsEncrypted)
-                    Console.WriteLine(@"Warning: -decrypt failed as package is already decrypted");
-                else
-                {
-                    if (file.IsXvcFile)
-                    {
-                        Console.WriteLine("Decrypting XVC...");
-                    }
-                    else
-                    {
-                        string keyToUse = odkToUse != OdkIndex.Invalid ? odkToUse.ToString() : "<ODK indicated by XVD header>";
-                        Console.WriteLine($"Decrypting XVD using \"{keyToUse}\" key...");
-                    }
-
-                    bool success = file.Decrypt();
-                    Console.WriteLine(success ? "Package decrypted successfully!" : "Error during decryption!");
-                    if (!success)
-                        return;
-                }
-            }
-
-            if (removeHashTree)
-            {
-                if (!file.IsDataIntegrityEnabled)
-                    Console.WriteLine("Warning: -removehashtree failed as package doesn't have a hash tree.");
-                else
-                {
-                    Console.WriteLine("Attempting to remove hash tree from package...");
-                    bool success = file.RemoveHashTree();
-                    Console.WriteLine(success
-                        ? "Hash tree removed successfully and header updated."
-                        : "Error: hash tree is larger than input package (???)");
-                    if (!success)
-                        return;
-                }
-            }
-
-            if(removeMdu)
-            {
-                if (file.Header.MutableDataPageCount <= 0)
-                    Console.WriteLine("Warning: -removemdu failed as package doesn't have any mutable data.");
-                else
-                {
-                    Console.WriteLine("Removing mutable data from package...");
-                    bool success = file.RemoveMutableData();
-                    Console.WriteLine(success
-                        ? "Mutable data removed successfully and header updated."
-                        : "Failed to remove mutable data?");
-                    if (!success)
-                        return;
-                }
-            }
-
-            if(addMdu)
-            {
-                if (file.Header.MutableDataPageCount > 0)
-                    Console.WriteLine("Warning: -addmdu failed as package already has mutable data.");
-                else
-                {
-                    Console.WriteLine("Adding mutable data to package...");
-                    bool success = file.AddMutableData();
-                    Console.WriteLine(success
-                        ? "Mutable data added successfully and header updated."
-                        : "Failed to add mutable data?");
-                    if (!success)
-                        return;
-                }
-            }
-
-            if (rehashPackage)
-            {
-                if (!file.IsDataIntegrityEnabled)
-                    Console.WriteLine("Warning: -rehash failed as package doesn't have a hash tree.");
-                else
-                {
-                    Console.WriteLine($"Old top hash block hash: {file.Header.TopHashBlockHash.ToHexString()}");
-                    Console.WriteLine("Rehashing package...");
-                    ulong[] fixedHashes = file.VerifyDataHashTree(true);
-                    bool success = file.CalculateHashTree();
-                    if (success)
-                    {
-                        Console.WriteLine($"New top hash block hash: {file.Header.TopHashBlockHash.ToHexString()}");
-                        file.Save();
-                    }
-
-                    Console.WriteLine(success
-                        ? $"Successfully rehashed {fixedHashes.Length} invalid data hashes inside package."
-                        : "Error: there was a problem rehashing the package.");
-                    if (!success)
-                        return;
-                }
-            }
-
-            if (resignPackage)
-            {
-                var key = DurangoKeys.GetSignkeyByName(signKeyToUse);
-                bool success = file.Header.Resign(key.KeyData, "RSAFULLPRIVATEBLOB");
-                Console.WriteLine(success
-                    ? "Successfully resigned package."
-                    : "Error: there was a problem resigning the package.");
-                if (!success)
-                    return;
-            }
-
-            if (!String.IsNullOrEmpty(exvdDest))
-            {
-                byte[] exvd = file.ExtractEmbeddedXvd();
-                if (exvd == null || exvd.Length <= 0)
-                    Console.WriteLine("Warning: -extractembedded failed as package doesn't contain an embedded XVD.");
-                else
-                {
-                    try
-                    {
-                        File.WriteAllBytes(exvdDest, exvd);
-                        Console.WriteLine($"Extracted embedded XVD to \"{exvdDest}\" successfully (0x{exvd.Length:X} bytes)");
-                    }
-                    catch
-                    {
-                        Console.WriteLine("Error: failed to extract embedded XVD.");
-                    }
-                }
-            }
-
-
-            if (!String.IsNullOrEmpty(userDataDest))
-            {
-                byte[] userData = file.ExtractUserData();
-                if (userData == null || userData.Length <= 0)
-                    Console.WriteLine("Warning: -extractuserdata failed as package doesn't contain user data.");
-                else
-                {
-                    try
-                    {
-                        File.WriteAllBytes(userDataDest, userData);
-                        Console.WriteLine($"Extracted XVD user data to \"{userDataDest}\" successfully (0x{userData.Length:X} bytes)");
-                    }
-                    catch
-                    {
-                        Console.WriteLine("Error: failed to extract XVD user data.");
-                    }
-                }
-            }
-
-            if (!String.IsNullOrEmpty(vhdDest))
-            {
-                if (file.IsEncrypted)
-                    Console.WriteLine("Warning: -extractvhd failed as package is still encrypted.");
-                else
-                {
-                    Console.WriteLine($"Extracting XVD filesystem to VHD file \"{vhdDest}\"...");
-                    bool success = file.Filesystem.ConvertToVhd(vhdDest);
-                    Console.WriteLine(success
-                        ? "Wrote VHD successfully."
-                        : "Error: there was a problem extracting the filesystem from the XVD.");
-                    if (!success)
-                        return;
-                }
-            }
-
-            if (!String.IsNullOrEmpty(rawimageDest))
-            {
-                if(file.IsEncrypted)
-                    Console.WriteLine("Warning: -extractimage failed as package is still encrypted.");
-                else
-                {
-                    Console.WriteLine($"Extracting raw filesystem image to file \"{rawimageDest}\"...");
-                    bool success = file.Filesystem.ExtractFilesystemImage(rawimageDest, false);
-                    Console.WriteLine(success
-                        ? "Extracted raw image successfully."
-                        : "Error: there was a problem extracting raw image from the XVD.");
-                    if (!success)
-                        return;
-                }
-            }
-
-            if (!String.IsNullOrEmpty(fsDest))
-            {
-                if(file.IsEncrypted)
-                    Console.WriteLine("Warning: -extractfiles failed as package is still encrypted.");
-                else
-                {
-                    Console.WriteLine($"Extracting XVD files to folder \"{fsDest}\"...");
-                    bool success = file.Filesystem.ExtractFilesystem(fsDest);
-                    Console.WriteLine(success
-                        ? "Extracted files successfully."
-                        : "Error: there was a problem extracting the files from the XVD.");
-                    if (!success)
-                        return;
-                }
-            }
-
-            file.Dispose();
+            xvdFile.Dispose();
         }
 
         static IEnumerable<string> ScanFolderForXvds(string folderPath, bool recursive)

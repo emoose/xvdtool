@@ -38,6 +38,7 @@ namespace LibXboxOne
 
         public static bool DisableDataHashChecking = false;
         public static bool PrintProgressToConsole = false;
+        public static bool DisableSaveAfterModification = false;
 
         public XvdHeader Header;
         public XvcInfo XvcInfo;
@@ -433,7 +434,9 @@ namespace LibXboxOne
                 return false;
 
             Header.VolumeFlags ^= XvdVolumeFlags.EncryptionDisabled;
-            Save();
+
+            if (!DisableSaveAfterModification)
+                return Save();
 
             return true;
         }
@@ -507,7 +510,8 @@ namespace LibXboxOne
                 Header.VolumeFlags ^= XvdVolumeFlags.ReadOnly;
             }
 
-            Save();
+            if (!DisableSaveAfterModification)
+                return Save();
 
             return true;
         }
@@ -705,7 +709,10 @@ namespace LibXboxOne
 
             // todo: calculate hash tree
 
-            return Save();
+            if (!DisableSaveAfterModification)
+                return Save();
+
+            return true;
         }
 
         internal bool AddData(ulong offset, ulong numPages)
@@ -826,7 +833,10 @@ namespace LibXboxOne
             WriteBytes((long)MduOffset, mutableData);
             Header.MutableDataPageCount = (byte)pageCount;
 
-            return Save();
+            if (!DisableSaveAfterModification)
+                return Save();
+
+            return true;
         }
 
         public bool RemoveMutableData()
@@ -839,7 +849,10 @@ namespace LibXboxOne
 
             Header.MutableDataPageCount = 0;
 
-            return Save();
+            if (!DisableSaveAfterModification)
+                return Save();
+
+            return true;
         }
 
         public bool RemoveHashTree()
@@ -855,7 +868,10 @@ namespace LibXboxOne
             for (int i = 0; i < Header.TopHashBlockHash.Length; i++)
                 Header.TopHashBlockHash[i] = 0;
 
-            return Save();
+            if (!DisableSaveAfterModification)
+                return Save();
+
+            return true;
         }
 
         public ulong CalculateHashEntryOffsetForBlock(ulong blockNum, uint hashLevel)
