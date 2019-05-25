@@ -123,6 +123,8 @@ namespace LibXboxOne
                                         XvdFile.LEGACY_SECTOR_SIZE :
                                         XvdFile.SECTOR_SIZE;
 
+        public bool IsMagicValid => Enumerable.SequenceEqual(Magic, "msft-xvd");
+
         public bool IsSigned
         {
             get
@@ -581,6 +583,60 @@ namespace LibXboxOne
 
             if (!ReservedD54.IsArrayEmpty())
                 b.AppendLineSpace(fmt + $"ReservedD54: {Environment.NewLine}{fmt}{ReservedD54.ToHexString()}");
+
+            return b.ToString();
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
+    public struct XvdpHeader
+    {
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x04)]
+        /* 0x0 */ public char[] Magic;
+        /* 0x04 */ public uint FormatVersion;
+        /* 0x08 */ public uint Unknown8;
+        /* 0x0C */ public uint Unknown12;
+        /* 0x10 */ public uint Unknown16;
+        /* 0x14 */ public uint Unknown20;
+        /* 0x18 */ public uint Unknown24;
+        /* 0x1C */ public uint Unknown28;
+        /* 0x20 */ public uint Unknown32;
+        /* 0x24 */ public uint Unknown36;
+        /* 0x28 */ public uint Unknown40;
+        /* 0x2C */ public uint Unknown44;
+        /* 0x30 */ public uint Unknown48;
+        /* 0x34 */ public uint Unknown52;
+        /* 0x38 */ public uint Unknown56;
+        /* 0x3C */ public uint Unknown60;
+        /* 0x40 */ public uint Unknown64;
+        /* 0x44 */ public uint Unknown68;
+        /* 0x48 */ public uint Unknown72;
+        /* 0x4C */ public uint Unknown76;
+        /* 0x50 */ public uint Unknown80;
+        /* 0x54 */ public uint Unknown84;
+        /* 0x58 */ public uint Unknown88;
+        /* 0x5C */ public uint Unknown92;
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x3A0)]
+        /* 0x60 */ public byte[] Reserved;
+
+        /* END 0x400 */
+
+        public bool IsMagicValid => Enumerable.SequenceEqual(Magic, "PDVX");
+
+        public override string ToString()
+        {
+            return ToString(false);
+        }
+
+        public string ToString(bool formatted)
+        {
+            var b = new StringBuilder();
+            b.AppendLine("XvdpHeader:");
+
+            string fmt = formatted ? "    " : "";
+
+            b.AppendLineSpace(fmt + $"FormatVersion: {FormatVersion}");
 
             return b.ToString();
         }

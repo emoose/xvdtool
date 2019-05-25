@@ -652,17 +652,41 @@ namespace XVDTool
                 return fileModified;
             }
 
-            var xvdFile = new XvdFile(filePath)
+            if (IsXvdpFile(filePath))
             {
-                OverrideOdk = odkToUse
-            };
+                Console.WriteLine("XVDP File detected!");
+                using (var xvdp = new XvdpFile(filePath))
+                {
+                    if (!xvdp.Load())
+                        return;
 
-            xvdFile.Load();
+                    PerformActions(xvdp.XvdFile);
+                }
+                return;
+            }
 
-            if (PerformActions(xvdFile)) // PerformActions returns true if file has been modified
-                xvdFile.Save();
+            using (var xvdFile = new XvdFile(filePath) { OverrideOdk = odkToUse })
+            {
+                if(!xvdFile.Load())
+                {
+                    Console.WriteLine("Failed to load XVD!");
+                    xvdFile.Dispose();
+                    return;
+                }
 
-            xvdFile.Dispose();
+                if (PerformActions(xvdFile)) // PerformActions returns true if file has been modified
+                    xvdFile.Save();
+            }
+        }
+
+        static bool IsXvdpFile(string filePath)
+        {
+            using (var fs = File.Open(filePath, FileMode.Open))
+            using (var br = new BinaryReader(fs))
+            {
+                var magic = br.ReadUInt32();
+                return magic == XvdpFile.Magic;
+            }
         }
 
         static IEnumerable<string> ScanFolderForXvds(string folderPath, bool recursive)

@@ -139,6 +139,13 @@ namespace LibXboxOne
             OverrideOdk = OdkIndex.Invalid;
         }
 
+        public XvdFile(Stream stream)
+        {
+            FilePath = "<from stream>";
+            _io = new IO(stream);
+            OverrideOdk = OdkIndex.Invalid;
+        }
+
         public uint ReadBat(ulong requestedBlock)
         {
             ulong absoluteAddress = DynamicHeaderOffset + (requestedBlock * sizeof(uint));
@@ -561,6 +568,12 @@ namespace LibXboxOne
         {
             _io.Stream.Position = 0;
             Header = _io.Reader.ReadStruct<XvdHeader>();
+
+            if (!Header.IsMagicValid)
+            {
+                Console.WriteLine($"XvdFile.Load: Invalid Magic");
+                return false;
+            }
 
             CikIsDecrypted = !IsEncrypted;
 
