@@ -658,8 +658,12 @@ namespace XVDTool
                 using (var xvdp = new XvdpFile(filePath))
                 {
                     if (!xvdp.Load())
+                    {
+                        Console.WriteLine("Failed to load XVDP!");
                         return;
+                    }
 
+                    Console.WriteLine(xvdp.Header);
                     PerformActions(xvdp.XvdFile);
                 }
                 return;
@@ -670,7 +674,6 @@ namespace XVDTool
                 if(!xvdFile.Load())
                 {
                     Console.WriteLine("Failed to load XVD!");
-                    xvdFile.Dispose();
                     return;
                 }
 

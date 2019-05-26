@@ -600,9 +600,9 @@ namespace LibXboxOne
         /* 0x14 */ public uint Unknown20;
         /* 0x18 */ public uint Unknown24;
         /* 0x1C */ public uint Unknown28;
-        /* 0x20 */ public uint Unknown32;
+        /* 0x20 */ public uint DataSize;
         /* 0x24 */ public uint Unknown36;
-        /* 0x28 */ public uint Unknown40;
+        /* 0x28 */ public uint FooterSize;
         /* 0x2C */ public uint Unknown44;
         /* 0x30 */ public uint Unknown48;
         /* 0x34 */ public uint Unknown52;
@@ -622,11 +622,12 @@ namespace LibXboxOne
 
         /* END 0x400 */
 
+        public ulong FileSizeFromHeader => DataSize + FooterSize;
         public bool IsMagicValid => Enumerable.SequenceEqual(Magic, "PDVX");
 
         public override string ToString()
         {
-            return ToString(false);
+            return ToString(true);
         }
 
         public string ToString(bool formatted)
@@ -636,7 +637,17 @@ namespace LibXboxOne
 
             string fmt = formatted ? "    " : "";
 
+            b.AppendLineSpace(fmt + $"Magic: {new string(Magic)}");
             b.AppendLineSpace(fmt + $"FormatVersion: {FormatVersion}");
+            b.AppendLineSpace(fmt + $"Unknown8: {Unknown8} (0x{Unknown8:X})");
+            b.AppendLineSpace(fmt + $"DataSize: {DataSize} (0x{DataSize:X})");
+            b.AppendLineSpace(fmt + $"FooterSize: {FooterSize} (0x{FooterSize:X})");
+            b.AppendLineSpace(fmt + $"Unknown48: {Unknown48} (0x{Unknown48:X})");
+            b.AppendLineSpace(fmt + $"Unknown56: {Unknown56} (0x{Unknown56:X})");
+            b.AppendLineSpace(fmt + $"Unknown72: {Unknown72} (0x{Unknown72:X})");
+            b.AppendLine();
+            b.AppendLineSpace(fmt + $"FileSize: {FileSizeFromHeader} (0x{FileSizeFromHeader:X})");
+            
 
             return b.ToString();
         }
