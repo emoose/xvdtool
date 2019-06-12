@@ -608,7 +608,7 @@ namespace LibXboxOne
         /* 0x34 */ public uint Unknown52;
         /* 0x38 */ public uint Unknown56;
         /* 0x3C */ public uint Unknown60;
-        /* 0x40 */ public uint Unknown64;
+        /* 0x40 */ public uint Unknown64; // Byte / Flag
         /* 0x44 */ public uint Unknown68;
         /* 0x48 */ public uint Unknown72;
         /* 0x4C */ public uint Unknown76;
