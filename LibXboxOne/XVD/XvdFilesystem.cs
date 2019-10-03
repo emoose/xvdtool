@@ -98,25 +98,6 @@ namespace LibXboxOne
             return partitionTable;
         }
 
-        Stream GetPatchedNtfsPartitionStream(Stream inStream)
-        {
-            /* Workaround:
-            * Wrap the NTFS filesystem stream  in a SnapshotStream to override
-            * BiosParamaterBlock's SignatureByte in memory for DiscUtils to accept
-            * the stream.
-            *
-            * See: https://github.com/DiscUtils/DiscUtils/issues/146
-            */
-            var snapshotStream = new DiscUtils.Streams.SnapshotStream(inStream, Ownership.None);
-
-            snapshotStream.Snapshot();
-            snapshotStream.Seek(0x26, SeekOrigin.Begin);
-            snapshotStream.WriteByte(0x80);
-            /* Workaround end */
-
-            return snapshotStream;
-        }
-
         IEnumerable<DiscUtils.DiscFileInfo> IterateFilesystem(int partitionNumber)
         {
             IEnumerable<DiscUtils.DiscFileInfo> IterateSubdir(DiscUtils.DiscDirectoryInfo subdir)
@@ -148,9 +129,8 @@ namespace LibXboxOne
                 yield break;
             }
 
-            using (var fsStream = disk.Partitions[partitionNumber].Open())
+            using (var partitionStream = disk.Partitions[partitionNumber].Open())
             {
-                var partitionStream = GetPatchedNtfsPartitionStream(fsStream);
                 NtfsFileSystem fs = new DiscUtils.Ntfs.NtfsFileSystem(partitionStream);
 
                 foreach(var file in IterateSubdir(fs.Root))
