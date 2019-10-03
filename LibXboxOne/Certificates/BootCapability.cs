@@ -5,6 +5,9 @@ namespace LibXboxOne.Certificates
 {
     public enum BootCapability : ushort
     {
+        CERT_CAP_NONE = 0x0000,
+        CERT_CAP_DELETED = 0xFFFF,
+
         CERT_CAP_SRA_DEVKIT = 0x2001,
         CERT_CAP_SRA_DEVKIT_DEBUG = 0x2002,
         CERT_CAP_SRA_FILE_IO = 0x2003,

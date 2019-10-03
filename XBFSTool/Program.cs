@@ -11,11 +11,13 @@ namespace XBFSTool
         {
             var printHelp = false;
             var printInfo = false;
+            var printCertInfo = false;
             var outputFolder = String.Empty;
 
             var p = new OptionSet {
                 { "h|?|help", "Show this help and exit", v => printHelp = v != null },
                 { "i|info", "Print info about nand dump", v => printInfo = v != null },
+                { "c|certinfo", "Print certificate info", v => printCertInfo = v != null },
                 { "x|extract=", "Specify {OUTPUT DIRECTORY} for extracted files", v => outputFolder = v }
             };
 
@@ -38,6 +40,7 @@ namespace XBFSTool
             }
 
             Console.WriteLine("xbfstool 0.1: Xbox boot filesystem tool");
+            Console.WriteLine();
             if (printHelp || extraArgs.Count <= 0)
             {
                 Console.WriteLine("Usage  : xbfstool.exe [parameters] [filepath]");
@@ -51,6 +54,15 @@ namespace XBFSTool
             var filePath = extraArgs[0];
             var xbfs = new XbfsFile(filePath);
             xbfs.Load();
+
+            if (printCertInfo)
+            {
+                var consoleCert = xbfs.ReadPspConsoleCertificate();
+                var bootcapCert = xbfs.ReadBootcapCertificate();
+
+                Console.WriteLine(consoleCert != null ? consoleCert.ToString() : "No PspConsoleCertificate available");
+                Console.WriteLine(bootcapCert != null ? bootcapCert.ToString() : "No BootCapabilityCertificate available");
+            }
 
             if (printInfo)
             {

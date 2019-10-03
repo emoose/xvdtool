@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace LibXboxOne.Certificates
 {
@@ -15,6 +16,14 @@ namespace LibXboxOne.Certificates
         public UInt16 ProtocolVer;  // unknown
 
         public UInt32 IssueDate;   // POSIX time
+
+        public DateTime IssueDateTime
+        {
+            get
+            {
+                return DateTime.UnixEpoch.AddSeconds(IssueDate);
+            }
+        }
 
         public UInt32 PspRevisionId; // PSP Version
 
@@ -70,6 +79,42 @@ namespace LibXboxOne.Certificates
             {
                 return new string(ConsolePartNumber);
             }
+        }
+
+                public override string ToString()
+        {
+            return ToString(false);
+        }
+
+        public string ToString(bool formatted)
+        {
+            string fmt = formatted ? "    " : "";
+
+            var b = new StringBuilder();
+            b.AppendLineSpace("PspConsoleCert:");
+            b.AppendLineSpace(fmt + $"StructId: 0x{StructID:X}");
+            b.AppendLineSpace(fmt + $"Size: {Size} (0x{Size:X})");
+            b.AppendLineSpace(fmt + $"IssuerKeyId: {IssuerKeyId} (0x{IssuerKeyId:X})");
+            b.AppendLineSpace(fmt + $"ProtocolVer: {ProtocolVer} (0x{ProtocolVer:X})");
+            b.AppendLineSpace(fmt + $"IssueDateTime: {IssueDateTime} ({IssueDate})");
+            b.AppendLineSpace(fmt + $"PspRevisionId: {PspRevisionId} (0x{PspRevisionId:X})");
+            b.AppendLineSpace(fmt + $"SocId: {SocId.ToHexString()}");
+            b.AppendLineSpace(fmt + $"GenerationId: {GenerationId} (0x{GenerationId:X})");
+            b.AppendLineSpace(fmt + $"ConsoleRegion: {ConsoleRegion} (0x{ConsoleRegion:X})");
+            b.AppendLineSpace(fmt + $"ReservedByte: {ReservedByte} (0x{ReservedByte:X})");
+            b.AppendLineSpace(fmt + $"ReservedDword: {ReservedDword} (0x{ReservedDword:X})");
+            b.AppendLineSpace(fmt + $"VendorId: {VendorId.ToHexString()}");
+            b.AppendLineSpace(fmt + $"AttestationPubKey: {Environment.NewLine}{fmt}{AttestationPubKey.ToHexString()}");
+            b.AppendLineSpace(fmt + $"ReservedPublicKey: {Environment.NewLine}{fmt}{ReservedPublicKey.ToHexString()}");
+            b.AppendLineSpace(fmt + $"ConsoleSerialNumberString: {ConsoleSerialNumberString}");
+            b.AppendLineSpace(fmt + $"ConsoleSku: {ConsoleSku.ToHexString()}");
+            b.AppendLineSpace(fmt + $"ConsoleSettingsHash: {ConsoleSettingsHash.ToHexString(String.Empty)}");
+            b.AppendLineSpace(fmt + $"ConsolePartNumberString: {ConsolePartNumberString}");
+            b.AppendLineSpace(fmt + $"SomeData: {SomeData.ToHexString()}");
+            b.AppendLineSpace(fmt + $"RsaSignature:  {Environment.NewLine}{fmt}{RsaSignature.ToHexString()}");
+
+            b.AppendLine();
+            return b.ToString();
         }
     }
 }
