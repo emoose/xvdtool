@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net472</TargetFrameworks>
+    <TargetFrameworks>netstandard2.1</TargetFrameworks>
   </PropertyGroup>
   <ItemGroup>
     <Folder Include="NAND\" />
@@ -16,7 +16,6 @@
     <PackageReference Include="Portable.BouncyCastle" Version="1.8.5" />
     <PackageReference Include="DiscUtils.Ntfs" Version="0.14.2-alpha" />
     <PackageReference Include="DiscUtils.Vhd" Version="0.14.2-alpha" />
-    <PackageReference Include="Microsoft.Packaging.Tools.Trimming" Version="1.1.0-preview1-26619-01" />
   </ItemGroup>
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">

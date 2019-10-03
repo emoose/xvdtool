@@ -1,18 +1,18 @@
 language: csharp
 mono: none
-dotnet: 2.2.105
+dotnet: 3.0.100
 os: linux
 dist: xenial
 
 script:
 - dotnet restore
-- dotnet test -f netcoreapp2.2 LibXboxOne.Tests
-- dotnet build -c Release -f netcoreapp2.2 XVDTool
-- dotnet build -c Release -f netcoreapp2.2 XBFSTool
-- dotnet build -c Release -f netcoreapp2.2 DurangoKeyExtractor
+- dotnet test LibXboxOne.Tests
+- dotnet build -c Release XVDTool
+- dotnet build -c Release XBFSTool
+- dotnet build -c Release DurangoKeyExtractor
 
 before_deploy:
-- for rid in {osx.10.12-x64,linux-x64,win-x64,win-x86}; do ./build_release.sh $rid $TRAVIS_BRANCH netcoreapp2.2; done
+- for rid in {osx.10.12-x64,linux-x64,win-x64,win-x86}; do ./build_release.sh $rid $TRAVIS_BRANCH; done
 
 deploy:
   - provider: releases
