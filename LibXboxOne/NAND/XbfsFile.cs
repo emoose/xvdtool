@@ -51,7 +51,6 @@ namespace LibXboxOne.Nand
         private readonly IO _io;
 
         public List<XbfsHeader> XbfsHeaders;
-        public Certificates.PspConsoleCert ConsoleCert;
 
         public readonly string FilePath;
 
@@ -71,20 +70,14 @@ namespace LibXboxOne.Nand
             return (uint)(offset / BlockSize);
         }
 
-        public bool Load()
+        public Certificates.PspConsoleCert? ReadPspConsoleCertificate()
         {
-            // read each XBFS header
-            XbfsHeaders = new List<XbfsHeader>();
-            foreach (int offset in XbfsOffsets)
-            {
-                _io.Stream.Position = offset;
-                var header = _io.Reader.ReadStruct<XbfsHeader>();
-                XbfsHeaders.Add(header);
-            }
+            if (XbfsHeaders == null || XbfsHeaders.Count == 0)
+                return null;
 
             long spDataSize = SeekToFile("sp_s.cfg");
             if (spDataSize <= 0)
-                return true;
+                return null;
 
             // SP_S.cfg: (secure processor secured config? there's also a blank sp_d.cfg which is probably secure processor decrypted config)
             // 0x0    - 0x200   - signature?
@@ -98,8 +91,31 @@ namespace LibXboxOne.Nand
             // 0x7410 - 0x40000 - blank
 
             _io.Stream.Position += 0x5400; // seek to start of unencrypted data in sp_s (console certificate)
-            ConsoleCert = _io.Reader.ReadStruct<Certificates.PspConsoleCert>();
+            return _io.Reader.ReadStruct<Certificates.PspConsoleCert>();
+        }
 
+        public Certificates.BootCapabilityCert? ReadBootcapCertificate()
+        {
+            if (XbfsHeaders == null || XbfsHeaders.Count == 0)
+                return null;
+
+            long spDataSize = SeekToFile("certkeys.bin");
+            if (spDataSize <= 0)
+                return null;
+
+            return _io.Reader.ReadStruct<Certificates.BootCapabilityCert>();
+        }
+
+        public bool Load()
+        {
+            // read each XBFS header
+            XbfsHeaders = new List<XbfsHeader>();
+            foreach (int offset in XbfsOffsets)
+            {
+                _io.Stream.Position = offset;
+                var header = _io.Reader.ReadStruct<XbfsHeader>();
+                XbfsHeaders.Add(header);
+            }
             return true;
         }
 
