@@ -1,4 +1,7 @@
-# xvdtool [![Build status](https://api.travis-ci.com/emoose/xvdtool.svg?branch=master)](https://travis-ci.com/emoose/xvdtool)
+# xvdtool
+
+[![GitHub Workflow - Build](https://img.shields.io/github/workflow/status/emoose/xvdtool/build?label=build)](https://github.com/emoose/xvdtool/actions?query=workflow%3Abuild)
+[![Build status](https://api.travis-ci.com/emoose/xvdtool.svg?branch=master)](https://travis-ci.com/emoose/xvdtool)
 
 xvdtool is a C# command-line utility for manipulating Xbox One XVD/XVC packages. It can print detailed info about package headers, resign, rehash, en/decrypt and verify data integrity of a package, it can also convert decrypted XVD files to VHD or extract the filesystem itself.
 
