@@ -25,7 +25,7 @@ mkdir release
 # Publish builds
 for proj in {XVDTool,XBFSTool,DurangoKeyExtractor}
 do
-    dotnet publish $PUBLISH_ARGS -c Release -r $RID -f netcoreapp3.0 -o publish-$RID $proj --self-contained false
+    dotnet publish $PUBLISH_ARGS -c Release -r $RID -f netcoreapp3.1 -o publish-$RID $proj --self-contained false
 done
 
 # Bundle additional files
