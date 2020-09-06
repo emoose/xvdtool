@@ -21,6 +21,7 @@ namespace LibXboxOne
         Geometry DiskGeometry =>
             Geometry.FromCapacity((long)FilesystemSize, (int)SectorSize);
         
+        const long CHUNK_SIZE = (16 * 1024 * 1024); // 16 MB
 
         public XvdFilesystem(XvdFile file)
         {
@@ -163,13 +164,16 @@ namespace LibXboxOne
                 {
                     using(var dstFs = File.Create(destFile))
                     {
-                        var data = new byte[srcFile.Length];
+                        while(dstFs.Length < srcFile.Length)
+                        {
+                            var readSize = Math.Min(CHUNK_SIZE, srcFile.Length - srcFile.Position);
+                            var data = new byte[readSize];
+                            if (srcFile.Read(data, 0, data.Length) != data.Length)
+                                throw new InvalidOperationException(
+                                    $"Failed to read {srcFile} from raw image");
 
-                        if (srcFile.Read(data, 0, data.Length) != data.Length)
-                            throw new InvalidOperationException(
-                                $"Failed to read {srcFile} from raw image");
-
-                        dstFs.Write(data, 0, data.Length);
+                            dstFs.Write(data, 0, data.Length);
+                        }
                     }
                 }
             }
