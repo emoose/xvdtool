@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - General: <add stuff>
 
+## [0.53] - 2020-09-11
+### Fixed
+- XVDTool: OverflowError on "-xf" / extract files for big files
+
 ## [0.52] - 2020-08-10
 ### Added
 - General: Start using CHANGELOG.md
