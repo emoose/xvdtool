@@ -13,6 +13,7 @@ namespace XVDTool
 {
     class Program
     {
+        static string AppVersion => LibXboxOne.Common.AppVersion;
         static readonly string AppName = "xvdtool";
         static void EnsureConfigDirectoryStructure(string basePath)
         {
@@ -131,7 +132,7 @@ namespace XVDTool
                 return;
             }
 
-            Console.WriteLine("xvdtool 0.5: XVD file manipulator");
+            Console.WriteLine($"XVDTool {AppVersion}: XVD file manipulator");
 
             if (printHelp || (String.IsNullOrEmpty(fileList) && String.IsNullOrEmpty(folder) && !listKeys && extraArgs.Count <= 0))
             {
