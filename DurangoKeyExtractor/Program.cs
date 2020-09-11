@@ -7,6 +7,8 @@ namespace DurangoKeyExtractor
 {
     class Program
     {
+        static string AppVersion => LibXboxOne.Common.AppVersion;
+
         static void Main(string[] args)
         {
             var printHelp = false;
@@ -36,7 +38,7 @@ namespace DurangoKeyExtractor
                 Console.WriteLine();
             }
 
-            Console.WriteLine("durangokeyextractor 0.1: Durango key extractor");
+            Console.WriteLine($"DurangoKeyExtractor {AppVersion}: Durango key extractor");
             if (printHelp || extraArgs.Count <= 0)
             {
                 Console.WriteLine("Usage  : durangokeyextractor.exe [parameters] [filepath]");

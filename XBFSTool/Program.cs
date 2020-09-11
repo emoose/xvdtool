@@ -7,6 +7,8 @@ namespace XBFSTool
 {
     class Program
     {
+        static string AppVersion => LibXboxOne.Common.AppVersion;
+
         static void Main(string[] args)
         {
             var printHelp = false;
@@ -39,7 +41,7 @@ namespace XBFSTool
                 Console.WriteLine();
             }
 
-            Console.WriteLine("xbfstool 0.1: Xbox boot filesystem tool");
+            Console.WriteLine($"XBFSTool {AppVersion}: Xbox boot filesystem tool");
             Console.WriteLine();
             if (printHelp || extraArgs.Count <= 0)
             {
