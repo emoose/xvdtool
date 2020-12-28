@@ -2,6 +2,9 @@
 
 [![GitHub Workflow - Build](https://img.shields.io/github/workflow/status/emoose/xvdtool/build?label=build)](https://github.com/emoose/xvdtool/actions?query=workflow%3Abuild)
 
+⚠️ No support for leaked files or copyrighted source code is provided, issues or pull requests will be closed without further comment. ⚠️
+
+
 xvdtool is a C# command-line utility for manipulating Xbox One XVD/XVC packages. It can print detailed info about package headers, resign, rehash, en/decrypt and verify data integrity of a package, it can also convert decrypted XVD files to VHD or extract the filesystem itself.
 
 So far it's only been tested with dev-crypted packages (which use a different 256-bit **Offline Distribution Key (ODK)** to retail packages), as the retail key is still unknown. **This currently makes the tool useless for 90% of people**, but developers looking into how XVD files work will find a detailed mapping of the XVD structures and near-complete methods for manipulating them.
