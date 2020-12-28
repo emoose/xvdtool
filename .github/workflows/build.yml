@@ -89,24 +89,6 @@ jobs:
       run: dotnet restore
     - name: Create publishable builds
       run: dotnet publish --no-restore --configuration Release ${{ needs.prepare.outputs.CommonBuildArgs }}
-    - name: Create publishable multi platform builds
-      shell: bash
-      run: |
-        for rid in linux-x64 win-x64 win-x86 osx-x64
-        do
-          release_name="XVDTool-${{ needs.prepare.outputs.AssemblySemVer }}-${rid}"
-          output_dir="release-${rid}"
-
-          for proj in XVDTool XBFSTool DurangoKeyExtractor
-          do
-            dotnet publish --configuration Release ${proj}/${proj}.csproj /p:PublishSingleFile=true --self-contained false --framework netcoreapp3.1 --runtime "${rid}" -o "${output_dir}" ${{ needs.prepare.outputs.CommonBuildArgs }}
-          done
-          
-          # Pack files
-          7z a -tzip "${release_name}.zip" "./${output_dir}/*" ./README.md ./xvd_info.md ./CHANGELOG.md
-          # Delete output directory
-          rm -r "$output_dir"
-        done
     - name: Copy files
       run: |
         mkdir ./release
