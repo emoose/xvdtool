@@ -76,7 +76,7 @@ jobs:
     - name: Publish
       run: dotnet publish --configuration Release --no-restore --output ./release ${{ needs.prepare.outputs.CommonBuildArgs }}
     - name: Generate zip
-      run: 7za a -tzip XVDTool-${{ needs.prepare.outputs.AssemblySemVer }}.zip ./release/* ./README.md ./xvd_info.md ./CHANGELOG.md
+      run: zip -j XVDTool-${{ needs.prepare.outputs.AssemblySemVer }}.zip ./release/* ./README.md ./xvd_info.md ./CHANGELOG.md
     - name: Upload Artifacts
       uses: actions/upload-artifact@v2
       with:
