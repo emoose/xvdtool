@@ -91,7 +91,7 @@ jobs:
     - name: Download artifact
       uses: actions/download-artifact@v2
       with:
-	name: XVDTool-${{ needs.prepare.outputs.SemVer }}-${{ needs.prepare.outputs.ShortSha }}.zip
+        name: XVDTool-${{ needs.prepare.outputs.SemVer }}-${{ needs.prepare.outputs.ShortSha }}.zip
     - name: List downloaded artifact
       run: ls -alh .
 
