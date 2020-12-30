@@ -81,7 +81,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: XVDTool-${{ needs.prepare.outputs.SemVer }}-${{ needs.prepare.outputs.ShortSha }}.zip
-        path: ./release/
+        path: XVDTool-${{ needs.prepare.outputs.AssemblySemVer }}.zip
 
   create_release:
     runs-on: ubuntu-latest
