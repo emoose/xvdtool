@@ -73,36 +73,14 @@ jobs:
       run: dotnet build --configuration Release --no-restore
     - name: Test
       run: dotnet test --no-restore --verbosity normal
-
-  build_publishable_archives:
-    runs-on: ubuntu-latest
-    needs: [prepare, build_and_test]
-    steps:
-    - name: Setup .NET Core
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: 3.1.101
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'recursive'
-    - name: Install dependencies
-      run: dotnet restore
-    - name: Create publishable builds
-      run: dotnet publish --no-restore --configuration Release ${{ needs.prepare.outputs.CommonBuildArgs }}
-    - name: Copy files
-      run: |
-        mkdir ./release
-        find ./DurangoKeyExtractor/bin/Release/netcoreapp3.1/publish ./XVDTool/bin/Release/netcoreapp3.1/publish ./XBFSTool/bin/Release/netcoreapp3.1/publish -mindepth 1 -type f -printf '%p %f\n' | sort -t ' ' -k 2,2 | uniq -f 1|cut -d' ' -f1 | xargs -I '{}' cp '{}' ./release/
-        cp ./README.md ./xvd_info.md ./CHANGELOG.md ./release/
-    - name: List current directory
-      run: find .
-    - name: Generate zip for release
-      run: |
-        zip -j XVDTool-${{ needs.prepare.outputs.AssemblySemVer }}.zip ./release/*
+    - name: Publish
+      run: dotnet publish --configuration Release --no-restore --output ./release ${{ needs.prepare.outputs.CommonBuildArgs }}
+    - name: Generate zip
+      run: zip -j XVDTool-${{ needs.prepare.outputs.AssemblySemVer }}.zip ./release/* ./README.md ./xvd_info.md ./CHANGELOG.md
     - name: Upload  Artifacts
       uses: actions/upload-artifact@v2
       with:
-        name: XVDTool-${{ needs.prepare.outputs.SemVer }}-${{ needs.prepare.outputs.ShortSha }}.zip
+	name: XVDTool-${{ needs.prepare.outputs.SemVer }}-${{ needs.prepare.outputs.ShortSha }}.zip
         path: ./release/
 
   create_release:
