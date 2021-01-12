@@ -108,6 +108,11 @@ To chose a specific key use the following cmdline switches:
     -cik (-cikguid) <GUID> - Guid of Content Instance key to use
 ```
 
+#### Mounting XVDs
+
+For mounting of XVD/XVC files, you require DLLs from [GamingServices](https://www.microsoft.com/en-us/p/gaming-services/9mwpm2cqnlhn?activetab=pivot:overviewtab) component.
+Download & install it via the Microsoft Store and you should be good to go.
+
 ### Possible locations to store keys
 XVDTool will create configuration/keys folders on first start - Global and local to the app.
 
