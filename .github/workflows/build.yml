@@ -10,114 +10,61 @@ jobs:
       AssemblySemVer: ${{ steps.gitversion.outputs.assemblySemVer }}
       SemVer: ${{ steps.gitversion.outputs.semVer }}
       ShortSha: ${{ steps.gitversion.outputs.shortSha }}
-      CommonBuildArgs: /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemFileVer }} /p:FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }} /p:InformationalVersion=${{ steps.gitversion.outputs.SemVer }}-${{ steps.gitversion.outputs.ShortSha }}
     steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'recursive'
-    - name: Fetch all history for all tags and branches
-      run: git fetch --prune --unshallow
-    - name: Install GitVersion
-      uses: gittools/actions/gitversion/setup@v0.9.7
-      with:
-        versionSpec: '5.6.x'
-    - name: Use GitVersion
-      id: gitversion # step id used as reference for output values
-      uses: gittools/actions/gitversion/execute@v0.9.7
-    - name: Show enumerated Git version strings
-      run: |
-        echo "Major: ${{ steps.gitversion.outputs.major }}"
-        echo "Minor: ${{ steps.gitversion.outputs.minor }}"
-        echo "Patch: ${{ steps.gitversion.outputs.patch }}"
-        echo "PreReleaseTag: ${{ steps.gitversion.outputs.preReleaseTag }}"
-        echo "PreReleaseTagWithDash: ${{ steps.gitversion.outputs.preReleaseTagWithDash }}"
-        echo "PreReleaseLabel: ${{ steps.gitversion.outputs.preReleaseLabel }}"
-        echo "PreReleaseNumber: ${{ steps.gitversion.outputs.preReleaseNumber }}"
-        echo "WeightedPreReleaseNumber: ${{ steps.gitversion.outputs.weightedPreReleaseNumber }}"
-        echo "BuildMetaData: ${{ steps.gitversion.outputs.buildMetaData }}"
-        echo "BuildMetaDataPadded: ${{ steps.gitversion.outputs.buildMetaDataPadded }}"
-        echo "FullBuildMetaData: ${{ steps.gitversion.outputs.fullBuildMetaData }}"
-        echo "MajorMinorPatch: ${{ steps.gitversion.outputs.majorMinorPatch }}"
-        echo "SemVer: ${{ steps.gitversion.outputs.semVer }}"
-        echo "LegacySemVer: ${{ steps.gitversion.outputs.legacySemVer }}"
-        echo "LegacySemVerPadded: ${{ steps.gitversion.outputs.legacySemVerPadded }}"
-        echo "AssemblySemVer: ${{ steps.gitversion.outputs.assemblySemVer }}"
-        echo "AssemblySemFileVer: ${{ steps.gitversion.outputs.assemblySemFileVer }}"
-        echo "FullSemVer: ${{ steps.gitversion.outputs.fullSemVer }}"
-        echo "InformationalVersion: ${{ steps.gitversion.outputs.informationalVersion }}"
-        echo "BranchName: ${{ steps.gitversion.outputs.branchName }}"
-        echo "Sha: ${{ steps.gitversion.outputs.sha }}"
-        echo "ShortSha: ${{ steps.gitversion.outputs.shortSha }}"
-        echo "NuGetVersionV2: ${{ steps.gitversion.outputs.nuGetVersionV2 }}"
-        echo "NuGetVersion: ${{ steps.gitversion.outputs.nuGetVersion }}"
-        echo "NuGetPreReleaseTagV2: ${{ steps.gitversion.outputs.nuGetPreReleaseTagV2 }}"
-        echo "NuGetPreReleaseTag: ${{ steps.gitversion.outputs.nuGetPreReleaseTag }}"
-        echo "VersionSourceSha: ${{ steps.gitversion.outputs.versionSourceSha }}"
-        echo "CommitsSinceVersionSource: ${{ steps.gitversion.outputs.commitsSinceVersionSource }}"
-        echo "CommitsSinceVersionSourcePadded: ${{ steps.gitversion.outputs.commitsSinceVersionSourcePadded }}"
-        echo "CommitDate: ${{ steps.gitversion.outputs.commitDate }}"
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v0.9.9
+        with:
+          versionSpec: x # Latest
+      - name: Use GitVersion
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v0.9.9
 
   build_and_test:
     runs-on: ubuntu-latest
+    outputs:
+      artifact_name: ${{ steps.prepare_artifacts.outputs.artifact_name }}
     needs: prepare
     steps:
-    - name: Setup .NET Core
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: 3.1.101
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'recursive'
-    - name: Install dependencies
-      run: dotnet restore
-    - name: Build
-      run: dotnet build --configuration Release --no-restore
-    - name: Test
-      run: dotnet test --no-restore --verbosity normal
-    - name: Publish
-      run: dotnet publish --configuration Release --no-restore --output ./release ${{ needs.prepare.outputs.CommonBuildArgs }}
-    - name: Generate zip
-      run: zip -j XVDTool-${{ needs.prepare.outputs.AssemblySemVer }}.zip ./release/* ./README.md ./xvd_info.md ./CHANGELOG.md
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v2
-      with:
-        name: XVDTool-${{ needs.prepare.outputs.SemVer }}-${{ needs.prepare.outputs.ShortSha }}.zip
-        path: XVDTool-${{ needs.prepare.outputs.AssemblySemVer }}.zip
+      - uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 3.1.x
+      - uses: actions/checkout@v2
+      - name: Build
+        run: dotnet build -c Release
+      - name: Test
+        run: dotnet test --no-restore
+      - name: Publish
+        run: dotnet publish --no-restore -c Release -o release /p:"AssemblyVersion=${{ steps.gitversion.outputs.assemblySemFileVer }};FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }};InformationalVersion=${{ steps.gitversion.outputs.SemVer }}-${{ steps.gitversion.outputs.ShortSha }}"
+      - name: Prepare artifacts
+        id: prepare_artifacts
+        run: |
+          cp {README,xvd_info,CHANGELOG}.md release
+          echo "::set-output name=artifact_name::XVDTool-${{ needs.prepare.outputs.SemVer }}-${{ needs.prepare.outputs.ShortSha }}"
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ steps.prepare_artifacts.outputs.artifact_name }}
+          path: release
+          if-no-files-found: error
 
   create_release:
     runs-on: ubuntu-latest
     needs: [prepare, build_and_test]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
     steps:
-    - name: Download artifact
+    - name: Download artifacts
       uses: actions/download-artifact@v2
-      with:
-        name: XVDTool-${{ needs.prepare.outputs.SemVer }}-${{ needs.prepare.outputs.ShortSha }}.zip
-    - name: List downloaded artifacts
-      run: ls -alh .
+    - name: Generate zip
+      run: zip -j XVDTool-${{ needs.prepare.outputs.AssemblySemVer }}.zip ${{ needs.build_and_test.outputs.artifact_name }}/*
     - name: Create release (on tag)
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@e99df7cd8088d9c5dddab02bf975f62025a6e760
       with:
+        name: Release ${{ github.ref }}
         tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false
-    - name: Upload Release Asset
-      id: upload-release-asset 
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
-        asset_path: ./XVDTool-${{ needs.prepare.outputs.AssemblySemVer }}.zip
-        asset_name: XVDTool-${{ needs.prepare.outputs.AssemblySemVer }}.zip
-        asset_content_type: application/zip
-    - name: Publish
-      uses: softprops/action-gh-release@v1
-      with:
-        files: "XVDTool-*.zip"
+        files: 'XVDTool-*.zip'
+        fail_on_unmatched_files: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
