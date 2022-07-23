@@ -28,9 +28,9 @@ jobs:
       artifact_name: ${{ steps.prepare_artifacts.outputs.artifact_name }}
     needs: prepare
     steps:
-      - uses: actions/setup-dotnet@v1
+      - uses: actions/setup-dotnet@v2
         with:
-          dotnet-version: 3.1.x
+          dotnet-version: 6.0.x
       - uses: actions/checkout@v2
       - name: Build
         run: dotnet build -c Release
