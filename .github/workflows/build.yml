@@ -11,7 +11,7 @@ jobs:
       SemVer: ${{ steps.gitversion.outputs.semVer }}
       ShortSha: ${{ steps.gitversion.outputs.shortSha }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
       - name: Install GitVersion
@@ -28,10 +28,10 @@ jobs:
       artifact_name: ${{ steps.prepare_artifacts.outputs.artifact_name }}
     needs: prepare
     steps:
-      - uses: actions/setup-dotnet@v2
+      - uses: actions/setup-dotnet@v3
         with:
           dotnet-version: 6.0.x
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Build
         run: dotnet build -c Release
       - name: Test
@@ -44,7 +44,7 @@ jobs:
           cp {README,xvd_info,CHANGELOG}.md release
           echo "::set-output name=artifact_name::XVDTool-${{ needs.prepare.outputs.SemVer }}-${{ needs.prepare.outputs.ShortSha }}"
       - name: Upload artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ steps.prepare_artifacts.outputs.artifact_name }}
           path: release
@@ -56,7 +56,7 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
     steps:
     - name: Download artifacts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
     - name: Generate zip
       run: zip -j XVDTool-${{ needs.prepare.outputs.AssemblySemVer }}.zip ${{ needs.build_and_test.outputs.artifact_name }}/*
     - name: Create release (on tag)
