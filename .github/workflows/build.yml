@@ -42,7 +42,7 @@ jobs:
         id: prepare_artifacts
         run: |
           cp {README,xvd_info,CHANGELOG}.md release
-          echo "::set-output name=artifact_name::XVDTool-${{ needs.prepare.outputs.SemVer }}-${{ needs.prepare.outputs.ShortSha }}"
+          echo "artifact_name=XVDTool-${{ needs.prepare.outputs.SemVer }}-${{ needs.prepare.outputs.ShortSha }}" >> $GITHUB_OUTPUT
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
