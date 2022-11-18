@@ -70,6 +70,30 @@ namespace LibXboxOne.Nand
             return (uint)(offset / BlockSize);
         }
 
+        /// <summary>
+        /// Get Filename for XBFS filename from index
+        /// </summary>
+        /// <param name="index">Index of file</param>
+        /// <returns></returns>
+        public static string GetFilenameForIndex(int index)
+        {
+            if (index >= XbfsFilenames.Length) {
+                return null;
+            }
+
+            return XbfsFilenames[index];
+        }
+
+        /// <summary>
+        /// Get index for XBFS filename from filename
+        /// </summary>
+        /// <param name="name">Filename</param>
+        /// <returns>Returns >= 0 if file is found, -1 otherwise</returns>
+        public static int GetFileindexForName(string name)
+        {
+            return Array.IndexOf(XbfsFilenames, name);
+        }
+
         public Certificates.PspConsoleCert? ReadPspConsoleCertificate()
         {
             if (XbfsHeaders == null || XbfsHeaders.Count == 0)
@@ -122,9 +146,10 @@ namespace LibXboxOne.Nand
         // returns the size of the file if found
         public long SeekToFile(string fileName)
         {
-            int idx = Array.IndexOf(XbfsFilenames, fileName);
+            int idx = GetFileindexForName(fileName);
             if (idx < 0)
                 return 0;
+
             long size = 0;
             for (int i = 0; i < XbfsHeaders.Count; i++)
             {
@@ -185,7 +210,8 @@ namespace LibXboxOne.Nand
                     if (ent.Length == 0)
                         continue;
 
-                    string fileName = $"{FromLBA(ent.LBA):X}_{FromLBA(ent.Length):X}_{i}_{y}_{XbfsFilenames[y]}";
+                    var xbfsFilename = GetFilenameForIndex(y);
+                    string fileName = $"{FromLBA(ent.LBA):X}_{FromLBA(ent.Length):X}_{i}_{y}_{xbfsFilename}";
 
                     long read = 0;
                     long total = FromLBA(ent.Length);
