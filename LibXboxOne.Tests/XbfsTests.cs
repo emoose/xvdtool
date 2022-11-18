@@ -37,5 +37,20 @@ namespace LibXboxOne.Tests
             header.Rehash();
             Assert.True(header.IsHashValid);
         }
+
+        [Fact]
+        public void TestXbfsOutOfBounds()
+        {
+            XbfsHeader header = GetHeader();
+
+            // Write a file entry past the known filenames array
+            header.Files[XbfsFile.XbfsFilenames.Length + 2] = new XbfsEntry(){
+                LBA=0, Length=1, Reserved=0
+            };
+
+            // Call to ToString will print filenames and should
+            // encouter a file that we don't know the filename of
+            header.ToString();
+        }
     }
 }

@@ -76,7 +76,7 @@ namespace LibXboxOne.Nand
                 XbfsEntry entry = Files[i];
                 if (entry.Length == 0)
                     continue;
-                b.AppendLine($"File {i}: {XbfsFile.XbfsFilenames[i]} {entry.ToString(formatted)}");
+                b.AppendLine($"File {i}: {XbfsFile.GetFilenameForIndex(i) ?? "<Unknown>"} {entry.ToString(formatted)}");
             }
 
             return b.ToString();
