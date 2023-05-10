@@ -1,6 +1,6 @@
 # xvdtool
 
-[![GitHub Workflow - Build](https://img.shields.io/github/workflow/status/emoose/xvdtool/build?label=build)](https://github.com/emoose/xvdtool/actions?query=workflow%3Abuild)
+[![GitHub Workflow - Build](https://img.shields.io/github/actions/workflow/status/emoose/xvdtool/build.yml?branch=master)](https://github.com/emoose/xvdtool/actions?query=workflow%3Abuild)
 
 ⚠️ No support for leaked files or copyrighted source code is provided, issues or pull requests will be closed without further comment. ⚠️
 
