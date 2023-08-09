@@ -31,7 +31,7 @@ namespace LibXboxOne.Tests
         public void TestXbfsHeaderRehash()
         {
             XbfsHeader header = GetHeader();
-            header.Files[0].Length = 123;
+            header.Files[0].BlockCount = 123;
 
             Assert.False(header.IsHashValid);
             header.Rehash();
@@ -45,7 +45,7 @@ namespace LibXboxOne.Tests
 
             // Write a file entry past the known filenames array
             header.Files[XbfsFile.XbfsFilenames.Length + 2] = new XbfsEntry(){
-                LBA=0, Length=1, Reserved=0
+                LBA=0, BlockCount=1, Reserved=0
             };
 
             // Call to ToString will print filenames and should
