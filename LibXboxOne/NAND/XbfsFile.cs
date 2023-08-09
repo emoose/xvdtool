@@ -24,7 +24,7 @@ namespace LibXboxOne.Nand
         public static readonly int SeriesOffsetDiff = 0x6000;
         public static readonly int BlockSize = 0x1000;
         public static readonly int[] XbfsOffsetsXboxOne = { 0x1_0000, 0x81_0000, 0x82_0000 };
-        public static readonly int[] XbfsOffsetsXboxSeries = { 0x1800_8000 };
+        public static readonly int[] XbfsOffsetsXboxSeries = { 0x0, 0x1800_8000 };
         public static string[] XbfsFilenames =
         {
             "1smcbl_a.bin", // 0
