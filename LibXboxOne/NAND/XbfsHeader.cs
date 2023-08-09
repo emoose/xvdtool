@@ -68,7 +68,7 @@ namespace LibXboxOne.Nand
             b.AppendLineSpace(fmt + $"Reserved18: 0x{Reserved18:X}");
             b.AppendLineSpace(fmt + $"Reserved3C0: {Reserved3C0.ToHexString()}");
             b.AppendLineSpace(fmt + $"System XVID: {SystemXVID}");
-            b.AppendLineSpace(fmt + $"XBFS header hash: {Environment.NewLine}{fmt}{XbfsHash.ToHexString()}");
+            b.AppendLineSpace(fmt + $"XBFS header hash: {Environment.NewLine}{fmt}{XbfsHash.ToHexString()} (Valid: {IsHashValid})");
             b.AppendLine();
 
             for(int i = 0; i < Files.Length; i++)

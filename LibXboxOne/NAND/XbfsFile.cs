@@ -6,10 +6,25 @@ using System.Linq;
 
 namespace LibXboxOne.Nand
 {
+    public enum XbfsFlavor {
+        XboxOne,
+        XboxSeries,
+        Invalid,
+    }
+
+    public enum NandSize: ulong
+    {
+        EMMC_LOGICAL = 0x13B00_0000,
+        EMMC_PHYSICAL = 0x13C00_0000,
+        NVME_SERIES = 0x4000_0000,
+    }
+
     public class XbfsFile
     {
+        public static readonly int SeriesOffsetDiff = 0x6000;
         public static readonly int BlockSize = 0x1000;
-        public static readonly int[] XbfsOffsets = { 0x10000, 0x810000, 0x820000 };
+        public static readonly int[] XbfsOffsetsXboxOne = { 0x1_0000, 0x81_0000, 0x82_0000 };
+        public static readonly int[] XbfsOffsetsXboxSeries = { 0x0, 0x1800_8000 };
         public static string[] XbfsFilenames =
         {
             "1smcbl_a.bin", // 0
@@ -50,9 +65,12 @@ namespace LibXboxOne.Nand
 
         private readonly IO _io;
 
+        public XbfsFlavor Flavor = XbfsFlavor.Invalid;
+        public int[] HeaderOffsets;
         public List<XbfsHeader> XbfsHeaders;
 
         public readonly string FilePath;
+        public long FileSize => _io.Stream.Length;
 
         public XbfsFile(string path)
         {
@@ -60,14 +78,13 @@ namespace LibXboxOne.Nand
             _io = new IO(path);
         }
 
-        public static long FromLBA(uint lba)
-        {
-            return lba * BlockSize;
-        }
-
-        public static uint ToLBA(long offset)
-        {
-            return (uint)(offset / BlockSize);
+        public static XbfsFlavor FlavorFromSize(long size) {
+            return size switch
+            {
+                (long)NandSize.EMMC_LOGICAL or (long)NandSize.EMMC_PHYSICAL => XbfsFlavor.XboxOne,
+                (long)NandSize.NVME_SERIES => XbfsFlavor.XboxSeries,
+                _ => XbfsFlavor.Invalid,
+            };
         }
 
         /// <summary>
@@ -132,9 +149,17 @@ namespace LibXboxOne.Nand
 
         public bool Load()
         {
+            Flavor = FlavorFromSize(FileSize);
+
+            HeaderOffsets = Flavor switch {
+                XbfsFlavor.XboxOne => XbfsOffsetsXboxOne,
+                XbfsFlavor.XboxSeries => XbfsOffsetsXboxSeries,
+                _ => throw new InvalidDataException($"Invalid xbfs filesize: {FileSize:X}"),
+            };
+
             // read each XBFS header
             XbfsHeaders = new List<XbfsHeader>();
-            foreach (int offset in XbfsOffsets)
+            foreach (int offset in HeaderOffsets)
             {
                 _io.Stream.Position = offset;
                 var header = _io.Reader.ReadStruct<XbfsHeader>();
@@ -158,10 +183,10 @@ namespace LibXboxOne.Nand
                 if (idx >= XbfsHeaders[i].Files.Length)
                     continue;
                 var ent = XbfsHeaders[i].Files[idx];
-                if (ent.Length == 0)
+                if (ent.BlockCount == 0)
                     continue;
-                _io.Stream.Position = FromLBA(ent.LBA);
-                size = FromLBA(ent.Length);
+                _io.Stream.Position = ent.Offset(Flavor);
+                size = ent.Length;
             }
             return size;
         }
@@ -178,8 +203,8 @@ namespace LibXboxOne.Nand
                     var ent = XbfsHeaders[i].Files[y];
                     if (ent.Length == 0)
                         continue;
-                    long start = FromLBA(ent.LBA);
-                    long length = FromLBA(ent.Length);
+                    long start = ent.Offset(Flavor);
+                    long length = ent.Length;
                     long end = start + length;
                     string addInfo = $"{end:X} {i}_{y}";
                     if (info.ContainsKey(start))
@@ -199,6 +224,11 @@ namespace LibXboxOne.Nand
 
         public void ExtractXbfsData(string folderPath)
         {
+            if (!Directory.Exists(folderPath)) {
+                Console.WriteLine($"Creating output folder for xbfs extraction '{folderPath}'");
+                Directory.CreateDirectory(folderPath);
+            }
+
             var doneAddrs = new List<long>();
             for (int i = 0; i < XbfsHeaders.Count; i++)
             {
@@ -207,15 +237,15 @@ namespace LibXboxOne.Nand
                 for (int y = 0; y < XbfsHeaders[i].Files.Length; y++)
                 {
                     var ent = XbfsHeaders[i].Files[y];
-                    if (ent.Length == 0)
+                    if (ent.BlockCount == 0)
                         continue;
 
                     var xbfsFilename = GetFilenameForIndex(y);
-                    string fileName = $"{FromLBA(ent.LBA):X}_{FromLBA(ent.Length):X}_{i}_{y}_{xbfsFilename}";
+                    string fileName = $"{ent.Offset(Flavor):X}_{ent.Length:X}_{i}_{y}_{xbfsFilename ?? "unknown"}";
 
                     long read = 0;
-                    long total = FromLBA(ent.Length);
-                    _io.Stream.Position = FromLBA(ent.LBA);
+                    long total = ent.Length;
+                    _io.Stream.Position = ent.Offset(Flavor);
 
                     bool writeFile = true;
                     if (doneAddrs.Contains(_io.Stream.Position))
@@ -257,13 +287,15 @@ namespace LibXboxOne.Nand
         {
             var b = new StringBuilder();
             b.AppendLine("XbfsFile");
+            b.AppendLine($"Flavor: {Flavor}");
+            b.AppendLine($"Size: 0x{FileSize:X} ({FileSize / 1024 / 1024} MB)");
             b.AppendLine();
             for (int i = 0; i < XbfsHeaders.Count; i++)
             {
                 if(!XbfsHeaders[i].IsValid)
                     continue;
 
-                b.AppendLine($"XbfsHeader slot {i}: (0x{XbfsOffsets[i]:X})");
+                b.AppendLine($"XbfsHeader slot {i}: (0x{HeaderOffsets[i]:X})");
                 b.Append(XbfsHeaders[i].ToString(formatted));
             }
             return b.ToString();
