@@ -70,6 +70,7 @@ namespace LibXboxOne.Nand
         public List<XbfsHeader> XbfsHeaders;
 
         public readonly string FilePath;
+        public long FileSize => _io.Stream.Length;
 
         public XbfsFile(string path)
         {
@@ -148,12 +149,12 @@ namespace LibXboxOne.Nand
 
         public bool Load()
         {
-            Flavor = FlavorFromSize(_io.Stream.Length);
+            Flavor = FlavorFromSize(FileSize);
 
             HeaderOffsets = Flavor switch {
                 XbfsFlavor.XboxOne => XbfsOffsetsXboxOne,
                 XbfsFlavor.XboxSeries => XbfsOffsetsXboxSeries,
-                _ => throw new InvalidDataException($"Invalid xbfs filesize: {_io.Stream.Length:X}"),
+                _ => throw new InvalidDataException($"Invalid xbfs filesize: {FileSize:X}"),
             };
 
             // read each XBFS header
@@ -286,6 +287,8 @@ namespace LibXboxOne.Nand
         {
             var b = new StringBuilder();
             b.AppendLine("XbfsFile");
+            b.AppendLine($"Flavor: {Flavor}");
+            b.AppendLine($"Size: 0x{FileSize:X} ({FileSize / 1024 / 1024} MB)");
             b.AppendLine();
             for (int i = 0; i < XbfsHeaders.Count; i++)
             {
