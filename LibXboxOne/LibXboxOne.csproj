@@ -10,12 +10,12 @@
     <Folder Include="ThirdParty\" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="System.IO.Packaging" Version="4.5.0" />
+    <PackageReference Include="System.IO.Packaging" Version="7.0.0" />
     <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
-    <PackageReference Include="Microsoft.CSharp" Version="4.5.0" />
-    <PackageReference Include="Portable.BouncyCastle" Version="1.8.5" />
-    <PackageReference Include="DiscUtils.Ntfs" Version="0.15.1-ci0002" />
-    <PackageReference Include="DiscUtils.Vhd" Version="0.15.1-ci0002" />
+    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+    <PackageReference Include="Portable.BouncyCastle" Version="1.9.0" />
+    <PackageReference Include="DiscUtils.Ntfs" Version="0.16.13" />
+    <PackageReference Include="DiscUtils.Vhd" Version="0.16.13" />
   </ItemGroup>
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
