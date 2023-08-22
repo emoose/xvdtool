@@ -103,13 +103,14 @@ namespace LibXboxOne
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            byte[] dataRead;
+            // byte[] dataRead;
 
             if (Position + count > Length)
                 throw new IOException("Desired range out-of-bounds for stream");
             else if (offset + count > buffer.Length)
                 throw new IOException("Target buffer to small to hold read data");
 
+            /*
             else if (_xvdFile.Header.Type == XvdType.Fixed)
                 dataRead = InternalRead(count);
             else if (_xvdFile.Header.Type == XvdType.Dynamic)
@@ -117,6 +118,11 @@ namespace LibXboxOne
 
             else
                 throw new IOException($"Unsupported XvdType: {_xvdFile.Header.Type}");
+            */
+            _xvdFile.VirtualToLogicalDriveOffset((ulong)(Position + offset), out ulong logicalOffset);
+            Position = (long)logicalOffset;
+            // Console.WriteLine("0x{0:X}", Position);
+            var dataRead = InternalReadAbsolute((long)logicalOffset, count);
 
             Array.Copy(dataRead, 0, buffer, offset, count);
             return dataRead.Length;

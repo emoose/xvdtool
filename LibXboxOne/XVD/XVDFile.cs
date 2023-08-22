@@ -212,25 +212,34 @@ namespace LibXboxOne
                     pageNumber = XvdMath.OffsetToPageNumber(dataStartOffset);
                 }
 
-                var dataBackingBlockNum = XvdMath.ComputeDataBackingPageNumber(Header.Type,
+                if (IsDataIntegrityEnabled)
+                {
+                    var dataBackingBlockNum = XvdMath.ComputeDataBackingPageNumber(Header.Type,
                                                                         HashTreeLevels,
                                                                         HashTreePageCount,
                                                                         pageNumber);
-                logicalOffset = XvdMath.PageNumberToOffset(dataBackingBlockNum);
+                    logicalOffset = XvdMath.PageNumberToOffset(dataBackingBlockNum);
+                }
+                else
+                {
+                    logicalOffset = XvdMath.PageNumberToOffset(pageNumber);
+                }
+
                 logicalOffset += XvdMath.InPageOffset(dataStartOffset);
                 logicalOffset += XvdMath.PageNumberToOffset(Header.EmbeddedXvdPageCount);
                 logicalOffset += Header.MutableDataLength;
                 logicalOffset += XVD_HEADER_INCL_SIGNATURE_SIZE;
-                logicalOffset += PAGE_SIZE;
+                // logicalOffset += PAGE_SIZE;
             }
             else
             { // Xvd type fixed
                 logicalOffset = virtualOffset;
-                logicalOffset += XvdMath.PageNumberToOffset(Header.EmbeddedXvdPageCount);
-                logicalOffset += Header.MutableDataLength;
-                logicalOffset += XvdMath.PageNumberToOffset(Header.NumberOfMetadataPages);
-                logicalOffset += XVD_HEADER_INCL_SIGNATURE_SIZE;
-                logicalOffset += PAGE_SIZE;
+                logicalOffset += DriveDataOffset;
+                // logicalOffset += XvdMath.PageNumberToOffset(Header.EmbeddedXvdPageCount);
+                // logicalOffset += Header.MutableDataLength;
+                // logicalOffset += XvdMath.PageNumberToOffset(Header.NumberOfMetadataPages);
+                // logicalOffset += XVD_HEADER_INCL_SIGNATURE_SIZE;
+                // logicalOffset += PAGE_SIZE;
             }
 
             return true;
