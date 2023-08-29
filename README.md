@@ -15,7 +15,7 @@ If you have an Xbox One development kit or GamingServices framework (Windows10-e
 Also included is a tool for extracting files from the XBFS (Xbox Boot File System) inside the Xbox One NAND, based on tuxuser's original [NANDOne](https://github.com/tuxuser/NANDOne) work with a few small additions.
 Thanks Kebob for providing [OpenXvd](https://github.com/Kebob/OpenXvd).
 
-### Usage
+## Usage
 ```
 Usage  : xvdtool.exe [parameters] [filename]
 
@@ -74,7 +74,7 @@ Decrypting XVC packages is a different matter, XVC packages use a **Content Inst
 
 Devkit/test-signed XVC packages use a static CIK which is also "widely known" (Hash provided below).
 
-### Required Files
+## Required Files
 To make full use of this tool you'll need the following files, which **are not included**. The tool will work fine without them, but some functions might not work.
 
 You can use the included tool "DurangoKeyExtractor" to extract these keys from the Microsoft.GamingServices framework available on Windows 10.
@@ -108,12 +108,12 @@ To chose a specific key use the following cmdline switches:
     -cik (-cikguid) <GUID> - Guid of Content Instance key to use
 ```
 
-#### Mounting XVDs
+### Mounting XVDs
 
 For mounting of XVD/XVC files, you require DLLs from [GamingServices](https://www.microsoft.com/en-us/p/gaming-services/9mwpm2cqnlhn?activetab=pivot:overviewtab) component.
 Download & install it via the Microsoft Store and you should be good to go.
 
-### Possible locations to store keys
+## Possible locations to store keys
 XVDTool will create configuration/keys folders on first start - Global and local to the app.
 
 Global configuration folder:
@@ -131,23 +131,47 @@ Inside these folders you can can store your keys to be autoloaded.
 
 Additionally, you can provide keys from arbitrary filesystem locations via the respective cmdline switches: `-signfile, -odkfile, -cikfile`
 
-#### Naming the keys
+### Naming the keys
 For CIK it is not important how the keys are named if they have the binary structure of `[16 byte encryption key GUID][32 byte CIK]`.
 XVD signing keys should have a distinct identifier so you can refer to them via the `-sk (-signkey)` cmdline switch.
 ODK needs to be named either by OdkIndex (`<index>.odk`) or by its identifier: `RedOdk.odk, StandardOdk.odk etc.`
 For detailed up-to-date info refer to: `LibXboxOne/Keys/`
 
-### What are XVDs?
+## What are XVDs?
 XVD packages are a secured file format used by the Xbox One to store data, an analogue to the Xbox 360's STFS packages. XVD files are usually used to store system images/data while XVCs (a slightly modified variant of XVDs) are used to store game data.
 
 For a more detailed explanation of XVD files see xvd_info.md
 
-### Third party libraries used
+## Third party libraries used
 * BouncyCastle (https://www.bouncycastle.org/csharp/)
 * NDesk.Options (http://www.ndesk.org/Options)
 * DiscUtils (https://github.com/DiscUtils/DiscUtils)
 
-### Help / Support
+## Building from source
+
+### Requirements
+
+- [.NET 7.0 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/7.0) - Choose Installer x64 for ease of use
+
+### Building
+
+- After installing the SDK, open up a new powershell window
+- Clone the repository
+```
+git clone https://github.com/emoose/xvdtool
+```
+- Navigate into the directory
+```
+cd xvdtool
+```
+- Build
+```
+dotnet build -c Release
+```
+
+NOTE: If you want to build as DEBUG, either omit `-c Release` or supply `-c Debug` instead.
+
+## Help / Support
 xvdtool has been tested on Windows and MacOS but it should work on all systems supported by .NET Core.
 
 There's no help given for this tool besides this readme, it's also currently **very** experimental and **very** likely to blow up in your face. If you do encounter any bugs please submit a description of what happened to the issue tracker.
