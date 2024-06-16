@@ -11,16 +11,16 @@ jobs:
       SemVer: ${{ steps.gitversion.outputs.semVer }}
       ShortSha: ${{ steps.gitversion.outputs.shortSha }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v0.10.2
+        uses: gittools/actions/gitversion/setup@v1.1.1
         with:
           versionSpec: x # Latest
       - name: Use GitVersion
         id: gitversion
-        uses: gittools/actions/gitversion/execute@v0.10.2
+        uses: gittools/actions/gitversion/execute@v1.1.1
 
   build_and_test:
     runs-on: ubuntu-latest
@@ -28,10 +28,10 @@ jobs:
       artifact_name: ${{ steps.prepare_artifacts.outputs.artifact_name }}
     needs: prepare
     steps:
-      - uses: actions/setup-dotnet@v3
+      - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 7.0
-      - uses: actions/checkout@v3
+          dotnet-version: 8.0
+      - uses: actions/checkout@v4
       - name: Build
         run: dotnet build -c Release
       - name: Test
@@ -44,7 +44,7 @@ jobs:
           cp {README,xvd_info,CHANGELOG}.md release
           echo "artifact_name=XVDTool-${{ needs.prepare.outputs.SemVer }}-${{ needs.prepare.outputs.ShortSha }}" >> $GITHUB_OUTPUT
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.prepare_artifacts.outputs.artifact_name }}
           path: release
@@ -60,7 +60,7 @@ jobs:
     - name: Generate zip
       run: zip -j XVDTool-${{ needs.prepare.outputs.AssemblySemVer }}.zip ${{ needs.build_and_test.outputs.artifact_name }}/*
     - name: Create release (on tag)
-      uses: softprops/action-gh-release@e99df7cd8088d9c5dddab02bf975f62025a6e760
+      uses: softprops/action-gh-release@v2
       with:
         name: Release ${{ github.ref }}
         tag_name: ${{ github.ref }}
