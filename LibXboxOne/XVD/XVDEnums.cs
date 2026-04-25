@@ -10,16 +10,16 @@ namespace LibXboxOne
 
     public enum XvdContentType : uint
     {
-        Data = 0,
-        Title = 1,
-        SystemOS = 2,
-        EraOS = 3,
-        Scratch = 4,
-        ResetData = 5,
-        Application = 6,
-        HostOS = 7,
-        X360STFS = 8,
-        X360FATX = 9,
+        Data = 0x00,
+        Title = 0x01,
+        SystemOS = 0x02,
+        EraOS = 0x03,
+        Scratch = 0x04,
+        ResetData = 0x05,
+        Application = 0x06,
+        HostOS = 0x07,
+        X360STFS = 0x08,
+        X360FATX = 0x09,
         X360GDFX = 0xA,
         Updater = 0xB,
         OfflineUpdater = 0xC,
@@ -41,12 +41,15 @@ namespace LibXboxOne
         TestVolume = 0x1C,
         HardwareTestVolume = 0x1D,
         KioskContent = 0x1E,
+        DevPackage = 0x1F,
         HostProfiler = 0x20,
-        Uwa = 0x21,
-        Unknown22 = 0x22,
-        Unknown23 = 0x23,
-        Unknown24 = 0x24,
-        ServerAgent = 0x25
+        Roamable = 0x21,
+        ThinProvisioned = 0x22,
+        StreamingOnlySRA = 0x23,
+        StreamingOnlyERA = 0x24,
+        StreamingOnlyHost = 0x25,
+        QuickResume = 0x26,
+        HostData = 0x27
     }
 
     [Flags]
